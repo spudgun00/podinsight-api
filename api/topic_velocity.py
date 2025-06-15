@@ -35,8 +35,12 @@ def get_supabase_client() -> Client:
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     
+    # Debug logging
+    logger.info(f"SUPABASE_URL present: {bool(url)}")
+    logger.info(f"SUPABASE_KEY present: {bool(key)}")
+    
     if not url or not key:
-        logger.error("Missing Supabase configuration")
+        logger.error(f"Missing Supabase configuration - URL: {bool(url)}, KEY: {bool(key)}")
         raise ValueError("Supabase configuration not found")
     
     return create_client(url, key)
@@ -47,7 +51,12 @@ async def root():
     return {
         "status": "healthy",
         "service": "PodInsightHQ API",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "env_check": {
+            "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
+            "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY")),
+            "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "not set")
+        }
     }
 
 @app.get("/api/topic-velocity")
