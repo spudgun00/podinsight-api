@@ -6,10 +6,9 @@ from dateutil import parser
 import os
 import logging
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Environment variables are loaded from Vercel dashboard
+# load_dotenv() is not needed in production
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +33,7 @@ app.add_middleware(
 # Initialize Supabase client
 def get_supabase_client() -> Client:
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_ANON_KEY")
+    key = os.environ.get("SUPABASE_KEY")
     
     if not url or not key:
         logger.error("Missing Supabase configuration")
