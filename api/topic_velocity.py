@@ -1,10 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
+from dateutil import parser
 import os
 import logging
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -48,18 +53,18 @@ async def root():
 
 @app.get("/api/topic-velocity")
 async def get_topic_velocity(
-    days: Optional[int] = 30,
+    weeks: Optional[int] = 12,
     topics: Optional[str] = None
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get topic velocity data showing trending topics across podcasts.
     
     Parameters:
-    - days: Number of days to look back (default: 30)
+    - weeks: Number of weeks to return (default: 12)
     - topics: Comma-separated list of specific topics to track (optional)
     
     Returns:
-    - Topic velocity data with trends and mention counts
+    - Topic velocity data formatted for Recharts line chart
     """
     try:
         # Initialize Supabase client
@@ -67,17 +72,16 @@ async def get_topic_velocity(
         
         # Calculate date range
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        start_date = end_date - timedelta(weeks=weeks)
         
-        logger.info(f"Fetching topic velocity for past {days} days")
+        logger.info(f"Fetching topic velocity for past {weeks} weeks")
         
-        # Default topics if none specified
+        # Default topics if none specified (exactly 4 as per playbook)
         default_topics = [
             "AI Agents",
             "Capital Efficiency", 
             "DePIN",
-            "B2B SaaS",
-            "Crypto/Web3"
+            "B2B SaaS"
         ]
         
         # Parse topics parameter
@@ -87,73 +91,90 @@ async def get_topic_velocity(
             topic_list = default_topics
             
         # Query topic mentions from database
-        # This assumes a table structure with topic_mentions
+        # Join with episodes to get publication dates
         response = supabase.table("topic_mentions") \
-            .select("*") \
-            .gte("published_date", start_date.isoformat()) \
-            .lte("published_date", end_date.isoformat()) \
-            .in_("topic", topic_list) \
+            .select("*, episodes!inner(published_at)") \
+            .gte("mention_date", start_date.date().isoformat()) \
+            .lte("mention_date", end_date.date().isoformat()) \
+            .in_("topic_name", topic_list) \
             .execute()
         
-        # Process data to calculate velocity
-        topic_data = {}
+        # Process data to create Recharts-compatible format
+        # Group mentions by week and count
+        weekly_data = {}
         
-        for topic in topic_list:
-            topic_mentions = [r for r in response.data if r["topic"] == topic]
+        for mention in response.data:
+            topic = mention["topic_name"]
+            week_num = mention["week_number"]  # Already stored as string like "1", "2", etc.
             
-            # Calculate weekly buckets
-            weekly_counts = {}
-            for mention in topic_mentions:
-                week_start = datetime.fromisoformat(mention["published_date"]) \
-                    .replace(hour=0, minute=0, second=0, microsecond=0)
-                week_start = week_start - timedelta(days=week_start.weekday())
-                week_key = week_start.isoformat()
-                
-                if week_key not in weekly_counts:
-                    weekly_counts[week_key] = 0
-                weekly_counts[week_key] += mention.get("mention_count", 1)
+            # Parse the episode's published_at date to get year
+            # Use dateutil.parser for robust datetime parsing
+            published_at = parser.parse(mention["episodes"]["published_at"])
+            year = published_at.year
             
-            # Calculate velocity (week-over-week growth)
-            sorted_weeks = sorted(weekly_counts.keys())
-            velocity = 0
-            if len(sorted_weeks) >= 2:
-                last_week = weekly_counts.get(sorted_weeks[-1], 0)
-                prev_week = weekly_counts.get(sorted_weeks[-2], 0)
-                if prev_week > 0:
-                    velocity = ((last_week - prev_week) / prev_week) * 100
+            # Convert week number to ISO week format
+            week_key = f"{year}-W{week_num.zfill(2)}"  # e.g., "2025-W01"
             
-            topic_data[topic] = {
-                "total_mentions": sum(weekly_counts.values()),
-                "weekly_counts": weekly_counts,
-                "velocity": round(velocity, 2),
-                "trending": velocity > 10,  # Consider >10% growth as trending
-                "weeks_tracked": len(weekly_counts)
-            }
+            if week_key not in weekly_data:
+                weekly_data[week_key] = {topic: 0 for topic in topic_list}
+            
+            if topic in weekly_data[week_key]:
+                weekly_data[week_key][topic] += 1  # Each row is one mention
         
-        # Sort topics by velocity
-        sorted_topics = sorted(
-            topic_data.items(), 
-            key=lambda x: x[1]["velocity"], 
-            reverse=True
-        )
+        # Sort weeks chronologically
+        sorted_weeks = sorted(weekly_data.keys())
+        
+        # Build the data structure for Recharts
+        data_by_topic = {topic: [] for topic in topic_list}
+        
+        for week in sorted_weeks:
+            # Parse week to get date range for display
+            year, week_num = week.split('-W')
+            week_num = int(week_num)
+            
+            # Calculate the start date of the week
+            jan1 = datetime(int(year), 1, 1)
+            week_start = jan1 + timedelta(weeks=week_num-1) - timedelta(days=jan1.weekday())
+            week_end = week_start + timedelta(days=6)
+            
+            date_range = f"{week_start.strftime('%b %-d')}-{week_end.strftime('%-d')}"
+            
+            # Add data point for each topic
+            for topic in topic_list:
+                mentions = weekly_data[week].get(topic, 0)
+                data_by_topic[topic].append({
+                    "week": week,
+                    "mentions": mentions,
+                    "date": date_range
+                })
+        
+        # Get total episodes count
+        total_episodes_response = supabase.table("episodes").select("id", count="exact").execute()
+        total_episodes = total_episodes_response.count if hasattr(total_episodes_response, 'count') else 1171
+        
+        # Get date range from episodes
+        date_range_response = supabase.table("episodes") \
+            .select("published_at") \
+            .order("published_at", desc=False) \
+            .limit(1) \
+            .execute()
+        
+        date_range_response_end = supabase.table("episodes") \
+            .select("published_at") \
+            .order("published_at", desc=True) \
+            .limit(1) \
+            .execute()
+        
+        start_date_str = date_range_response.data[0]["published_at"][:10] if date_range_response.data else "2025-01-01"
+        end_date_str = date_range_response_end.data[0]["published_at"][:10] if date_range_response_end.data else "2025-06-14"
         
         return {
-            "success": True,
-            "date_range": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat(),
-                "days": days
-            },
-            "topics": dict(sorted_topics),
-            "top_trending": [
-                {
-                    "topic": topic,
-                    "velocity": data["velocity"],
-                    "total_mentions": data["total_mentions"]
-                }
-                for topic, data in sorted_topics[:5]
-                if data["trending"]
-            ]
+            "data": data_by_topic,
+            "metadata": {
+                "total_episodes": total_episodes,
+                "date_range": f"{start_date_str} to {end_date_str}",
+                "data_completeness": "topics_only"  # Note: entities available in v2
+            }
         }
         
     except Exception as e:
@@ -171,10 +192,10 @@ async def get_available_topics() -> Dict[str, List[str]]:
         
         # Get unique topics from database
         response = supabase.table("topic_mentions") \
-            .select("topic") \
+            .select("topic_name") \
             .execute()
         
-        unique_topics = list(set([r["topic"] for r in response.data]))
+        unique_topics = list(set([r["topic_name"] for r in response.data]))
         
         return {
             "success": True,
