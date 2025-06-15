@@ -1,7 +1,7 @@
 {
   "regions": ["lhr1"],
   "functions": {
-    "api/topic_velocity.py": {
+    "api/index.py": {
       "memory": 512,
       "maxDuration": 10
     }
@@ -9,7 +9,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/topic_velocity"
+      "destination": "/api"
     }
   ]
 }
