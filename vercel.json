@@ -1,19 +1,4 @@
 {
-  "builds": [
-    {
-      "src": "api/topic_velocity.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/topic_velocity.py"
-    }
-  ],
   "functions": {
     "api/topic_velocity.py": {
       "memory": 512,
@@ -23,7 +8,10 @@
       "supportsResponseStreaming": true
     }
   },
-  "env": {
-    "PYTHON_VERSION": "3.12"
-  }
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/topic_velocity"
+    }
+  ]
 }
