@@ -1,0 +1,29 @@
+{
+  "builds": [
+    {
+      "src": "api/topic_velocity.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/topic_velocity.py"
+    }
+  ],
+  "functions": {
+    "api/topic_velocity.py": {
+      "memory": 512,
+      "maxDuration": 10,
+      "runtime": "python3.12",
+      "regions": ["lhr1"],
+      "supportsResponseStreaming": true
+    }
+  },
+  "env": {
+    "PYTHON_VERSION": "3.12"
+  }
+}
