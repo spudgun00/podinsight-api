@@ -8,6 +8,7 @@ import logging
 from supabase import create_client, Client
 from .database import get_pool, SupabasePool
 import asyncio
+import time
 
 # Environment variables are loaded from Vercel dashboard
 # load_dotenv() is not needed in production
@@ -81,6 +82,7 @@ async def get_topic_velocity(
     - Topic velocity data formatted for Recharts line chart
     """
     pool = get_pool()
+    request_start = time.time()
     
     try:
         # Calculate date range
@@ -89,12 +91,13 @@ async def get_topic_velocity(
         
         logger.info(f"Fetching topic velocity for past {weeks} weeks")
         
-        # Default topics if none specified (exactly 4 as per playbook)
+        # Default topics if none specified (exactly 5 as per playbook)
         default_topics = [
             "AI Agents",
             "Capital Efficiency", 
             "DePIN",
-            "B2B SaaS"
+            "B2B SaaS",
+            "Crypto/Web3"  # NO SPACES around the slash!
         ]
         
         # Parse topics parameter
@@ -113,10 +116,14 @@ async def get_topic_velocity(
                 .execute()
         
         # Execute with retry
+        query_start = time.time()
         response = await pool.execute_with_retry(query_topic_mentions)
+        query_time = (time.time() - query_start) * 1000
+        logger.info(f"Topic mentions query took {query_time:.2f}ms")
         
         # Process data to create Recharts-compatible format
         # Group mentions by week and count
+        process_start = time.time()
         weekly_data = {}
         
         for mention in response.data:
@@ -191,6 +198,12 @@ async def get_topic_velocity(
         
         start_date_str = date_range_response.data[0]["published_at"][:10] if date_range_response.data else "2025-01-01"
         end_date_str = date_range_response_end.data[0]["published_at"][:10] if date_range_response_end.data else "2025-06-14"
+        
+        # Log processing time
+        process_time = (time.time() - process_start) * 1000
+        total_time = (time.time() - request_start) * 1000
+        logger.info(f"Data processing took {process_time:.2f}ms")
+        logger.info(f"Total request time: {total_time:.2f}ms")
         
         return {
             "data": data_by_topic,
