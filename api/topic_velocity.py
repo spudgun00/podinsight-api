@@ -6,6 +6,8 @@ from dateutil import parser
 import os
 import logging
 from supabase import create_client, Client
+from .database import get_pool, SupabasePool
+import asyncio
 
 # Environment variables are loaded from Vercel dashboard
 # load_dotenv() is not needed in production
@@ -30,14 +32,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Supabase client
+# Initialize Supabase client (kept for backward compatibility)
 def get_supabase_client() -> Client:
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
+    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
     
     # Debug logging
     logger.info(f"SUPABASE_URL present: {bool(url)}")
-    logger.info(f"SUPABASE_KEY present: {bool(key)}")
+    logger.info(f"SUPABASE_KEY/ANON_KEY present: {bool(key)}")
     
     if not url or not key:
         logger.error(f"Missing Supabase configuration - URL: {bool(url)}, KEY: {bool(key)}")
@@ -48,15 +50,19 @@ def get_supabase_client() -> Client:
 @app.get("/")
 async def root():
     """Health check endpoint"""
+    pool = get_pool()
+    pool_health = await pool.health_check()
+    
     return {
         "status": "healthy",
         "service": "PodInsightHQ API",
         "version": "1.0.0",
         "env_check": {
             "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
-            "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY")),
+            "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")),
             "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "not set")
-        }
+        },
+        "connection_pool": pool_health
     }
 
 @app.get("/api/topic-velocity")
@@ -74,10 +80,9 @@ async def get_topic_velocity(
     Returns:
     - Topic velocity data formatted for Recharts line chart
     """
+    pool = get_pool()
+    
     try:
-        # Initialize Supabase client
-        supabase = get_supabase_client()
-        
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(weeks=weeks)
@@ -97,15 +102,18 @@ async def get_topic_velocity(
             topic_list = [t.strip() for t in topics.split(",")]
         else:
             topic_list = default_topics
-            
-        # Query topic mentions from database
-        # Join with episodes to get publication dates
-        response = supabase.table("topic_mentions") \
-            .select("*, episodes!inner(published_at)") \
-            .gte("mention_date", start_date.date().isoformat()) \
-            .lte("mention_date", end_date.date().isoformat()) \
-            .in_("topic_name", topic_list) \
-            .execute()
+        
+        # Define query function for the pool (sync function since Supabase client is sync)
+        def query_topic_mentions(client):
+            return client.table("topic_mentions") \
+                .select("*, episodes!inner(published_at)") \
+                .gte("mention_date", start_date.date().isoformat()) \
+                .lte("mention_date", end_date.date().isoformat()) \
+                .in_("topic_name", topic_list) \
+                .execute()
+        
+        # Execute with retry
+        response = await pool.execute_with_retry(query_topic_mentions)
         
         # Process data to create Recharts-compatible format
         # Group mentions by week and count
@@ -157,21 +165,29 @@ async def get_topic_velocity(
                 })
         
         # Get total episodes count
-        total_episodes_response = supabase.table("episodes").select("id", count="exact").execute()
+        def query_total_episodes(client):
+            return client.table("episodes").select("id", count="exact").execute()
+        
+        total_episodes_response = await pool.execute_with_retry(query_total_episodes)
         total_episodes = total_episodes_response.count if hasattr(total_episodes_response, 'count') else 1171
         
         # Get date range from episodes
-        date_range_response = supabase.table("episodes") \
-            .select("published_at") \
-            .order("published_at", desc=False) \
-            .limit(1) \
-            .execute()
+        def query_date_range_start(client):
+            return client.table("episodes") \
+                .select("published_at") \
+                .order("published_at", desc=False) \
+                .limit(1) \
+                .execute()
         
-        date_range_response_end = supabase.table("episodes") \
-            .select("published_at") \
-            .order("published_at", desc=True) \
-            .limit(1) \
-            .execute()
+        def query_date_range_end(client):
+            return client.table("episodes") \
+                .select("published_at") \
+                .order("published_at", desc=True) \
+                .limit(1) \
+                .execute()
+        
+        date_range_response = await pool.execute_with_retry(query_date_range_start)
+        date_range_response_end = await pool.execute_with_retry(query_date_range_end)
         
         start_date_str = date_range_response.data[0]["published_at"][:10] if date_range_response.data else "2025-01-01"
         end_date_str = date_range_response_end.data[0]["published_at"][:10] if date_range_response_end.data else "2025-06-14"
@@ -192,16 +208,30 @@ async def get_topic_velocity(
             detail=f"Failed to fetch topic velocity data: {str(e)}"
         )
 
+@app.get("/api/pool-stats")
+async def get_pool_stats() -> Dict[str, Any]:
+    """Get connection pool statistics and monitoring data"""
+    pool = get_pool()
+    return {
+        "success": True,
+        "stats": pool.get_stats(),
+        "timestamp": datetime.now().isoformat()
+    }
+
 @app.get("/api/topics")
 async def get_available_topics() -> Dict[str, List[str]]:
     """Get list of all available topics being tracked"""
+    pool = get_pool()
+    
     try:
-        supabase = get_supabase_client()
+        # Define query function
+        def query_topics(client):
+            return client.table("topic_mentions") \
+                .select("topic_name") \
+                .execute()
         
-        # Get unique topics from database
-        response = supabase.table("topic_mentions") \
-            .select("topic_name") \
-            .execute()
+        # Execute with retry
+        response = await pool.execute_with_retry(query_topics)
         
         unique_topics = list(set([r["topic_name"] for r in response.data]))
         

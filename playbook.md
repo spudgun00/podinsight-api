@@ -641,7 +641,7 @@ podinsight-dashboard/
 
 **🏠 Repository: You'll paste the generated code into `podinsight-dashboard`**
 
-**Your v0.dev Prompt (paste this exactly):**
+**Option 1: Standard Professional Dashboard (paste this exactly):**
 ```
 Create a dark-mode data analytics dashboard for PodInsightHQ using Next.js 14, TypeScript, and Tailwind CSS.
 
@@ -667,6 +667,94 @@ Loading State:
 
 No mobile responsiveness needed. Include mock data for 12 weeks of 4 topics.
 ```
+
+**Option 2: Premium "Bloomberg Terminal" Style (Enhanced - paste this for maximum impact):**
+```
+Create a premium dark-mode analytics dashboard for PodInsightHQ using Next.js 14, TypeScript, Tailwind CSS, and Framer Motion.
+
+Visual Design:
+- Deep black background (#0A0A0A) with animated gradient mesh overlay (purple/blue/teal)
+- Subtle noise texture overlay for depth
+- Full-width header with "PodInsightHQ" in bold gradient text (animated gradient shift on hover)
+- Add subtle tagline under logo: "1,000 hours of podcast intelligence, visualized"
+- Ambient glow effects behind cards
+
+Main Dashboard Layout:
+- Hero metric cards above chart (mini cards with live-updating animations):
+  - "📈 Trending Now" with top rising topic
+  - "🎙️ Episodes Analyzed: 1,171" with subtle count-up animation
+  - "⚡ Insights Generated: Real-time" with pulsing dot
+  - "📊 Data Freshness: Live" with green indicator
+
+Topic Velocity Tracker Card:
+- Glass morphism with multi-layer depth (backdrop-blur-xl, gradient borders)
+- Subtle inner glow on hover
+- Contains an enhanced Recharts LineChart:
+  - Animated line drawing on load (staggered by topic)
+  - Gradient fills under each line (semi-transparent)
+  - Custom dot indicators that pulse on data points
+  - Interactive tooltips with glass morphism effect showing:
+    - Topic name with color indicator
+    - Exact mention count
+    - Week date range
+    - Percentage change from previous week (↑↓)
+  - Y-axis with subtle grid lines (opacity 10%)
+  - X-axis with formatted week labels
+  - Smooth curve interpolation with tension
+
+Enhanced Interactions:
+- Topic lines highlight on hover (others fade to 30% opacity)
+- Click legend items to toggle lines with smooth transitions
+- Hover effects on all interactive elements
+- Cursor changes to pointer with custom glow
+- Add velocity indicators: small arrows showing trend direction at line ends
+
+Loading State:
+- Sophisticated skeleton with:
+  - Animated gradient shimmer effect
+  - Chart skeleton that draws the axis first, then animated placeholder lines
+  - "Analyzing 1,000+ hours of podcast intelligence..." with typewriter effect
+  - Subtle particle effects in background
+
+Modern Touches:
+- Use Inter font for UI, SF Mono for numbers
+- Add kbd shortcuts hint in corner: "Press / for search"
+- Subtle CSS animations: floating gradient orbs in background
+- Premium color palette:
+  - Emerald: #10B981
+  - Purple: #8B5CF6 (softer than #6B46C1)
+  - Blue: #3B82F6
+  - Coral: #F59E0B (warmer than red)
+- Add micro-animations:
+  - Numbers tick up when they change
+  - Smooth color transitions
+  - Hover states with scale(1.02)
+  - Active states with subtle depression effect
+
+Footer Details:
+- "Last updated: X seconds ago" with live timer
+- Subtle metadata: "Tracking 5 topics across 29 podcasts"
+
+CSS Features to Include:
+- CSS custom properties for theming
+- Mix-blend-mode for interesting overlaps
+- CSS Grid for precise layouts
+- Container queries for component responsiveness
+- :has() selector for contextual styling
+
+Include these Tailwind classes for premium feel:
+- backdrop-blur-2xl
+- bg-gradient-to-br
+- shadow-2xl shadow-purple-500/20
+- ring-1 ring-white/10
+- transition-all duration-300 ease-out
+
+Mock data: 12 weeks for topics "AI Agents", "Capital Efficiency", "DePIN", "B2B SaaS"
+
+Make it feel like a $10k/month enterprise dashboard, not a free tool.
+```
+
+**💡 Recommendation:** Use Option 2 for maximum impact with VCs and founders who expect premium tools.
 
 #### Setting Up the Next.js Project
 
