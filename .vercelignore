@@ -1,0 +1,36 @@
+# Ignore test files
+test_*.py
+tests/
+
+# Ignore heavy implementation
+api/search_heavy.py
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ignore environment files
+.env
+.env.*
+venv/
+env/
+
+# Ignore development files
+.git/
+.gitignore
+README.md
+*.log
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
