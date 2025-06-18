@@ -74,6 +74,7 @@ async def root():
         "env_check": {
             "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
             "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")),
+            "HUGGINGFACE_API_KEY": bool(os.environ.get("HUGGINGFACE_API_KEY")),
             "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "not set")
         },
         "connection_pool": pool_health

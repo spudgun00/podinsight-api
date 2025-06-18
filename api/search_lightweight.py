@@ -61,10 +61,12 @@ async def generate_embedding_api(text: str) -> List[float]:
     api_key = os.environ.get("HUGGINGFACE_API_KEY")
     
     if not api_key:
-        # Fallback to a mock embedding for testing
-        logger.warning("No HUGGINGFACE_API_KEY found, using mock embedding")
-        mock_embedding = [0.1] * 384
-        return mock_embedding
+        logger.error("HUGGINGFACE_API_KEY not found in environment")
+        logger.error(f"Available env vars: {[k for k in os.environ.keys() if not k.startswith('npm_')]}")
+        raise HTTPException(
+            status_code=500,
+            detail="Embedding service not configured - HUGGINGFACE_API_KEY missing"
+        )
     
     headers = {
         "Authorization": f"Bearer {api_key}",
