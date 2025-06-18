@@ -235,6 +235,33 @@ async def get_topic_velocity(
             detail=f"Failed to fetch topic velocity data: {str(e)}"
         )
 
+@app.get("/api/health")
+async def health_check() -> Dict[str, Any]:
+    """Health check endpoint for monitoring"""
+    # Check Hugging Face API key
+    hf_api_key = os.getenv("HUGGINGFACE_API_KEY")
+    has_hf_key = bool(hf_api_key and hf_api_key.startswith("hf_"))
+    
+    # Check Supabase connection
+    try:
+        pool = get_pool()
+        pool_stats = pool.get_stats()
+        db_connected = True
+    except Exception:
+        pool_stats = None
+        db_connected = False
+    
+    return {
+        "status": "healthy" if (has_hf_key and db_connected) else "degraded",
+        "timestamp": datetime.now().isoformat(),
+        "checks": {
+            "huggingface_api_key": "configured" if has_hf_key else "missing",
+            "database": "connected" if db_connected else "disconnected",
+            "connection_pool": pool_stats if pool_stats else "unavailable"
+        },
+        "version": "1.0.0"
+    }
+
 @app.get("/api/pool-stats")
 async def get_pool_stats() -> Dict[str, Any]:
     """Get connection pool statistics and monitoring data"""
