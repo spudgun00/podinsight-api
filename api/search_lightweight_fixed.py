@@ -1,6 +1,7 @@
 """
 Lightweight Search API for Vercel deployment
 Uses external embedding service instead of local model
+FULLY SELF-CONTAINED - No imports from search.py
 """
 from fastapi import HTTPException
 from typing import Dict, List, Optional, Any
@@ -18,7 +19,7 @@ from .database import get_pool
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Request/Response models (same as before)
+# Request/Response models
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Search query")
     limit: int = Field(10, ge=1, le=50, description="Number of results to return")
@@ -54,17 +55,23 @@ class SearchResponse(BaseModel):
 
 async def generate_embedding_api(text: str) -> List[float]:
     """
-    Generate embedding using Hugging Face API (free tier)
-    Using same model: sentence-transformers/all-MiniLM-L6-v2
-    """
-    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
-    api_key = os.environ.get("HUGGINGFACE_API_KEY")
+    Generate embeddings using Hugging Face API
     
+    Args:
+        text: Text to embed
+        
+    Returns:
+        384-dimensional embedding vector
+    """
+    api_key = os.environ.get("HUGGINGFACE_API_KEY")
     if not api_key:
-        # Fallback to a mock embedding for testing
-        logger.warning("No HUGGINGFACE_API_KEY found, using mock embedding")
-        mock_embedding = [0.1] * 384
-        return mock_embedding
+        logger.error("HUGGINGFACE_API_KEY not found in environment")
+        raise HTTPException(
+            status_code=500,
+            detail="Embedding service not configured"
+        )
+    
+    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -78,36 +85,43 @@ async def generate_embedding_api(text: str) -> List[float]:
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(api_url, json=payload, headers=headers) as response:
+            async with session.post(api_url, headers=headers, json=payload) as response:
                 if response.status == 200:
                     result = await response.json()
-                    # The API returns embeddings directly
-                    embedding = result
-                    
-                    # Normalize to unit length
-                    norm = np.linalg.norm(embedding)
-                    if norm > 0:
-                        embedding = (np.array(embedding) / norm).tolist()
-                    
-                    return embedding
+                    # The API returns the embedding directly
+                    if isinstance(result, list) and len(result) == 384:
+                        return result
+                    else:
+                        logger.error(f"Unexpected embedding format: {type(result)}, length: {len(result) if isinstance(result, list) else 'N/A'}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail="Invalid embedding format received"
+                        )
                 else:
                     error_text = await response.text()
                     logger.error(f"Embedding API error: {response.status} - {error_text}")
-                    # Return mock embedding as fallback
-                    return [0.1] * 384
-                    
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Embedding service error: {response.status}"
+                    )
     except Exception as e:
         logger.error(f"Error calling embedding API: {str(e)}")
-        # Return mock embedding as fallback
-        return [0.1] * 384
-
-
-# DO NOT IMPORT FROM search.py - this causes deployment to fail
-# All functions are defined in the lightweight version below
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate embedding"
+        )
 
 
 async def check_query_cache(query_hash: str) -> Optional[List[float]]:
-    """Check if query embedding exists in cache"""
+    """
+    Check if query embedding exists in cache
+    
+    Args:
+        query_hash: SHA256 hash of the query
+        
+    Returns:
+        Embedding if found, None otherwise
+    """
     pool = get_pool()
     
     try:
@@ -134,7 +148,14 @@ async def check_query_cache(query_hash: str) -> Optional[List[float]]:
 
 
 async def store_query_cache(query: str, query_hash: str, embedding: List[float]) -> None:
-    """Store query embedding in cache"""
+    """
+    Store query embedding in cache
+    
+    Args:
+        query: Original query text
+        query_hash: SHA256 hash of the query
+        embedding: Embedding vector
+    """
     pool = get_pool()
     
     try:
@@ -159,7 +180,17 @@ async def store_query_cache(query: str, query_hash: str, embedding: List[float])
 
 
 async def search_episodes(embedding: List[float], limit: int, offset: int) -> Dict[str, Any]:
-    """Search episodes using pgvector similarity"""
+    """
+    Search episodes using pgvector similarity
+    
+    Args:
+        embedding: Query embedding vector
+        limit: Number of results to return
+        offset: Pagination offset
+        
+    Returns:
+        Search results with metadata
+    """
     pool = get_pool()
     
     try:
