@@ -12,7 +12,6 @@ import json
 import asyncio
 import aiohttp
 from pydantic import BaseModel, Field, validator
-import numpy as np
 from .database import get_pool
 
 # Configure logging
@@ -86,10 +85,10 @@ async def generate_embedding_api(text: str) -> List[float]:
                     # The API returns embeddings directly
                     embedding = result
                     
-                    # Normalize to unit length
-                    norm = np.linalg.norm(embedding)
+                    # Normalize to unit length (without numpy)
+                    norm = sum(x**2 for x in embedding) ** 0.5
                     if norm > 0:
-                        embedding = (np.array(embedding) / norm).tolist()
+                        embedding = [x / norm for x in embedding]
                     
                     return embedding
                 else:
