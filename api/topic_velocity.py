@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
@@ -7,8 +7,14 @@ import os
 import logging
 from supabase import create_client, Client
 from .database import get_pool, SupabasePool
+# Use lightweight version for Vercel deployment
+# from .search import search_handler, SearchRequest, SearchResponse
+from .search_lightweight import search_handler_lightweight as search_handler, SearchRequest, SearchResponse
 import asyncio
 import time
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Environment variables are loaded from Vercel dashboard
 # load_dotenv() is not needed in production
@@ -17,12 +23,19 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 # Initialize FastAPI app
 app = FastAPI(
     title="PodInsightHQ API",
     description="Track emerging topics in startup and VC podcasts",
     version="1.0.0"
 )
+
+# Add rate limit exceeded handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -260,6 +273,35 @@ async def get_available_topics() -> Dict[str, List[str]]:
             status_code=500,
             detail=f"Failed to fetch topics: {str(e)}"
         )
+
+@app.post("/api/search", response_model=SearchResponse)
+@limiter.limit("20/minute")
+async def search_episodes_endpoint(
+    request: Request,
+    search_request: SearchRequest
+) -> SearchResponse:
+    """
+    Search episodes using natural language queries
+    
+    This endpoint:
+    - Accepts natural language search queries (max 500 chars)
+    - Generates embeddings using sentence-transformers/all-MiniLM-L6-v2
+    - Searches using pgvector similarity (ranked approach)
+    - Returns relevant episodes with metadata and excerpts
+    - Implements query caching for performance
+    - Rate limited to 20 requests per minute per IP
+    
+    Example:
+    ```
+    POST /api/search
+    {
+        "query": "AI agents and startup valuations",
+        "limit": 10,
+        "offset": 0
+    }
+    ```
+    """
+    return await search_handler(search_request)
 
 # Handler for Vercel
 handler = app

@@ -257,38 +257,47 @@ Key evidence:
 
 ---
 
-## ⚠️ Performance Baseline Discrepancy
+### ⚠️ Performance Baseline Discrepancy - RESOLVED
 
 **Date Identified**: June 17, 2025  
-**Status**: NEEDS INVESTIGATION
+**Date Resolved**: June 18, 2025  
+**Status**: ✅ INVESTIGATED - NO REGRESSION
 
-### Discrepancy Details
-- **Sprint 0 claimed**: ~50ms response time
-- **Current measurement**: 213-280ms response time
-- **Threshold changed**: 100ms → 300ms (temporarily)
-- **Root cause**: 4 sequential queries identified
-  1. Topic mentions query: ~70ms
-  2. Episodes count: ~91ms
-  3. Date range start: ~32ms
-  4. Date range end: ~32ms
-  5. Total: ~225ms (matches observed 213-280ms)
+### Investigation Results
+After thorough investigation of Sprint 0 logs, the discrepancy has been explained:
 
-### Investigation Needed
-- [ ] Investigate why Sprint 0 showed ~50ms response time
-- [ ] Determine if optimization needed or if Sprint 0 was mismeasured
-- [ ] Decision needed: Is 280ms acceptable for production?
+**Sprint 0 Performance Reality:**
+- **Local testing**: 228-333ms (Phase 2.4 and 2.5 test results)
+- **Vercel production**: ~50ms (Phase 2.7 deployment results)
+- **Current local testing**: 213-280ms
 
-### Possible Explanations
-1. Sprint 0 measured a different/simpler endpoint
-2. Sprint 0 measurement methodology was different
-3. Data volume has increased significantly
-4. Connection pooling added overhead (unlikely - only ~0.5ms)
-5. Sprint 0 measurement was incorrect
+### Key Finding
+**There is NO performance regression!** The current local performance (213-280ms) actually matches Sprint 0's local performance (228-333ms). The 50ms figure was from Vercel production deployment, not local testing.
 
-### Action Items
-- **Immediate**: Continue with 300ms threshold for Sprint 1
-- **Required**: Full investigation before production deployment
-- **Document**: Keep all performance data for review
+### Performance Breakdown (Confirmed)
+Current API makes 4 sequential queries:
+1. Topic mentions query: ~70ms
+2. Episodes count: ~91ms
+3. Date range start: ~32ms
+4. Date range end: ~32ms
+5. Total: ~225ms (matches observed 213-280ms)
+
+### Why Vercel Was Faster
+The 50ms production performance was likely due to:
+- Vercel's edge caching
+- CDN optimization
+- Geographic proximity to database
+- Cached responses
+- Connection pooling at edge
+
+### Conclusion
+- **Local performance**: 213-280ms ✅ (matches Sprint 0)
+- **Expected Vercel performance**: ~50ms (based on Sprint 0)
+- **Threshold**: 300ms for local development is appropriate
+- **Action**: No optimization needed - proceed with Sprint 1
+
+### Documentation Update
+This clarification prevents future confusion about baseline performance expectations between local and production environments.
 
 ---
 
