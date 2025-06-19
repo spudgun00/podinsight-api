@@ -9,8 +9,7 @@ import re
 import time
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-import motor.motor_asyncio
-from pymongo import TEXT
+from pymongo import MongoClient, TEXT
 import asyncio
 from collections import OrderedDict
 import logging
@@ -28,8 +27,8 @@ class MongoSearchHandler:
             self.client = None
             self.db = None
         else:
-            # Create async motor client with connection pooling
-            self.client = motor.motor_asyncio.AsyncIOMotorClient(
+            # Use synchronous PyMongo client for serverless reliability
+            self.client = MongoClient(
                 self.mongodb_uri,
                 maxPoolSize=10,
                 minPoolSize=2,
@@ -62,7 +61,7 @@ class MongoSearchHandler:
         try:
             start_time = time.time()
             
-            # MongoDB text search with score projection
+            # MongoDB text search with score projection (synchronous)
             cursor = self.collection.find(
                 {"$text": {"$search": query}},
                 {
@@ -79,7 +78,7 @@ class MongoSearchHandler:
             ).sort([("score", {"$meta": "textScore"})]).limit(limit)
             
             results = []
-            async for doc in cursor:
+            for doc in cursor:
                 # Extract excerpt around search match
                 excerpt = self.extract_excerpt(doc.get('full_text', ''), query)
                 
@@ -195,7 +194,7 @@ class MongoSearchHandler:
             return None
             
         try:
-            doc = await self.collection.find_one({'episode_id': episode_id})
+            doc = self.collection.find_one({'episode_id': episode_id})
             if doc:
                 # Remove MongoDB _id field
                 doc.pop('_id', None)
