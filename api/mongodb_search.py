@@ -131,7 +131,7 @@ class MongoSearchHandler:
     def extract_excerpt(self, full_text: str, query: str, max_chars: int = 150) -> str:
         """
         Extract focused excerpt around search query match
-        Returns 1-2 sentences with highlighted terms (Google-style)
+        Returns 1-2 sentences with highlighted terms (Google-style snippet)
         """
         if not full_text:
             return "No transcript available."
