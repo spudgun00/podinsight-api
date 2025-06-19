@@ -32,6 +32,24 @@ else:
 **Priority**: High  
 **Effort**: 1-2 hours  
 
+### 3. **Episode Title Generation** ✅ IMPLEMENTED
+**Issue**: All episode titles were empty (`""`)  
+**Solution**: Auto-generate titles like "Episode from January 15, 2025"  
+**Status**: Deployed - titles now generated from published dates  
+**Impact**: Users can now distinguish between episodes  
+
+### 4. **Improved Search Excerpts** ✅ IMPLEMENTED  
+**Issue**: Excerpts were too long (200+ words) and unfocused  
+**Solution**: Sentence-focused excerpts (~150 chars) around search terms  
+**Status**: Deployed - Google-style snippet extraction  
+**Impact**: More scannable search results with relevant context  
+
+### 5. **Human-Readable Dates** ✅ IMPLEMENTED
+**Issue**: Dates showed as "2025-01-15T..." (technical format)  
+**Solution**: Add `published_date` field with "January 15, 2025" format  
+**Status**: Deployed - both technical and human formats available  
+**Impact**: Better user experience for date comprehension  
+
 ```javascript
 // Frontend fix
 const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
@@ -104,9 +122,14 @@ const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
 
 **High Priority**:
 1. Quoted phrase search implementation (user expectation)
-2. Search score normalization (quick win)
+2. Search score normalization (frontend - quick win)
 3. Dashboard search integration 
 4. Audio player from search results
+
+**✅ Completed Quick Wins**:
+- Episode title generation (auto-generated from dates)
+- Improved search excerpts (sentence-focused, ~150 chars)
+- Human-readable date formatting
 
 **Medium Priority**:
 5. Search analytics implementation

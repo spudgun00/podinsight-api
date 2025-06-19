@@ -194,10 +194,15 @@ MongoDB search integration fully deployed and tested with 100% success rate.
 ### **Future Enhancements Identified**
 See `SPRINT1_ENHANCEMENTS_DISCOVERED.md` for detailed Sprint 2 opportunities including:
 - **Quoted phrase search**: Users expect `"exact phrase"` to work like Google
-- Search score normalization for user-friendly display
+- Search score normalization for user-friendly display (frontend)
 - Audio player integration from search results  
 - Search analytics and performance monitoring
 - Enhanced search UI components
+
+### **Quick Wins Implemented** ✅
+- **Episode titles**: Auto-generated "Episode from January 15, 2025" (no more empty titles)
+- **Shorter excerpts**: Sentence-focused ~150 chars instead of 200+ words
+- **Human dates**: Added `published_date` field with readable format
 
 ---
 
