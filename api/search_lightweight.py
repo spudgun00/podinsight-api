@@ -36,6 +36,7 @@ class SearchResult(BaseModel):
     podcast_name: str
     episode_title: str
     published_at: str
+    published_date: str  # Human-readable date like "January 15, 2025"
     similarity_score: float
     excerpt: str
     word_count: int
@@ -255,6 +256,7 @@ async def search_handler_lightweight(request: SearchRequest) -> SearchResponse:
                     podcast_name=result["podcast_name"],
                     episode_title=result["episode_title"],
                     published_at=result["published_at"],
+                    published_date=result.get("published_date", "Unknown date"),
                     similarity_score=result["relevance_score"],  # MongoDB text score
                     excerpt=result["excerpt"],  # Real excerpt with highlights!
                     word_count=result.get("word_count", 0),

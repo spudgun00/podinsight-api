@@ -88,11 +88,26 @@ class MongoSearchHandler:
                     excerpt
                 )
                 
+                # Generate meaningful episode title if empty
+                episode_title = doc.get('episode_title', '').strip()
+                if not episode_title:
+                    published_date = doc.get('published_at', datetime.now())
+                    if isinstance(published_date, str):
+                        published_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                    episode_title = f"Episode from {published_date.strftime('%B %d, %Y')}"
+                
+                # Format date for user display
+                published_date = doc.get('published_at', datetime.now())
+                if isinstance(published_date, str):
+                    published_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                formatted_date = published_date.strftime('%B %d, %Y')
+                
                 result = {
                     'episode_id': doc['episode_id'],
                     'podcast_name': doc.get('podcast_name', 'Unknown'),
-                    'episode_title': doc.get('episode_title', 'Untitled'),
+                    'episode_title': episode_title,
                     'published_at': doc.get('published_at', datetime.now()).isoformat(),
+                    'published_date': formatted_date,  # Human-readable date
                     'excerpt': excerpt,
                     'relevance_score': doc['score'],
                     'topics': doc.get('topics', []),
@@ -113,77 +128,79 @@ class MongoSearchHandler:
             logger.error(f"Search error: {e}")
             return []
     
-    def extract_excerpt(self, full_text: str, query: str, max_words: int = 200) -> str:
+    def extract_excerpt(self, full_text: str, query: str, max_chars: int = 150) -> str:
         """
-        Extract excerpt around search query match
-        Returns text window with highlighted terms
+        Extract focused excerpt around search query match
+        Returns 1-2 sentences with highlighted terms (Google-style)
         """
         if not full_text:
             return "No transcript available."
-            
+        
         # Clean up the query and create case-insensitive pattern
-        query_terms = query.split()
+        query_terms = [term.strip('"') for term in query.split()]  # Remove quotes
         pattern = '|'.join(re.escape(term) for term in query_terms)
         
         # Find first match
         match = re.search(pattern, full_text, re.IGNORECASE)
         
         if not match:
-            # No exact match, return beginning of text
-            words = full_text.split()[:max_words]
-            excerpt = ' '.join(words)
-            if len(full_text.split()) > max_words:
+            # No exact match, return beginning with ellipsis
+            excerpt = full_text[:max_chars].strip()
+            if len(full_text) > max_chars:
+                # Find last complete word
+                last_space = excerpt.rfind(' ')
+                if last_space > 0:
+                    excerpt = excerpt[:last_space]
                 excerpt += '...'
             return excerpt
         
         # Get position of match
-        match_start = match.start()
-        match_end = match.end()
+        match_pos = match.start()
         
-        # Find word boundaries around match
-        # Go back to find start of excerpt
-        excerpt_start = match_start
-        word_count = 0
-        for i in range(match_start - 1, -1, -1):
-            if full_text[i] == ' ':
-                word_count += 1
-                if word_count >= max_words // 2:
-                    excerpt_start = i + 1
-                    break
-        else:
-            excerpt_start = 0
+        # Find sentence boundaries around the match
+        # Look for sentence endings before the match
+        sentence_start = 0
+        for i in range(match_pos - 1, -1, -1):
+            if full_text[i] in '.!?':
+                sentence_start = i + 1
+                break
+        
+        # Look for sentence endings after the match  
+        sentence_end = len(full_text)
+        for i in range(match_pos, len(full_text)):
+            if full_text[i] in '.!?':
+                sentence_end = i + 1
+                break
+        
+        # Extract the sentence containing the match
+        excerpt = full_text[sentence_start:sentence_end].strip()
+        
+        # If too long, truncate around the match
+        if len(excerpt) > max_chars:
+            # Center around the match position within the sentence
+            match_in_excerpt = match_pos - sentence_start
+            start_offset = max(0, match_in_excerpt - max_chars // 2)
+            end_offset = start_offset + max_chars
             
-        # Go forward to find end of excerpt
-        excerpt_end = match_end
-        word_count = 0
-        for i in range(match_end, len(full_text)):
-            if full_text[i] == ' ':
-                word_count += 1
-                if word_count >= max_words // 2:
-                    excerpt_end = i
-                    break
-        else:
-            excerpt_end = len(full_text)
-        
-        # Extract and format excerpt
-        excerpt = full_text[excerpt_start:excerpt_end].strip()
-        
-        # Add ellipsis if needed
-        if excerpt_start > 0:
-            excerpt = '...' + excerpt
-        if excerpt_end < len(full_text):
-            excerpt = excerpt + '...'
+            excerpt = excerpt[start_offset:end_offset]
             
+            # Add ellipsis as needed
+            if start_offset > 0:
+                excerpt = '...' + excerpt
+            if end_offset < (sentence_end - sentence_start):
+                excerpt = excerpt + '...'
+        
         # Highlight matched terms (wrap in **bold**)
         for term in query_terms:
-            excerpt = re.sub(
-                f'({re.escape(term)})',
-                r'**\1**',
-                excerpt,
-                flags=re.IGNORECASE
-            )
-            
-        return excerpt
+            if term:  # Skip empty terms
+                excerpt = re.sub(
+                    f'({re.escape(term)})',
+                    r'**\1**',
+                    excerpt,
+                    flags=re.IGNORECASE
+                )
+        
+        return excerpt.strip()
     
     async def get_episode_by_id(self, episode_id: str) -> Optional[Dict[str, Any]]:
         """
