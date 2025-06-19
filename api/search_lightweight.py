@@ -1,6 +1,7 @@
 """
 Lightweight Search API for Vercel deployment
 Uses external embedding service instead of local model
+Now with MongoDB integration for real transcript search
 """
 from fastapi import HTTPException
 from typing import Dict, List, Optional, Any
@@ -13,6 +14,7 @@ import asyncio
 import aiohttp
 from pydantic import BaseModel, Field, validator
 from .database import get_pool
+from .mongodb_search import get_search_handler
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -220,11 +222,90 @@ async def search_episodes(embedding: List[float], limit: int, offset: int) -> Di
 
 async def search_handler_lightweight(request: SearchRequest) -> SearchResponse:
     """
-    Lightweight search handler using external embedding API
+    Lightweight search handler using MongoDB for real transcript search
+    Falls back to pgvector if MongoDB is unavailable
     """
     # Generate query hash for caching
     query_hash = hashlib.sha256(request.query.encode()).hexdigest()
     search_id = f"search_{query_hash[:8]}_{datetime.now().timestamp()}"
+    
+    # Try MongoDB search first
+    try:
+        # Get MongoDB search handler
+        mongo_handler = await get_search_handler()
+        
+        if mongo_handler.db is not None:
+            logger.info(f"Using MongoDB for search: {request.query}")
+            
+            # Search MongoDB for real transcripts
+            mongo_results = await mongo_handler.search_transcripts(
+                request.query, 
+                limit=request.limit + request.offset
+            )
+            
+            # Apply offset
+            paginated_results = mongo_results[request.offset:request.offset + request.limit]
+            
+            # Convert MongoDB results to API format
+            formatted_results = []
+            for result in paginated_results:
+                # MongoDB already provides highlighted excerpts with timestamps
+                formatted_results.append(SearchResult(
+                    episode_id=result["episode_id"],
+                    podcast_name=result["podcast_name"],
+                    episode_title=result["episode_title"],
+                    published_at=result["published_at"],
+                    similarity_score=result["relevance_score"],  # MongoDB text score
+                    excerpt=result["excerpt"],  # Real excerpt with highlights!
+                    word_count=result.get("word_count", 0),
+                    duration_seconds=0,  # TODO: Add duration from Supabase
+                    topics=result.get("topics", []),
+                    s3_audio_path=None  # TODO: Add from Supabase
+                ))
+            
+            # Get s3_audio_path from Supabase for audio playback
+            if formatted_results:
+                pool = get_pool()
+                episode_ids = [r.episode_id for r in formatted_results]
+                
+                def get_audio_paths(client):
+                    return client.table("episodes") \
+                        .select("id, s3_audio_path, duration_seconds") \
+                        .in_("id", episode_ids) \
+                        .execute()
+                
+                audio_data = await pool.execute_with_retry(get_audio_paths)
+                
+                # Create lookup dict
+                audio_by_id = {
+                    ep["id"]: {
+                        "s3_audio_path": ep.get("s3_audio_path"),
+                        "duration_seconds": ep.get("duration_seconds", 0)
+                    }
+                    for ep in audio_data.data
+                }
+                
+                # Update results with audio data
+                for result in formatted_results:
+                    if result.episode_id in audio_by_id:
+                        result.s3_audio_path = audio_by_id[result.episode_id]["s3_audio_path"]
+                        result.duration_seconds = audio_by_id[result.episode_id]["duration_seconds"]
+            
+            return SearchResponse(
+                results=formatted_results,
+                total_results=len(mongo_results),
+                cache_hit=False,  # MongoDB handles its own caching
+                search_id=search_id,
+                query=request.query,
+                limit=request.limit,
+                offset=request.offset
+            )
+    
+    except Exception as e:
+        logger.warning(f"MongoDB search failed, falling back to pgvector: {str(e)}")
+    
+    # Fallback to original pgvector search
+    logger.info(f"Using pgvector fallback for search: {request.query}")
     
     # Check cache first
     cache_hit = False
@@ -244,7 +325,7 @@ async def search_handler_lightweight(request: SearchRequest) -> SearchResponse:
     # Search episodes
     search_results = await search_episodes(embedding, request.limit, request.offset)
     
-    # Format results
+    # Format results (old mock excerpt style)
     formatted_results = []
     for result in search_results["results"]:
         # Get topics for this episode
