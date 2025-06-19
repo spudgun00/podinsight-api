@@ -72,6 +72,7 @@ async def root():
         "status": "healthy",
         "service": "PodInsightHQ API",
         "version": "1.0.0",
+        "deployment_time": datetime.now().isoformat(),  # Cache busting verification
         "env_check": {
             "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
             "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")),

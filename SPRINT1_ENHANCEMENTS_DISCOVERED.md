@@ -90,9 +90,34 @@ const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
 **Current**: Synchronous PyMongo (works well in serverless)  
 **Future**: Consider connection pooling improvements for high traffic
 
+### 7. **Cache Busting for Vercel Deployments** ⭐
+**Issue**: Changes don't reflect immediately due to Vercel caching  
+**Solution**: Easy cache invalidation methods  
+**Priority**: Medium (developer experience)  
+**Effort**: 15 minutes
+
+**Quick Cache Busting Methods**:
+```bash
+# Method 1: Force fresh deployment with empty commit
+git commit --allow-empty -m "deploy: Force cache refresh" && git push
+
+# Method 2: Add cache-busting version parameter  
+curl "https://podinsight-api.vercel.app/api/search?v=$(date +%s)" \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"query": "test", "limit": 1}'
+
+# Method 3: Vercel CLI cache clear (if logged in)
+vercel --prod --force
+
+# Method 4: Add deployment timestamp to API response
+# Include build_time field in health endpoint for verification
+```
+
+**Implementation**: Add build timestamp to responses for cache verification
+
 ## 🎨 **Dashboard Integration**
 
-### 7. **Search UI Components**
+### 8. **Search UI Components**
 **Location**: `/Users/jamesgill/PodInsights/podinsight-dashboard`  
 **Current**: React component ready for integration  
 **Enhancements needed**:
@@ -101,19 +126,19 @@ const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
 - Result card design improvements
 - Mobile responsiveness testing
 
-### 8. **Audio Player Integration**
+### 9. **Audio Player Integration**
 **Status**: S3 audio paths available in search results  
 **Enhancement**: Direct play from search results  
 **Dependencies**: Audio player component in dashboard
 
 ## 📊 **Analytics & Monitoring**
 
-### 9. **Search Analytics**
+### 10. **Search Analytics**
 **Opportunity**: Track popular search terms  
 **Implementation**: Log search queries and results clicked  
 **Business Value**: Understand user interests for content curation
 
-### 10. **Performance Monitoring**  
+### 11. **Performance Monitoring**  
 **Current**: Basic response time tracking  
 **Enhancement**: Detailed MongoDB performance metrics  
 **Tools**: Add performance dashboard
@@ -135,11 +160,12 @@ const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
 5. Search analytics implementation
 6. Enhanced search UI components
 7. Search result pagination
+8. Cache busting implementation (developer experience)
 
 **Low Priority**:
-8. Advanced search filters
-9. Search suggestions/autocomplete
-10. Performance monitoring dashboard
+9. Advanced search filters
+10. Search suggestions/autocomplete
+11. Performance monitoring dashboard
 
 ## 📋 **Implementation Notes**
 
