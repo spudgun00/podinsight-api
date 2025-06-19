@@ -193,6 +193,7 @@ MongoDB search integration fully deployed and tested with 100% success rate.
 
 ### **Future Enhancements Identified**
 See `SPRINT1_ENHANCEMENTS_DISCOVERED.md` for detailed Sprint 2 opportunities including:
+- **Quoted phrase search**: Users expect `"exact phrase"` to work like Google
 - Search score normalization for user-friendly display
 - Audio player integration from search results  
 - Search analytics and performance monitoring

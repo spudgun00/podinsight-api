@@ -5,7 +5,27 @@
 
 ## 🎯 **User Experience Improvements**
 
-### 1. **Search Score Normalization**
+### 1. **Quoted Phrase Search Implementation**
+**Issue**: Users expect `"biggest opportunity"` to return exact phrase matches  
+**Current**: MongoDB text search treats quotes as individual words, not exact phrases  
+**User Expectation**: Google-like behavior where quotes enforce exact phrase matching  
+**Solution**: Implement hybrid regex + text search for quoted queries  
+**Priority**: High (affects user search expectations)  
+**Effort**: 1-2 hours  
+
+```python
+# Implementation approach
+if query.startswith('"') and query.endswith('"'):
+    phrase = query.strip('"')
+    # Hybrid: Get text search candidates, filter for exact phrase
+    candidates = collection.find({"$text": {"$search": phrase}})
+    exact_matches = [r for r in candidates if phrase.lower() in r["full_text"].lower()]
+else:
+    # Regular MongoDB text search
+    results = collection.find({"$text": {"$search": query}})
+```
+
+### 2. **Search Score Normalization**
 **Issue**: MongoDB relevance scores display as 206%, 220%, etc. (confusing to users)  
 **Expected**: Users expect 0-100% relevance scores  
 **Solution**: Normalize MongoDB scores in frontend dashboard  
@@ -83,21 +103,50 @@ const normalizedScore = Math.min(Math.round(result.similarity_score * 50), 100);
 ## 🚀 **Sprint 2 Candidates**
 
 **High Priority**:
-1. Search score normalization (quick win)
-2. Dashboard search integration 
-3. Audio player from search results
+1. Quoted phrase search implementation (user expectation)
+2. Search score normalization (quick win)
+3. Dashboard search integration 
+4. Audio player from search results
 
 **Medium Priority**:
-4. Search analytics implementation
-5. Enhanced search UI components
-6. Search result pagination
+5. Search analytics implementation
+6. Enhanced search UI components
+7. Search result pagination
 
 **Low Priority**:
-7. Advanced search filters
-8. Search suggestions/autocomplete
-9. Performance monitoring dashboard
+8. Advanced search filters
+9. Search suggestions/autocomplete
+10. Performance monitoring dashboard
 
 ## 📋 **Implementation Notes**
+
+### **Quoted Phrase Search Implementation**
+```python
+# Add to mongodb_search.py search_transcripts method
+async def search_transcripts(self, query: str, limit: int = 10):
+    # Detect quoted phrase search
+    if query.startswith('"') and query.endswith('"'):
+        phrase = query.strip('"')
+        
+        # Hybrid approach: Get text search candidates for relevance ranking
+        text_candidates = self.collection.find(
+            {"$text": {"$search": phrase}},
+            {"score": {"$meta": "textScore"}, "full_text": 1, ...}
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit * 3)
+        
+        # Filter for exact phrase matches
+        exact_matches = []
+        for doc in text_candidates:
+            if phrase.lower() in doc.get("full_text", "").lower():
+                exact_matches.append(doc)
+                if len(exact_matches) >= limit:
+                    break
+        
+        return exact_matches
+    else:
+        # Regular text search (current implementation)
+        return await self._regular_text_search(query, limit)
+```
 
 ### **Score Normalization Implementation**
 ```javascript
