@@ -98,16 +98,28 @@ async def debug_mongodb():
                 "message": "MongoDB handler not connected"
             }
         
-        # Test search
-        results = await handler.search_transcripts("bitcoin", limit=1)
+        # Test multiple search queries
+        test_queries = ["bitcoin", "AI", "AI agents", "crypto"]
+        test_results = {}
+        
+        for query in test_queries:
+            try:
+                results = await handler.search_transcripts(query, limit=1)
+                test_results[query] = {
+                    "count": len(results),
+                    "score": results[0]["relevance_score"] if results else 0,
+                    "has_highlights": "**" in results[0]["excerpt"] if results else False
+                }
+            except Exception as e:
+                test_results[query] = {"error": str(e)}
         
         return {
             "status": "success", 
             "mongodb_uri_set": mongodb_uri_set,
             "connection": "connected",
-            "test_search_results": len(results),
             "database_name": "podinsight",
-            "collection_name": "transcripts"
+            "collection_name": "transcripts",
+            "test_searches": test_results
         }
         
     except Exception as e:
