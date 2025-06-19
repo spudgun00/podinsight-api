@@ -1196,8 +1196,52 @@ Add to each PROJECT.md after Phase 0:
 - [ ] Test API response times
 - [ ] Commit with clear message
 - [ ] Update PROJECT.md
+- [ ] Force cache refresh if needed (see Appendix E)
 ```
 
 ---
 
-*This playbook incorporates all Sprint 0 learnings. Phase 0 (Technical Debt) is MANDATORY before starting new features. Every prompt includes specific context about data quirks, exact naming, and repository locations. Follow the testing checklists to avoid Sprint 0 issues.*
+## Appendix E: Deployment & Cache Management
+
+### **Vercel Cache Busting (Essential for Development)**
+
+**Problem**: Code changes don't reflect immediately due to caching
+
+**Solutions** (use when changes aren't visible):
+
+```bash
+# Method 1: Force fresh deployment (most reliable)
+git commit --allow-empty -m "deploy: Force cache refresh"
+git push origin main
+
+# Method 2: Verify deployment time
+curl https://podinsight-api.vercel.app/api/health | grep deployment_time
+
+# Method 3: Cache-busting URL test
+curl "https://podinsight-api.vercel.app/api/search?v=$(date +%s)" \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"query": "test", "limit": 1}'
+```
+
+**Reference**: See `CACHE_BUSTING_GUIDE.md` for complete troubleshooting
+
+### **Deployment Verification Checklist**
+
+```markdown
+- [ ] Health endpoint shows recent deployment_time
+- [ ] Test changed functionality works as expected  
+- [ ] UX improvements visible (episode titles, excerpt length)
+- [ ] MongoDB search returns real excerpts with highlighting
+- [ ] No 500 errors in search results
+```
+
+### **Common Cache Issues & Solutions**
+
+1. **Empty episode titles still showing**: Force redeploy + wait 2 minutes
+2. **Long excerpts still appearing**: Check deployment_time, redeploy if old
+3. **MongoDB fallback to pgvector**: Check MongoDB debug endpoint
+4. **API returning old data**: Use cache-busting parameters
+
+---
+
+*This playbook incorporates all Sprint 0 learnings and Sprint 1 deployment best practices. Phase 0 (Technical Debt) is MANDATORY before starting new features. Use cache busting tools when changes don't appear immediately.*
