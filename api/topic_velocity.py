@@ -10,6 +10,7 @@ from .database import get_pool, SupabasePool
 # Use lightweight version for Vercel deployment
 # from .search import search_handler, SearchRequest, SearchResponse
 from .search_lightweight import search_handler_lightweight as search_handler, SearchRequest, SearchResponse
+from .mongodb_search import get_search_handler
 import asyncio
 import time
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -79,6 +80,43 @@ async def root():
         },
         "connection_pool": pool_health
     }
+
+@app.get("/api/debug/mongodb")
+async def debug_mongodb():
+    """Debug MongoDB connection and search capabilities"""
+    
+    mongodb_uri_set = bool(os.environ.get('MONGODB_URI'))
+    
+    try:
+        handler = await get_search_handler()
+        
+        if handler.db is None:
+            return {
+                "status": "error",
+                "mongodb_uri_set": mongodb_uri_set,
+                "connection": "failed",
+                "message": "MongoDB handler not connected"
+            }
+        
+        # Test search
+        results = await handler.search_transcripts("bitcoin", limit=1)
+        
+        return {
+            "status": "success", 
+            "mongodb_uri_set": mongodb_uri_set,
+            "connection": "connected",
+            "test_search_results": len(results),
+            "database_name": "podinsight",
+            "collection_name": "transcripts"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "mongodb_uri_set": mongodb_uri_set,
+            "connection": "error",
+            "error": str(e)
+        }
 
 @app.get("/api/topic-velocity")
 async def get_topic_velocity(
