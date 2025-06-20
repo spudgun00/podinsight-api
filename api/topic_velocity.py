@@ -408,11 +408,19 @@ async def get_topic_signals(
             for corr in signals_by_type["correlation"][:5]:  # Check top 5
                 topics = corr["topics"]
                 percent = corr["co_occurrence_percent"]
-                # Only show if correlation is significant (>20%)
-                if percent > 20:
-                    signal_messages.append(
-                        f"{topics[0]} and {topics[1]} discussed together in {int(percent)}% of episodes"
-                    )
+                recent_pct = corr.get("recent_percentage", 0)
+                
+                # Only show if correlation is significant (>15%)
+                if percent > 15:
+                    # If it's also hot recently, emphasize that
+                    if recent_pct > percent * 1.2:  # 20% higher than average
+                        signal_messages.append(
+                            f"{topics[0]} + {topics[1]} heating up - in {int(percent)}% overall, {int(recent_pct)}% of recent episodes"
+                        )
+                    else:
+                        signal_messages.append(
+                            f"{topics[0]} and {topics[1]} discussed together in {int(percent)}% of episodes"
+                        )
         
         # Add spike insights
         if "spike" in signals_by_type:
