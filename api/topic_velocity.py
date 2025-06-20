@@ -548,15 +548,15 @@ async def get_entities(
         def query_entities(client):
             # Base query with episode join for published dates
             query = client.table("extracted_entities") \
-                .select("entity_name, label, episode_id, episodes!inner(published_at, episode_title)")
+                .select("entity_name, entity_type, episode_id, episodes!inner(published_at, episode_title)")
             
             # Add search filter if provided
             if search:
                 query = query.ilike("entity_name", f"%{search}%")
             
-            # Add type filter if provided (using 'label' field as per playbook)
+            # Add type filter if provided (using 'entity_type' field - playbook was wrong)
             if type:
-                query = query.eq("label", type.upper())
+                query = query.eq("entity_type", type.upper())
             
             # Add date filter if specified
             if date_filter:
@@ -572,7 +572,7 @@ async def get_entities(
         
         for entity_record in entities_response.data:
             entity_name = entity_record["entity_name"]
-            entity_type = entity_record["label"]
+            entity_type = entity_record["entity_type"]
             episode_data = entity_record["episodes"]
             
             if entity_name not in entity_aggregates:
