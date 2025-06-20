@@ -501,6 +501,180 @@ async def get_topic_signals(
             detail=f"Failed to fetch signals: {str(e)}"
         )
 
+@app.get("/api/entities")
+async def get_entities(
+    search: Optional[str] = None,
+    type: Optional[str] = None, 
+    limit: int = 20,
+    timeframe: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Search and track entities (people, companies, etc.) across all episodes
+    
+    Query parameters:
+    - search: Optional search term for entity names (fuzzy match)
+    - type: Filter by entity type (PERSON, ORG, GPE, MONEY)
+    - limit: Maximum entities to return (default 20, max 100)
+    - timeframe: Optional time filter (e.g., "30d", "90d")
+    
+    Example:
+    ```
+    GET /api/entities?search=Sequoia&type=ORG&limit=10
+    ```
+    
+    CRITICAL: Uses 'label' field for entity type, NOT 'type' field!
+    """
+    try:
+        pool = get_pool()
+        
+        # Validate limit
+        if limit > 100:
+            limit = 100
+        elif limit < 1:
+            limit = 20
+            
+        # Calculate date filter if timeframe specified
+        date_filter = None
+        if timeframe:
+            days = 30  # default
+            if timeframe.endswith('d'):
+                try:
+                    days = int(timeframe[:-1])
+                except ValueError:
+                    days = 30
+            date_filter = datetime.now() - timedelta(days=days)
+        
+        # Build the entity search query
+        def query_entities(client):
+            # Base query with episode join for published dates
+            query = client.table("extracted_entities") \
+                .select("entity_name, label, episode_id, episodes!inner(published_at, episode_title)")
+            
+            # Add search filter if provided
+            if search:
+                query = query.ilike("entity_name", f"%{search}%")
+            
+            # Add type filter if provided (using 'label' field as per playbook)
+            if type:
+                query = query.eq("label", type.upper())
+            
+            # Add date filter if specified
+            if date_filter:
+                query = query.gte("episodes.published_at", date_filter.isoformat())
+            
+            return query.execute()
+        
+        # Execute query
+        entities_response = await pool.execute_with_retry(query_entities)
+        
+        # Aggregate entity data
+        entity_aggregates = {}
+        
+        for entity_record in entities_response.data:
+            entity_name = entity_record["entity_name"]
+            entity_type = entity_record["label"]
+            episode_data = entity_record["episodes"]
+            
+            if entity_name not in entity_aggregates:
+                entity_aggregates[entity_name] = {
+                    "name": entity_name,
+                    "type": entity_type,
+                    "mention_count": 0,
+                    "episode_count": 0,
+                    "episodes": [],
+                    "recent_mentions": []
+                }
+            
+            # Increment counts
+            entity_aggregates[entity_name]["mention_count"] += 1
+            
+            # Track unique episodes
+            episode_id = entity_record["episode_id"]
+            if episode_id not in [ep["episode_id"] for ep in entity_aggregates[entity_name]["episodes"]]:
+                entity_aggregates[entity_name]["episode_count"] += 1
+                
+                # Add episode info
+                published_date = parser.parse(episode_data["published_at"])
+                entity_aggregates[entity_name]["episodes"].append({
+                    "episode_id": episode_id,
+                    "episode_title": episode_data.get("episode_title", f"Episode from {published_date.strftime('%B %d, %Y')}"),
+                    "published_at": published_date.isoformat(),
+                    "date": published_date.strftime("%B %d, %Y")
+                })
+        
+        # Sort entities by mention count and limit results
+        sorted_entities = sorted(
+            entity_aggregates.values(),
+            key=lambda x: x["mention_count"],
+            reverse=True
+        )[:limit]
+        
+        # Calculate trends for top entities (compare recent vs older mentions)
+        for entity in sorted_entities:
+            recent_count = 0
+            older_count = 0
+            cutoff_date = datetime.now() - timedelta(weeks=4)
+            
+            for episode in entity["episodes"]:
+                episode_date = parser.parse(episode["published_at"])
+                if episode_date > cutoff_date:
+                    recent_count += 1
+                else:
+                    older_count += 1
+            
+            # Determine trend
+            if recent_count > older_count * 1.5:
+                entity["trend"] = "up"
+            elif older_count > recent_count * 1.5:
+                entity["trend"] = "down"
+            else:
+                entity["trend"] = "stable"
+            
+            # Add recent mentions (last 3)
+            recent_episodes = sorted(
+                entity["episodes"],
+                key=lambda x: x["published_at"],
+                reverse=True
+            )[:3]
+            
+            entity["recent_mentions"] = [
+                {
+                    "episode_title": ep["episode_title"],
+                    "date": ep["date"],
+                    "context": f"Mentioned in {ep['episode_title']}"
+                }
+                for ep in recent_episodes
+            ]
+            
+            # Clean up episodes list for response
+            del entity["episodes"]
+        
+        # Get total count for pagination info
+        total_entities = len(entity_aggregates)
+        
+        return {
+            "success": True,
+            "entities": sorted_entities,
+            "total_entities": total_entities,
+            "filters": {
+                "search": search,
+                "type": type,
+                "timeframe": timeframe,
+                "limit": limit
+            },
+            "metadata": {
+                "available_types": ["PERSON", "ORG", "GPE", "MONEY"],
+                "note": "Trends compare last 4 weeks to previous period"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching entities: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch entities: {str(e)}"
+        )
+
 @app.post("/api/search", response_model=SearchResponse)
 @limiter.limit("20/minute")
 async def search_episodes_endpoint(
