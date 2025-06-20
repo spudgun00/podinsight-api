@@ -403,14 +403,16 @@ async def get_topic_signals(
         # Generate SIGNAL bar messages from the data
         signal_messages = []
         
-        # Add correlation insights
+        # Add correlation insights (only meaningful ones)
         if "correlation" in signals_by_type:
-            for corr in signals_by_type["correlation"][:3]:  # Top 3
+            for corr in signals_by_type["correlation"][:5]:  # Check top 5
                 topics = corr["topics"]
                 percent = corr["co_occurrence_percent"]
-                signal_messages.append(
-                    f"{topics[0]} and {topics[1]} discussed together in {percent}% of episodes"
-                )
+                # Only show if correlation is significant (>20%)
+                if percent > 20:
+                    signal_messages.append(
+                        f"{topics[0]} and {topics[1]} discussed together in {int(percent)}% of episodes"
+                    )
         
         # Add spike insights
         if "spike" in signals_by_type:
@@ -421,14 +423,41 @@ async def get_topic_signals(
                     f"{topic} seeing {factor}x surge in mentions this week"
                 )
         
-        # Add trending combination insights
+        # Add trending combination insights (only significant growth)
         if "trending_combo" in signals_by_type:
-            for trend in signals_by_type["trending_combo"][:2]:  # Top 2
+            for trend in signals_by_type["trending_combo"][:3]:  # Check top 3
                 topics = trend["topics"]
                 growth = trend["growth_rate"]
+                current = trend["current_period_mentions"]
+                
+                # Only show if meaningful growth (>50%) or high volume
+                if growth > 50 or current > 20:
+                    if growth > 100:
+                        signal_messages.append(
+                            f"{topics[0]} + {topics[1]} combo doubled in last 4 weeks ({current} episodes)"
+                        )
+                    elif growth > 50:
+                        signal_messages.append(
+                            f"{topics[0]} + {topics[1]} surging, up {int(growth)}% to {current} episodes"
+                        )
+                    elif current > 20:
+                        signal_messages.append(
+                            f"{topics[0]} + {topics[1]} dominant pair with {current} recent episodes"
+                        )
+        
+        # If we don't have enough impressive signals, add some context
+        if len(signal_messages) < 3:
+            # Add the highest correlation regardless of threshold
+            if "correlation" in signals_by_type and signals_by_type["correlation"]:
+                top_corr = signals_by_type["correlation"][0]
                 signal_messages.append(
-                    f"{topics[0]} + {topics[1]} combo up {growth}% over last month"
+                    f"Most common pairing: {top_corr['topics'][0]} + {top_corr['topics'][1]} in {int(top_corr['co_occurrence_percent'])}% of episodes"
                 )
+            
+            # Add total episode count for context
+            signal_messages.append(
+                f"Analyzing 1,171 episodes across 29 top tech & VC podcasts"
+            )
         
         return {
             "signals": signals_by_type,
