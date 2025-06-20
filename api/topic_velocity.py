@@ -614,9 +614,13 @@ async def get_entities(
             recent_count = 0
             older_count = 0
             cutoff_date = datetime.now() - timedelta(weeks=4)
+            cutoff_date = cutoff_date.replace(tzinfo=None)  # Make naive for comparison
             
             for episode in entity["episodes"]:
                 episode_date = parser.parse(episode["published_at"])
+                # Ensure both dates are naive for comparison
+                if episode_date.tzinfo:
+                    episode_date = episode_date.replace(tzinfo=None)
                 if episode_date > cutoff_date:
                     recent_count += 1
                 else:
