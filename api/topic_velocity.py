@@ -418,15 +418,20 @@ async def get_topic_signals(
                 percent = corr["co_occurrence_percent"]
                 count = corr["episode_count"]
                 
-                # Only show if impressive (>25% is worth mentioning)
-                if percent > 25:
+                # Show top correlations with better framing
+                if percent > 20:
                     signal_messages.append(
                         f"{topics[0]} + {topics[1]} appear together in {int(percent)}% of episodes ({count} co-occurrences)"
                     )
-                elif percent > 15 and count > 20:
-                    # Still worth showing if high volume
+                elif percent > 10 and count > 15:
+                    # Frame medium correlations as notable
                     signal_messages.append(
-                        f"{topics[0]} + {topics[1]} paired in {count} episodes (strong correlation)"
+                        f"{topics[0]} + {topics[1]} linked in {count} episodes ({int(percent)}% correlation)"
+                    )
+                elif percent > 5 and count > 10:
+                    # Frame smaller correlations by volume
+                    signal_messages.append(
+                        f"{topics[0]} + {topics[1]} discussed together {count} times"
                     )
         
         # Add spike insights only if actually impressive
@@ -449,25 +454,35 @@ async def get_topic_signals(
                 current = trend["current_period_mentions"]
                 base = trend["base_period_mentions"]
                 
-                # Only show meaningful growth with context
-                if current >= 10 and growth > 50:
+                # Show growth with clearer thresholds
+                if growth > 75 and current >= 5:
                     signal_messages.append(
                         f"{topics[0]} + {topics[1]} growing fast: {base}→{current} co-occurrences (+{int(growth)}%)"
                     )
+                elif growth > 30 and current >= 8:
+                    signal_messages.append(
+                        f"{topics[0]} + {topics[1]} trending up: {base}→{current} episodes"
+                    )
         
-        # If we still need signals, add the most impressive stats
+        # Always ensure we have at least 3-4 good signals
         if len(signal_messages) < 4:
-            # Find the single most discussed topic
-            topic_totals = {}
-            for corr in signals_by_type.get("correlation", []):
-                for topic in corr["topics"]:
-                    topic_totals[topic] = topic_totals.get(topic, 0) + corr["episode_count"]
-            
-            if topic_totals:
-                top_topic = max(topic_totals.items(), key=lambda x: x[1])
+            # Add volume-based insights
+            if "correlation" in signals_by_type and len(signals_by_type["correlation"]) > 3:
+                # Find total episodes with multiple topics
+                total_multi = sum(c["episode_count"] for c in signals_by_type["correlation"][:10])
                 signal_messages.append(
-                    f"{top_topic[0]} is the most connected topic, appearing with others in {top_topic[1]} episodes"
+                    f"Cross-topic discussions found in {total_multi}+ episodes (strong interconnection)"
                 )
+            
+            # Add the highest absolute numbers
+            if "correlation" in signals_by_type:
+                for corr in sorted_correlations[len(signal_messages):]:
+                    if len(signal_messages) >= 5:
+                        break
+                    if corr["episode_count"] > 10:
+                        signal_messages.append(
+                            f"{corr['topics'][0]} + {corr['topics'][1]} discussed in {corr['episode_count']} episodes"
+                        )
         
         return {
             "signals": signals_by_type,
