@@ -45,7 +45,7 @@ Transform our working Topic Velocity dashboard into an intelligent search and in
 ### Definition of Success (How We Know We've Won)
 - ✅ **Technical Debt Cleared**: TypeScript errors fixed, 6 broken components removed, connection pooling added
 - ✅ **Search is Live**: Natural language queries return relevant transcript excerpts in <2 seconds
-- ✅ **Entities are Trackable**: Users can search for any person/company across all episodes
+- ✅ **Entities are Trackable**: Users can search for any person/company across all episodes (+ UX improvements)
 - ✅ **Authentication Works**: Alpha users can create accounts and save searches
 - ✅ **Sentiment Visible**: New heatmap shows market sentiment trends
 - ✅ **UI Enhanced**: ALL v0 components integrated, animations polished

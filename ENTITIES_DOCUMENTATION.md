@@ -96,9 +96,9 @@ GET /api/entities?type=MONEY&limit=10
       "trend": "down",          // up/down/stable
       "recent_mentions": [
         {
-          "episode_title": "The Future of AI",
+          "episode_title": "This Week in Startups - 65 min (Jun 15, 2025)",
           "date": "June 15, 2025",
-          "context": "Mentioned in The Future of AI"
+          "context": "Mentioned in This Week in Startups - 65 min (Jun 15, 2025)"
         }
       ]
     }
@@ -126,7 +126,8 @@ Trend: "up" → Growing mindshare in the ecosystem
 Monitor thought leaders and key figures:
 ```
 Type: PERSON, Limit: 20 → See most discussed people
-"Sam Altman" → 234 mentions, trending up
+"Steve Jobs" → 7 mentions, trending stable
+Note: Generic first names (Tommy, Mark) are filtered for quality
 ```
 
 ### 3. Investment Intelligence
@@ -163,6 +164,7 @@ This helps identify:
 2. **Context Missing** - Shows mention count but not sentiment or context
 3. **Entity Extraction** - Automated extraction may miss some entities or include errors
 4. **No Semantic Understanding** - Can't distinguish between positive/negative mentions
+5. **Single Names Filtered** - Generic first names (Tommy, Mark, etc.) are excluded for quality
 
 ## Best Practices
 
@@ -210,6 +212,8 @@ This helps identify:
 - Entities are normalized (e.g., "Y Combinator" and "YC" linked)
 - Real-time aggregation from ~150k extracted entities
 - Optimized for sub-second response times
+- Quality filters remove generic single-name PERSON entities
+- Episode titles include podcast name and duration for context
 
 ## Future Enhancements
 
