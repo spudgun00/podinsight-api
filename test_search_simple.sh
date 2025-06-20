@@ -1,28 +1,21 @@
-#!/bin/bash
-echo "🔍 Testing Search API Step by Step"
-echo "=================================="
-echo ""
+#\!/bin/bash
 
-# Test 1: Check if the API is responding
-echo "1. Health check..."
-curl -s https://podinsight-api.vercel.app/ | python3 -m json.tool | grep -E "(HUGGINGFACE|SUPABASE)" || echo "Failed"
-echo ""
+echo "Testing PodInsight Search API..."
+echo "================================"
 
-# Test 2: Test with a simple query
-echo "2. Testing search with verbose output..."
+# Test search with curl
 curl -X POST https://podinsight-api.vercel.app/api/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "test", "limit": 1}' \
-  -w "\nHTTP Status: %{http_code}\nResponse Time: %{time_total}s\n" \
-  -v 2>&1 | grep -E "(HTTP|detail|error)" || true
-echo ""
+  -d '{"query": "AI agents", "limit": 3}' \
+  | python3 -m json.tool
 
-# Test 3: Check if it's a specific issue with the search
-echo "3. Testing a different endpoint (topics)..."
-curl -s https://podinsight-api.vercel.app/api/topics | python3 -m json.tool | head -10
+echo -e "\n\nTo test in your browser, use a tool like:"
+echo "1. Postman (https://www.postman.com/)"
+echo "2. Thunder Client (VS Code extension)"
+echo "3. Or use the browser console:"
 echo ""
-
-echo "To check Vercel logs for the actual error:"
-echo "1. Go to: https://vercel.com/james-projects-eede2cf2/podinsight-api"
-echo "2. Click on 'Functions' tab"
-echo "3. Look for recent errors in the logs"
+echo "fetch('https://podinsight-api.vercel.app/api/search', {"
+echo "  method: 'POST',"
+echo "  headers: {'Content-Type': 'application/json'},"
+echo "  body: JSON.stringify({query: 'AI agents', limit: 3})"
+echo "}).then(r => r.json()).then(console.log)"

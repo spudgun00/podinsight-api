@@ -549,9 +549,9 @@ async def get_entities(
         
         # Build the entity search query
         def query_entities(client):
-            # Base query with episode join for published dates
+            # Base query with episode join for meaningful episode info
             query = client.table("extracted_entities") \
-                .select("entity_name, entity_type, episode_id, episodes!inner(published_at, episode_title)")
+                .select("entity_name, entity_type, episode_id, episodes!inner(published_at, podcast_name, duration_seconds)")
             
             # Add search filter if provided
             if search:
@@ -596,11 +596,21 @@ async def get_entities(
             if episode_id not in [ep["episode_id"] for ep in entity_aggregates[entity_name]["episodes"]]:
                 entity_aggregates[entity_name]["episode_count"] += 1
                 
-                # Add episode info
+                # Add episode info with meaningful title
                 published_date = parser.parse(episode_data["published_at"])
+                podcast_name = episode_data.get("podcast_name", "Unknown Podcast")
+                duration_seconds = episode_data.get("duration_seconds", 0)
+                
+                # Create meaningful episode title: "Podcast Name - 65 min (Jun 12, 2025)"
+                if duration_seconds and duration_seconds > 0:
+                    duration_minutes = round(duration_seconds / 60)
+                    display_title = f"{podcast_name} - {duration_minutes} min ({published_date.strftime('%b %d, %Y')})"
+                else:
+                    display_title = f"{podcast_name} ({published_date.strftime('%b %d, %Y')})"
+                
                 entity_aggregates[entity_name]["episodes"].append({
                     "episode_id": episode_id,
-                    "episode_title": episode_data.get("episode_title", f"Episode from {published_date.strftime('%B %d, %Y')}"),
+                    "episode_title": display_title,
                     "published_at": published_date.isoformat(),
                     "date": published_date.strftime("%B %d, %Y")
                 })

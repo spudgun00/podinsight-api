@@ -1,0 +1,172 @@
+{
+  "total_missing": 171,
+  "guid_issues": 171,
+  "missing_by_podcast": {
+    "Unknown": 171
+  },
+  "missing_by_date": {},
+  "sample_missing": [
+    {
+      "episode_id": "0907f203-5e4b-4916-bdcd-60c933c7ff90",
+      "guid": "53b85178-aac1-4044-8623-258ea0743caf",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-04-15T20:45:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "35f2bb7b-55fb-46c1-b6ac-033de82eab56",
+      "guid": "5a869a00-fae8-443c-827d-56baaeed7a44",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-03-28T20:30:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "d5ecd0bf-0ab7-4f76-a971-5856fc9c72e1",
+      "guid": "5e49d9c7-103d-4af1-9248-103cfde51b4e",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-03-19T21:00:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "628e1b25-87c1-4d79-bf0a-7e1529f00cbe",
+      "guid": "6022de51-8eb4-4cca-8827-dd1d57a27621",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-01-15T15:43:29+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "0a524955-9bb0-401b-b45c-2aa7a98797d7",
+      "guid": "7324047f-2cd9-43b4-985c-fbf96ee22eb6",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-02-04T21:50:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "6b426f56-8cd0-4547-95d1-5245bd938dcf",
+      "guid": "7a832cc4-b264-4184-b307-5ea359f128e3",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-04-05T12:50:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "603d4fe9-d213-412c-9081-3d469d083cc6",
+      "guid": "7f4baaa3-0a7f-4357-b5d8-a6bd83647eb2",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-05-06T20:30:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "c8053316-4e2e-46fe-96a9-6c53d9edde93",
+      "guid": "81d6ba10-c8a0-45d8-8701-3353d1edfbfe",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-04-09T20:30:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "71ef78d8-5812-4dec-948c-140d0ecd10eb",
+      "guid": "91fda474-a5ce-41f0-af7a-6ae39d895313",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-05-03T10:00:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    },
+    {
+      "episode_id": "50ed39d9-7b98-4045-9c26-25371863623b",
+      "guid": "9905d55c-67fe-4b2e-b843-e5baac5c01a6",
+      "feed_slug": "unknown",
+      "title": "No title",
+      "published_at": "2025-02-24T21:30:00+00:00",
+      "s3_transcript_path": "Not set",
+      "s3_paths_found": [],
+      "s3_issue": "No files found in S3"
+    }
+  ],
+  "guid_mismatches": [
+    {
+      "id": "0907f203-5e4b-4916-bdcd-60c933c7ff90",
+      "guid": "53b85178-aac1-4044-8623-258ea0743caf",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "35f2bb7b-55fb-46c1-b6ac-033de82eab56",
+      "guid": "5a869a00-fae8-443c-827d-56baaeed7a44",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "d5ecd0bf-0ab7-4f76-a971-5856fc9c72e1",
+      "guid": "5e49d9c7-103d-4af1-9248-103cfde51b4e",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "628e1b25-87c1-4d79-bf0a-7e1529f00cbe",
+      "guid": "6022de51-8eb4-4cca-8827-dd1d57a27621",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "0a524955-9bb0-401b-b45c-2aa7a98797d7",
+      "guid": "7324047f-2cd9-43b4-985c-fbf96ee22eb6",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "6b426f56-8cd0-4547-95d1-5245bd938dcf",
+      "guid": "7a832cc4-b264-4184-b307-5ea359f128e3",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "603d4fe9-d213-412c-9081-3d469d083cc6",
+      "guid": "7f4baaa3-0a7f-4357-b5d8-a6bd83647eb2",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "c8053316-4e2e-46fe-96a9-6c53d9edde93",
+      "guid": "81d6ba10-c8a0-45d8-8701-3353d1edfbfe",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "71ef78d8-5812-4dec-948c-140d0ecd10eb",
+      "guid": "91fda474-a5ce-41f0-af7a-6ae39d895313",
+      "podcast": "Unknown",
+      "title": "No title"
+    },
+    {
+      "id": "50ed39d9-7b98-4045-9c26-25371863623b",
+      "guid": "9905d55c-67fe-4b2e-b843-e5baac5c01a6",
+      "podcast": "Unknown",
+      "title": "No title"
+    }
+  ]
+}

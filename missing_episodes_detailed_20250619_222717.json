@@ -1,0 +1,69 @@
+{
+  "summary": {
+    "total_in_supabase": 1171,
+    "total_in_mongodb": 1000,
+    "total_missing": 171,
+    "missing_percentage": 14.602903501280956
+  },
+  "missing_by_feed": {
+    "NO_FEED_SLUG": {
+      "count": 171,
+      "sample_episodes": [
+        {
+          "id": "0907f203-5e4b-4916-bdcd-60c933c7ff90",
+          "guid": "53b85178-aac1-4044-8623-258ea0743caf",
+          "title": "NO_TITLE",
+          "published_at": "2025-04-15T20:45:00+00:00",
+          "s3_transcript_path": "NO_PATH",
+          "s3_audio_path": "s3://pod-insights-raw/the-pomp-podcast/53b85178-aac1-4044-8623-258ea0743caf/audio/episode.mp3",
+          "feed_title": "NO_FEED_TITLE"
+        },
+        {
+          "id": "35f2bb7b-55fb-46c1-b6ac-033de82eab56",
+          "guid": "5a869a00-fae8-443c-827d-56baaeed7a44",
+          "title": "NO_TITLE",
+          "published_at": "2025-03-28T20:30:00+00:00",
+          "s3_transcript_path": "NO_PATH",
+          "s3_audio_path": "s3://pod-insights-raw/the-pomp-podcast/5a869a00-fae8-443c-827d-56baaeed7a44/audio/episode.mp3",
+          "feed_title": "NO_FEED_TITLE"
+        },
+        {
+          "id": "d5ecd0bf-0ab7-4f76-a971-5856fc9c72e1",
+          "guid": "5e49d9c7-103d-4af1-9248-103cfde51b4e",
+          "title": "NO_TITLE",
+          "published_at": "2025-03-19T21:00:00+00:00",
+          "s3_transcript_path": "NO_PATH",
+          "s3_audio_path": "s3://pod-insights-raw/the-pomp-podcast/5e49d9c7-103d-4af1-9248-103cfde51b4e/audio/episode.mp3",
+          "feed_title": "NO_FEED_TITLE"
+        },
+        {
+          "id": "628e1b25-87c1-4d79-bf0a-7e1529f00cbe",
+          "guid": "6022de51-8eb4-4cca-8827-dd1d57a27621",
+          "title": "NO_TITLE",
+          "published_at": "2025-01-15T15:43:29+00:00",
+          "s3_transcript_path": "NO_PATH",
+          "s3_audio_path": "s3://pod-insights-raw/the-pomp-podcast/6022de51-8eb4-4cca-8827-dd1d57a27621/audio/episode.mp3",
+          "feed_title": "NO_FEED_TITLE"
+        },
+        {
+          "id": "0a524955-9bb0-401b-b45c-2aa7a98797d7",
+          "guid": "7324047f-2cd9-43b4-985c-fbf96ee22eb6",
+          "title": "NO_TITLE",
+          "published_at": "2025-02-04T21:50:00+00:00",
+          "s3_transcript_path": "NO_PATH",
+          "s3_audio_path": "s3://pod-insights-raw/the-pomp-podcast/7324047f-2cd9-43b4-985c-fbf96ee22eb6/audio/episode.mp3",
+          "feed_title": "NO_FEED_TITLE"
+        }
+      ]
+    }
+  },
+  "missing_by_date": {
+    "2025-01": 31,
+    "2025-02": 28,
+    "2025-03": 35,
+    "2025-04": 33,
+    "2025-05": 36,
+    "2025-06": 8
+  },
+  "sample_missing_episodes": []
+}
