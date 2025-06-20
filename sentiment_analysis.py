@@ -94,6 +94,12 @@ class handler(BaseHTTPRequestHandler):
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(weeks=weeks)
 
+            # ADD COMPREHENSIVE LOGGING
+            logger.info(f"=== Sentiment Analysis Request ===")
+            logger.info(f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+            logger.info(f"Weeks requested: {weeks}")
+            logger.info(f"Topics: {topics}")
+
             # Sentiment keywords with weights
             sentiment_keywords = {
                 # Strong positive
