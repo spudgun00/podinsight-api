@@ -615,9 +615,24 @@ async def get_entities(
                     "date": published_date.strftime("%B %d, %Y")
                 })
         
+        # Filter out unhelpful single-name PERSON entities
+        filtered_entities = []
+        for entity in entity_aggregates.values():
+            entity_name = entity["name"]
+            entity_type = entity["type"]
+            
+            # Skip single-name PERSON entities that are too generic
+            if entity_type == "PERSON" and " " not in entity_name:
+                # Common first names that aren't useful without context
+                generic_names = {"Tom", "Tommy", "Mark", "Ben", "Mike", "John", "David", "Chris", "Matt", "Steve", "Dan", "Paul", "Tim", "Rob", "Jim", "Sam", "Alex", "Ryan", "Brian", "Kevin", "Jason", "Jeff", "Nick", "Eric", "Sean"}
+                if entity_name in generic_names:
+                    continue
+            
+            filtered_entities.append(entity)
+        
         # Sort entities by mention count and limit results
         sorted_entities = sorted(
-            entity_aggregates.values(),
+            filtered_entities,
             key=lambda x: x["mention_count"],
             reverse=True
         )[:limit]
