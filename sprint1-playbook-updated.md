@@ -1201,7 +1201,101 @@ Add to each PROJECT.md after Phase 0:
 
 ---
 
-## Appendix E: Deployment & Cache Management
+## Appendix E: Sprint 2 Enhancement Roadmap
+
+### **High Priority Enhancements (Sprint 2 Focus)**
+
+#### 1. **Quoted Phrase Search Implementation** 
+- **Value**: High user expectation (Google-like `"exact phrase"` behavior)
+- **Effort**: 1-2 hours 
+- **Impact**: Meets user search expectations, reduces confusion
+- **Implementation**: Hybrid regex + text search for quoted queries
+
+#### 2. **Search Score Normalization**
+- **Value**: Better UX (206% → 85% user-friendly display)  
+- **Effort**: 1-2 hours (frontend only)
+- **Impact**: Intuitive relevance understanding
+- **Implementation**: `Math.min(mongoScore * 50, 100)` in dashboard
+
+#### 3. **Dashboard Search Integration**
+- **Value**: Complete user experience
+- **Effort**: 4-6 hours
+- **Impact**: Production-ready search interface
+- **Dependencies**: React dashboard repo
+
+#### 4. **Audio Player Integration**  
+- **Value**: Search → Listen workflow
+- **Effort**: 3-4 hours
+- **Impact**: Complete podcast consumption experience
+- **Implementation**: S3 audio paths already available
+
+### **Quick Wins Already Implemented** ✅
+- Episode title generation (auto-generated from dates)
+- Improved search excerpts (sentence-focused ~150 chars)  
+- Human-readable date formatting
+- Cache busting tools and documentation
+
+### **Medium Priority (Sprint 2-3)**
+
+#### 5. **Search Analytics Implementation**
+- **Value**: Understand user behavior
+- **Effort**: 2-3 hours
+- **Impact**: Data-driven content curation
+- **Implementation**: Log queries + click tracking
+
+#### 6. **Enhanced Search UI Components** 
+- **Value**: Professional search experience
+- **Effort**: 4-6 hours
+- **Impact**: Mobile responsive, better loading states
+- **Dependencies**: Dashboard integration
+
+#### 7. **Search Result Pagination**
+- **Value**: Better performance for large result sets
+- **Effort**: 2-3 hours  
+- **Impact**: Scalable search experience
+
+### **Low Priority (Future Sprints)**
+
+#### 8. **Advanced Search Filters**
+- **Value**: Power user features
+- **Effort**: 6-8 hours
+- **Impact**: Targeted search capabilities
+- **Examples**: Date ranges, podcast filters, topic filters
+
+#### 9. **Search Suggestions/Autocomplete**
+- **Value**: Improved discovery
+- **Effort**: 4-6 hours
+- **Impact**: Reduced search friction
+
+#### 10. **Performance Monitoring Dashboard**
+- **Value**: Operational insights  
+- **Effort**: 8-10 hours
+- **Impact**: Proactive performance management
+
+### **Value vs Effort Matrix**
+
+**High Value, Low Effort (Do First)**:
+- Quoted phrase search (1-2h)
+- Score normalization (1-2h)  
+- Cache busting tools ✅ (Done)
+
+**High Value, Medium Effort (Sprint 2)**:
+- Dashboard integration (4-6h)
+- Audio player (3-4h)
+- Search analytics (2-3h)
+
+**Medium Value, Low Effort (Quick Wins)**:
+- Episode titles ✅ (Done)
+- Better excerpts ✅ (Done)
+- Error message improvements (1h)
+
+**Future Considerations**:
+- Advanced filters (high effort, niche value)
+- Autocomplete (medium effort, nice-to-have)
+
+---
+
+## Appendix F: Deployment & Cache Management
 
 ### **Vercel Cache Busting (Essential for Development)**
 
@@ -1241,6 +1335,137 @@ curl "https://podinsight-api.vercel.app/api/search?v=$(date +%s)" \
 2. **Long excerpts still appearing**: Check deployment_time, redeploy if old
 3. **MongoDB fallback to pgvector**: Check MongoDB debug endpoint
 4. **API returning old data**: Use cache-busting parameters
+
+---
+
+## Appendix E: Sprint 2 Enhancement Roadmap
+
+*Comprehensive enhancement plan based on Sprint 1 discoveries and user feedback*
+
+### High Priority Enhancements (Value: High, Effort: 1-2 hours each)
+
+#### 1. **Quoted Phrase Search Implementation** 
+- **Value**: High (meets user expectations)
+- **Effort**: 1-2 hours
+- **Impact**: Users expect Google-like `"exact phrase"` matching
+- **Implementation**: Hybrid regex + MongoDB text search
+
+#### 2. **Search Score Normalization**
+- **Value**: High (user experience)  
+- **Effort**: 1 hour (frontend-only)
+- **Impact**: Fix confusing 206% scores → 0-100% display
+- **Implementation**: Dashboard repository changes
+
+#### 3. **Dashboard Search Integration**
+- **Value**: High (core user experience)
+- **Effort**: 2-3 hours
+- **Impact**: Connect API to React frontend seamlessly
+- **Dependencies**: Score normalization completion
+
+#### 4. **Audio Player from Search Results**
+- **Value**: High (engagement)
+- **Effort**: 2-3 hours  
+- **Impact**: Click excerpt → hear original audio
+- **Dependencies**: Audio player component in dashboard
+
+### Medium Priority Enhancements (Value: Medium, Effort: 2-4 hours each)
+
+#### 5. **Search Analytics Implementation**
+- **Value**: Medium (business intelligence)
+- **Effort**: 3-4 hours
+- **Impact**: Track popular search terms and user behavior
+- **Implementation**: Logging + analytics dashboard
+
+#### 6. **Enhanced Search UI Components**
+- **Value**: Medium (user experience)
+- **Effort**: 2-3 hours
+- **Impact**: Loading states, result cards, mobile responsiveness
+- **Location**: Dashboard repository
+
+#### 7. **Search Result Pagination**
+- **Value**: Medium (handling large result sets)
+- **Effort**: 2 hours
+- **Impact**: Better navigation for 20+ results
+- **Implementation**: API + frontend pagination
+
+#### 8. **Cache Status Enhancement**
+- **Value**: Medium (developer experience)
+- **Effort**: 1 hour
+- **Impact**: Clear cache hit/miss visibility
+- **Implementation**: Enhanced debug endpoint
+
+### Low Priority Enhancements (Value: Low-Medium, Effort: 3-6 hours each)
+
+#### 9. **Advanced Search Filters**
+- **Value**: Medium (power users)
+- **Effort**: 4-6 hours
+- **Impact**: Filter by date, podcast, topic, duration
+- **Implementation**: Search API extensions
+
+#### 10. **Search Suggestions/Autocomplete**
+- **Value**: Low-Medium (nice to have)
+- **Effort**: 3-4 hours
+- **Impact**: Query completion and suggestions
+- **Dependencies**: Search analytics data
+
+#### 11. **Performance Monitoring Dashboard**
+- **Value**: Low (operational)
+- **Effort**: 4-5 hours
+- **Impact**: Detailed MongoDB performance metrics
+- **Implementation**: Separate monitoring service
+
+### Quick Wins Completed ✅
+
+- **Episode Title Generation**: Auto-generated from dates (no more empty titles)
+- **Improved Search Excerpts**: Sentence-focused ~150 chars vs 200+ words  
+- **Human-Readable Dates**: Added `published_date` field with "January 15, 2025" format
+
+### Value vs Effort Matrix
+
+```
+High Value, Low Effort (Sprint 2 Phase 1):
+├── Quoted phrase search (1-2h)
+├── Score normalization (1h) 
+└── Cache status enhancement (1h)
+
+High Value, Medium Effort (Sprint 2 Phase 2):
+├── Dashboard integration (2-3h)
+├── Audio player integration (2-3h)
+└── Enhanced UI components (2-3h)
+
+Medium Value, Medium Effort (Sprint 2 Phase 3):
+├── Search analytics (3-4h)
+├── Result pagination (2h)
+└── Performance monitoring (4-5h)
+
+Low Priority (Sprint 3 Candidates):
+├── Advanced filters (4-6h)
+├── Autocomplete (3-4h)
+└── Monitoring dashboard (4-5h)
+```
+
+### Implementation Priority Order
+
+**Week 1 Sprint 2**: High Value + Low Effort
+1. Score normalization (frontend fix)
+2. Quoted phrase search (backend enhancement)  
+3. Cache status enhancement (developer experience)
+
+**Week 2 Sprint 2**: High Value + Medium Effort
+1. Dashboard search integration
+2. Audio player from search results
+3. Enhanced UI components
+
+**Future Sprints**: Remaining medium/low priority items based on user feedback
+
+### Success Metrics for Sprint 2
+
+- [ ] User-friendly score display (0-100% range)
+- [ ] Exact phrase search working like Google
+- [ ] Seamless dashboard search experience
+- [ ] Audio playback from search results
+- [ ] Mobile-optimized search interface
+- [ ] Search analytics foundation established
 
 ---
 
