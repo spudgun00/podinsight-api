@@ -94,6 +94,12 @@ class handler(BaseHTTPRequestHandler):
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(weeks=weeks)
             
+            # ADD COMPREHENSIVE LOGGING
+            logger.info(f"=== Sentiment Analysis Request ===")
+            logger.info(f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+            logger.info(f"Weeks requested: {weeks}")
+            logger.info(f"Topics: {topics}")
+            
             # Sentiment keywords with weights
             sentiment_keywords = {
                 # Strong positive
@@ -142,6 +148,7 @@ class handler(BaseHTTPRequestHandler):
                     episode_count = collection.count_documents(query)
                     
                     if episode_count == 0:
+                        logger.info(f"No episodes found for {topic} in week {week_label} ({week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')})")
                         sentiment_results.append({
                             "topic": topic,
                             "week": week_label,
@@ -202,8 +209,10 @@ class handler(BaseHTTPRequestHandler):
                     # Calculate average sentiment
                     if analyzed_count > 0:
                         avg_sentiment = total_sentiment_score / analyzed_count
+                        logger.info(f"Analyzed {analyzed_count}/{len(transcripts)} transcripts with keywords")
                     else:
                         avg_sentiment = 0.0
+                        logger.info(f"No sentiment keywords found in {len(transcripts)} transcripts for {topic}")
                     
                     # Clamp to [-1, 1] range
                     avg_sentiment = max(-1, min(1, avg_sentiment))
