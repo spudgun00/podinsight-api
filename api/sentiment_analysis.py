@@ -30,6 +30,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle GET request for sentiment analysis"""
+        logger.info("🔥 SENTIMENT ANALYSIS STARTED 🔥")
         try:
             # Parse query parameters
             parsed_path = urllib.parse.urlparse(self.path)
@@ -42,6 +43,7 @@ class handler(BaseHTTPRequestHandler):
             ]))
             
             logger.info(f"Sentiment analysis request: weeks={weeks}, topics={topics}")
+            logger.info("🚀 About to calculate sentiment data...")
             
             # Calculate sentiment data
             sentiment_data = self._calculate_sentiment(weeks, topics)
