@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil import parser
 import os
 import logging
@@ -560,6 +560,9 @@ async def get_entities(
             
             # Add date filter if specified
             if date_filter:
+                # Ensure date_filter is timezone-aware for Supabase comparison
+                if date_filter.tzinfo is None:
+                    date_filter = date_filter.replace(tzinfo=timezone.utc)
                 query = query.gte("episodes.published_at", date_filter.isoformat())
             
             return query.execute()
