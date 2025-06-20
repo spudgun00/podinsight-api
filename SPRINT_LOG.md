@@ -3,8 +3,8 @@
 *This document tracks the actual implementation progress against the playbook, capturing discoveries, deviations, and key learnings.*
 
 **Sprint Start Date:** June 14, 2025  
-**Current Status:** Phase 2 (Backend API) - 🔄 **IN PROGRESS**  
-**Last Updated:** June 15, 2025 - 09:30 UTC
+**Current Status:** Sprint 1 Entity Search - ✅ **COMPLETE**  
+**Last Updated:** June 20, 2025 - 12:00 UTC
 
 ---
 
@@ -14,8 +14,9 @@
 |-------|--------|------------|-------------|
 | **Phase 1.1** - Database Setup | ✅ **COMPLETE** | 100% | Schema deployed with 4 tables, ready for 1,171 episodes |
 | **Phase 1.2** - ETL Development | ✅ **COMPLETE** | 100% | Full ETL pipeline executed - all 1,171 episodes loaded with fixes |
-| **Phase 2** - API Development | 🔄 **IN PROGRESS** | 20% | FastAPI structure created, deployment config ready |
-| **Phase 3** - Frontend Dashboard | ⏳ **PENDING** | 0% | Awaiting Phase 2 completion |
+| **Phase 2** - API Development | ✅ **COMPLETE** | 100% | FastAPI deployed with MongoDB search, 60x quality improvement |
+| **Phase 3** - Frontend Dashboard | ✅ **COMPLETE** | 100% | Dashboard live with topic velocity and search |
+| **Sprint 1** - Entity Search | ✅ **COMPLETE** | 100% | Entity tracking implemented - "Entities are Trackable" ✓ |
 
 ---
 
@@ -1987,3 +1988,42 @@ All playbook requirements successfully implemented:
 - ✅ Comprehensive testing completed
 
 **Search API is production-ready for Sprint 1!**
+
+---
+
+## 🏁 Sprint 1 Entity Search Implementation - June 20, 2025
+
+### Sprint 1 Success Criterion: "Entities are Trackable"
+**Requirement:** Users can search for any person/company across all episodes
+
+### ✅ Implementation Complete
+
+**New API Endpoint:** `GET /api/entities`
+- Search by name (fuzzy matching): `?search=OpenAI`
+- Filter by type: `?type=PERSON|ORG|GPE|MONEY`
+- Timeframe filtering: `?timeframe=30d|60d|90d`
+- Trend analysis: up/down/stable (last 4 weeks vs previous)
+
+**Key Features Delivered:**
+- **Entity Aggregation**: 494 OpenAI mentions across 412 episodes
+- **Trend Detection**: Compare recent vs historical mention frequency
+- **Episode Attribution**: Recent mentions with meaningful episode titles
+- **Type Classification**: PERSON, ORG, GPE, MONEY entities tracked
+
+**User Experience Improvements:**
+- Fixed episode titles from "Episode fa77104a" → "This Week in Startups - 65 min (Jun 12, 2025)"
+- Interactive HTML test interface at `test-entities-browser.html`
+- Complete documentation in `ENTITIES_DOCUMENTATION.md`
+
+**Technical Implementation:**
+- Uses existing `extracted_entities` table in Supabase
+- Real-time aggregation from ~150k entity records
+- Optimized queries with connection pooling
+- Sub-second response times maintained
+
+### Files Created:
+- `api/topic_velocity.py` - Entity endpoint added (line 504)
+- `test-entities-browser.html` - User testing interface
+- `ENTITIES_DOCUMENTATION.md` - Complete API and usage docs
+
+**Sprint 1 Phase 1 Requirement: ✅ COMPLETE**
