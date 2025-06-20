@@ -403,69 +403,71 @@ async def get_topic_signals(
         # Generate SIGNAL bar messages from the data
         signal_messages = []
         
-        # Add correlation insights (only meaningful ones)
+        # Get the BEST correlations only (sorted by percentage)
         if "correlation" in signals_by_type:
-            for corr in signals_by_type["correlation"][:5]:  # Check top 5
+            # Sort by correlation percentage to get the most impressive
+            sorted_correlations = sorted(
+                signals_by_type["correlation"], 
+                key=lambda x: x["co_occurrence_percent"], 
+                reverse=True
+            )
+            
+            # Only show truly impressive correlations
+            for corr in sorted_correlations[:5]:
                 topics = corr["topics"]
                 percent = corr["co_occurrence_percent"]
-                recent_pct = corr.get("recent_percentage", 0)
+                count = corr["episode_count"]
                 
-                # Only show if correlation is significant (>15%)
-                if percent > 15:
-                    # If it's also hot recently, emphasize that
-                    if recent_pct > percent * 1.2:  # 20% higher than average
-                        signal_messages.append(
-                            f"{topics[0]} + {topics[1]} heating up - in {int(percent)}% overall, {int(recent_pct)}% of recent episodes"
-                        )
-                    else:
-                        signal_messages.append(
-                            f"{topics[0]} and {topics[1]} discussed together in {int(percent)}% of episodes"
-                        )
+                # Only show if impressive (>25% is worth mentioning)
+                if percent > 25:
+                    signal_messages.append(
+                        f"{topics[0]} + {topics[1]} appear together in {int(percent)}% of episodes ({count} co-occurrences)"
+                    )
+                elif percent > 15 and count > 20:
+                    # Still worth showing if high volume
+                    signal_messages.append(
+                        f"{topics[0]} + {topics[1]} paired in {count} episodes (strong correlation)"
+                    )
         
-        # Add spike insights
+        # Add spike insights only if actually impressive
         if "spike" in signals_by_type:
-            for spike in signals_by_type["spike"][:2]:  # Top 2
+            for spike in signals_by_type["spike"][:2]:
                 topic = spike["topic"]
                 factor = spike["spike_factor"]
-                signal_messages.append(
-                    f"{topic} seeing {factor}x surge in mentions this week"
-                )
+                current = spike.get("current_week_mentions", 0)
+                # Only show if truly spiking (3x or more)
+                if factor >= 3:
+                    signal_messages.append(
+                        f"{topic} exploding with {factor}x normal activity ({current} mentions this week)"
+                    )
         
-        # Add trending combination insights (only significant growth)
+        # Add growth insights with clearer language
         if "trending_combo" in signals_by_type:
-            for trend in signals_by_type["trending_combo"][:3]:  # Check top 3
+            for trend in signals_by_type["trending_combo"][:3]:
                 topics = trend["topics"]
                 growth = trend["growth_rate"]
                 current = trend["current_period_mentions"]
+                base = trend["base_period_mentions"]
                 
-                # Only show if meaningful growth (>50%) or high volume
-                if growth > 50 or current > 20:
-                    if growth > 100:
-                        signal_messages.append(
-                            f"{topics[0]} + {topics[1]} combo doubled in last 4 weeks ({current} episodes)"
-                        )
-                    elif growth > 50:
-                        signal_messages.append(
-                            f"{topics[0]} + {topics[1]} surging, up {int(growth)}% to {current} episodes"
-                        )
-                    elif current > 20:
-                        signal_messages.append(
-                            f"{topics[0]} + {topics[1]} dominant pair with {current} recent episodes"
-                        )
+                # Only show meaningful growth with context
+                if current >= 10 and growth > 50:
+                    signal_messages.append(
+                        f"{topics[0]} + {topics[1]} growing fast: {base}→{current} co-occurrences (+{int(growth)}%)"
+                    )
         
-        # If we don't have enough impressive signals, add some context
-        if len(signal_messages) < 3:
-            # Add the highest correlation regardless of threshold
-            if "correlation" in signals_by_type and signals_by_type["correlation"]:
-                top_corr = signals_by_type["correlation"][0]
-                signal_messages.append(
-                    f"Most common pairing: {top_corr['topics'][0]} + {top_corr['topics'][1]} in {int(top_corr['co_occurrence_percent'])}% of episodes"
-                )
+        # If we still need signals, add the most impressive stats
+        if len(signal_messages) < 4:
+            # Find the single most discussed topic
+            topic_totals = {}
+            for corr in signals_by_type.get("correlation", []):
+                for topic in corr["topics"]:
+                    topic_totals[topic] = topic_totals.get(topic, 0) + corr["episode_count"]
             
-            # Add total episode count for context
-            signal_messages.append(
-                f"Analyzing 1,171 episodes across 29 top tech & VC podcasts"
-            )
+            if topic_totals:
+                top_topic = max(topic_totals.items(), key=lambda x: x[1])
+                signal_messages.append(
+                    f"{top_topic[0]} is the most connected topic, appearing with others in {top_topic[1]} episodes"
+                )
         
         return {
             "signals": signals_by_type,
