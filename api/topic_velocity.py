@@ -353,6 +353,100 @@ async def get_available_topics() -> Dict[str, List[str]]:
             detail=f"Failed to fetch topics: {str(e)}"
         )
 
+@app.get("/api/signals")
+async def get_topic_signals(
+    signal_type: Optional[str] = None,
+    limit: int = 10
+) -> Dict[str, Any]:
+    """
+    Get pre-computed topic signals for dashboard SIGNAL bar
+    
+    This endpoint returns:
+    - Topic correlations (which topics appear together)
+    - Topic spikes (unusual activity)
+    - Trending combinations (fast-growing topic pairs)
+    
+    Query parameters:
+    - signal_type: Filter by type ('correlation', 'spike', 'trending_combo')
+    - limit: Maximum number of signals to return (default 10)
+    
+    Example:
+    ```
+    GET /api/signals?signal_type=correlation&limit=5
+    ```
+    """
+    try:
+        pool = get_pool()
+        
+        # Build query
+        def query_signals(client):
+            query = client.table("topic_signals") \
+                .select("*") \
+                .order("calculated_at", desc=True)
+            
+            if signal_type:
+                query = query.eq("signal_type", signal_type)
+            
+            return query.limit(limit).execute()
+        
+        # Execute query
+        signals_response = await pool.execute_with_retry(query_signals)
+        
+        # Group signals by type
+        signals_by_type = {}
+        for signal in signals_response.data:
+            sig_type = signal["signal_type"]
+            if sig_type not in signals_by_type:
+                signals_by_type[sig_type] = []
+            signals_by_type[sig_type].append(signal["signal_data"])
+        
+        # Generate SIGNAL bar messages from the data
+        signal_messages = []
+        
+        # Add correlation insights
+        if "correlation" in signals_by_type:
+            for corr in signals_by_type["correlation"][:3]:  # Top 3
+                topics = corr["topics"]
+                percent = corr["co_occurrence_percent"]
+                signal_messages.append(
+                    f"{topics[0]} and {topics[1]} discussed together in {percent}% of episodes"
+                )
+        
+        # Add spike insights
+        if "spike" in signals_by_type:
+            for spike in signals_by_type["spike"][:2]:  # Top 2
+                topic = spike["topic"]
+                factor = spike["spike_factor"]
+                signal_messages.append(
+                    f"{topic} seeing {factor}x surge in mentions this week"
+                )
+        
+        # Add trending combination insights
+        if "trending_combo" in signals_by_type:
+            for trend in signals_by_type["trending_combo"][:2]:  # Top 2
+                topics = trend["topics"]
+                growth = trend["growth_rate"]
+                signal_messages.append(
+                    f"{topics[0]} + {topics[1]} combo up {growth}% over last month"
+                )
+        
+        return {
+            "signals": signals_by_type,
+            "signal_messages": signal_messages,
+            "last_updated": signals_response.data[0]["calculated_at"] if signals_response.data else None,
+            "metadata": {
+                "total_signals": len(signals_response.data),
+                "signal_types": list(signals_by_type.keys())
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching signals: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch signals: {str(e)}"
+        )
+
 @app.post("/api/search", response_model=SearchResponse)
 @limiter.limit("20/minute")
 async def search_episodes_endpoint(
