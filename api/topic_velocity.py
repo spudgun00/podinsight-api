@@ -543,6 +543,9 @@ async def get_entities(
                 except ValueError:
                     days = 30
             date_filter = datetime.now() - timedelta(days=days)
+            # Ensure date_filter is timezone-aware for Supabase comparison
+            if date_filter.tzinfo is None:
+                date_filter = date_filter.replace(tzinfo=timezone.utc)
         
         # Build the entity search query
         def query_entities(client):
@@ -560,9 +563,6 @@ async def get_entities(
             
             # Add date filter if specified
             if date_filter:
-                # Ensure date_filter is timezone-aware for Supabase comparison
-                if date_filter.tzinfo is None:
-                    date_filter = date_filter.replace(tzinfo=timezone.utc)
                 query = query.gte("episodes.published_at", date_filter.isoformat())
             
             return query.execute()
