@@ -1,0 +1,72 @@
+### Why “0 overlap” happened
+
+| Collection                                                  | How those docs were created                                                                  | What got used for **episode\_id**                                                                                  |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **`transcripts`** <br>(June 19 Mongo migration)             | Pulled the *existing* rows from Supabase, then copied every transcript into Mongo.           | The canonical UUID that already lives in **Supabase `episodes.id`** (e.g. `3a50ef5b-6965-4ae5-a062-2841f83ca24b`). |
+| **`transcript_chunks_768d`** <br>(June 21 re-embedding run) | Walked the S3 folder directly, stitched `feed_slug/guid/*` into chunks, embedded each chunk. | A *fresh* UUID generated inside the re-embedding script (one call to `uuid4()` per episode).                       |
+
+Because the second pipeline never looked up the existing UUID, every episode got a new random ID.
+Result: 1 171 docs vs 1 000 docs **and** 1 171 brand-new UUIDs ⇒ no joins possible, so the UI falls back to “Unknown Episode”.
+
+---
+
+### How to verify this in 30 seconds
+
+```javascript
+// Mongo shell
+db.transcripts.findOne({}, {episode_id:1, feed_slug:1})
+// returns: { episode_id: '3a50ef5b-6965-4ae5-a062-2841f83ca24b', … }
+
+db.transcript_chunks_768d.findOne({}, {episode_id:1, feed_slug:1})
+// returns: { episode_id: 'b1371bb9-5f7d-41d2-a042-d97ee4c4c90c', … }
+```
+
+Same `feed_slug`, but the UUIDs don’t match → proof that the second run minted its own IDs.
+
+---
+
+### Two repair options
+
+| Fix                                                   | Effort                  | Risk               | What to do                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------- | ----------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A · Relabel chunks (fast patch)**                   | \~1-2 h                 | Low                | 1. Build a mapping `{feed_slug+guid → canonical UUID}` from Supabase or `transcripts`.<br>2. One-shot `updateMany` on `transcript_chunks_768d` to set `episode_id` to the canonical value.<br>3. Re-create the vector index (Mongo needs that after mass update). |
+| **B · Re-run chunker with correct ID lookup (clean)** | \~½ day, GPU cost ≈ \$4 | None going forward | 1. Add a `get_episode_uuid(feed_slug, guid)` call in `chunk_transcript.py` that hits Supabase (or loads a CSV mapping).<br>2. Re-chunk / re-embed into a *new* collection (`transcript_windows_768d`) while you’re at it (larger windows if you choose).          |
+
+**If you only need to unblock the demo, go with Option A.**
+If you’re about to change the chunk size anyway, fold the ID-lookup into that new run (Option B) and you’ll never see this mismatch again.
+
+---
+
+### Where to place the fix
+
+* **Mapping script / bulk update** → *repo you ran the embedding job from* (it already has Mongo creds and S3 paths).
+* **No dashboard code changes** are needed once `episode_id` aligns; the existing lookup for titles will start working automatically.
+
+---
+
+### Quick mapping snippet (Option A)
+
+```python
+# run once, from your embedding repo
+from pymongo import MongoClient
+import supabase
+sup = supabase.create_client(SUPABASE_URL, SUPABASE_KEY)
+mongo = MongoClient(MONGO_URI)
+chunks = mongo.db.transcript_chunks_768d
+
+# 1. build dict {feed_slug/guid : canonical_uuid}
+mapping = {}
+for row in sup.table('episodes').select('id, feed_slug, guid').execute().data:
+    mapping[f"{row['feed_slug']}/{row['guid']}"] = row['id']
+
+# 2. relabel in place
+bulk = chunks.initialize_ordered_bulk_op()
+for doc in chunks.find({}, {'_id':1, 'feed_slug':1, 'guid':1}):
+    key = f"{doc['feed_slug']}/{doc['guid']}"
+    if key in mapping:
+        bulk.find({'_id': doc['_id']}).update({'$set': {'episode_id': mapping[key]}})
+bulk.execute()
+print("✅ episode_id realigned; rebuild the vector index next.")
+```
+
+After that, refresh the dashboard—episode titles should appear again.
