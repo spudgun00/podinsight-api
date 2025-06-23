@@ -77,6 +77,7 @@ async def root():
             "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
             "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")),
             "HUGGINGFACE_API_KEY": bool(os.environ.get("HUGGINGFACE_API_KEY")),
+            "MONGODB_URI": bool(os.environ.get("MONGODB_URI")),
             "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "not set")
         },
         "connection_pool": pool_health
@@ -735,6 +736,10 @@ async def search_episodes_endpoint(
     ```
     """
     return await search_handler(search_request)
+
+# Import debug endpoint
+from .debug_search import router as debug_router
+app.include_router(debug_router)
 
 # Handler for Vercel
 handler = app
