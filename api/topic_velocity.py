@@ -737,9 +737,11 @@ async def search_episodes_endpoint(
     """
     return await search_handler(search_request)
 
-# Import debug endpoint
+# Import debug endpoints
 from .debug_search import router as debug_router
+from .test_mongo import router as mongo_router
 app.include_router(debug_router)
+app.include_router(mongo_router)
 
 # Handler for Vercel
 handler = app
