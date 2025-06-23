@@ -737,9 +737,9 @@ async def search_episodes_endpoint(
     """
     return await search_handler(search_request)
 
-# Import debug endpoints
-from .debug_search import router as debug_router
-app.include_router(debug_router)
+# Import debug endpoints - temporarily disabled
+# from .debug_search import router as debug_router
+# app.include_router(debug_router)
 
 # Handler for Vercel
 handler = app
