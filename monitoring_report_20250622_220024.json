@@ -1,0 +1,170 @@
+{
+  "timestamp": "2025-06-22T22:00:24.145327",
+  "system_status": "unhealthy",
+  "current_health": {
+    "timestamp": "2025-06-22T22:00:22.442351",
+    "overall_status": "unhealthy",
+    "healthy_endpoints": 2,
+    "degraded_endpoints": 1,
+    "unhealthy_endpoints": 2,
+    "total_endpoints": 5,
+    "avg_response_time": 0.47693772315979005,
+    "individual_results": [
+      {
+        "timestamp": "2025-06-22T22:00:20.057531",
+        "endpoint": "/api/health",
+        "status": "healthy",
+        "response_time": 0.029926776885986328,
+        "status_code": 200,
+        "error_message": null,
+        "details": {
+          "status": "healthy",
+          "timestamp": "2025-06-22T21:00:20.105808",
+          "checks": {
+            "huggingface_api_key": "configured",
+            "database": "connected",
+            "connection_pool": {
+              "active_connections": 0,
+              "max_connections": 10,
+              "total_requests": 2,
+              "connection_errors": 0,
+              "utilization_percent": 0.0,
+              "created_at": "2025-06-22T20:56:10.936643",
+              "peak_connections": 1,
+              "errors": 0
+            }
+          },
+          "version": "1.0.0"
+        }
+      },
+      {
+        "timestamp": "2025-06-22T22:00:20.087489",
+        "endpoint": "/api/debug/mongodb",
+        "status": "degraded",
+        "response_time": 2.0458779335021973,
+        "status_code": 200,
+        "error_message": null,
+        "details": {
+          "status": "success",
+          "mongodb_uri_set": true,
+          "connection": "connected",
+          "database_name": "podinsight",
+          "collection_name": "transcripts",
+          "test_searches": {
+            "bitcoin": {
+              "count": 0,
+              "score": 0,
+              "has_highlights": false
+            },
+            "AI": {
+              "count": 0,
+              "score": 0,
+              "has_highlights": false
+            },
+            "AI agents": {
+              "count": 0,
+              "score": 0,
+              "has_highlights": false
+            },
+            "crypto": {
+              "count": 0,
+              "score": 0,
+              "has_highlights": false
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2025-06-22T22:00:22.133374",
+        "endpoint": "/api/topics",
+        "status": "unhealthy",
+        "response_time": 0.25226688385009766,
+        "status_code": 0,
+        "error_message": "0, message='Attempt to decode JSON with unexpected mimetype: text/plain; charset=utf-8', url=URL('https://podinsight-api.vercel.app/api/topics')",
+        "details": null
+      },
+      {
+        "timestamp": "2025-06-22T22:00:22.385679",
+        "endpoint": "/api/pool-stats",
+        "status": "healthy",
+        "response_time": 0.028064966201782227,
+        "status_code": 200,
+        "error_message": null,
+        "details": {
+          "success": true,
+          "stats": {
+            "active_connections": 0,
+            "max_connections": 10,
+            "total_requests": 3,
+            "connection_errors": 0,
+            "utilization_percent": 0.0,
+            "created_at": "2025-06-22T20:56:10.936643",
+            "peak_connections": 1,
+            "errors": 0
+          },
+          "timestamp": "2025-06-22T21:00:22.433937"
+        }
+      },
+      {
+        "timestamp": "2025-06-22T22:00:22.413751",
+        "endpoint": "/api/search",
+        "status": "unhealthy",
+        "response_time": 0.02855205535888672,
+        "status_code": 429,
+        "error_message": null,
+        "details": {
+          "error": "Rate limit exceeded: 20 per 1 minute"
+        }
+      }
+    ]
+  },
+  "current_search_quality": {
+    "timestamp": "2025-06-22T22:00:22.442711",
+    "query": "blockchain technology",
+    "results_found": 0,
+    "avg_relevance": 0,
+    "response_time": 999,
+    "success": false
+  },
+  "database_connectivity": {
+    "timestamp": "2025-06-22T22:00:24.145040",
+    "mongodb_connected": true,
+    "mongodb_uri_set": true,
+    "test_searches": {
+      "bitcoin": {
+        "count": 0,
+        "score": 0,
+        "has_highlights": false
+      },
+      "AI": {
+        "count": 0,
+        "score": 0,
+        "has_highlights": false
+      },
+      "AI agents": {
+        "count": 0,
+        "score": 0,
+        "has_highlights": false
+      },
+      "crypto": {
+        "count": 0,
+        "score": 0,
+        "has_highlights": false
+      }
+    },
+    "database_name": "podinsight",
+    "collection_name": "transcripts",
+    "working_search_queries": 0,
+    "total_test_queries": 4
+  },
+  "trends": {
+    "health_trend": "stable",
+    "search_quality_trend": "stable"
+  },
+  "recent_performance": {
+    "avg_response_time": 0.485325026512146,
+    "search_success_rate": 0,
+    "total_health_checks": 10,
+    "total_search_tests": 0
+  }
+}

@@ -1,84 +1,93 @@
-#!/usr/bin/env python3
 """
-MongoDB Atlas Vector Search for 768D embeddings
-Provides semantic search with Instructor-XL embeddings
+Fixed MongoDB Vector Search with Supabase metadata integration
 """
-
 import os
 import time
 import logging
+import hashlib
 from typing import List, Dict, Any, Optional
-from pymongo import MongoClient
-import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
 from collections import OrderedDict
+from supabase import create_client
 
 logger = logging.getLogger(__name__)
 
+
 class MongoVectorSearchHandler:
-    """Handles vector similarity search using MongoDB Atlas"""
+    def __init__(self):
+        self.client = None
+        self.db = None
+        self.collection = None
+        self.supabase = None
+        self.cache = OrderedDict()
+        self.max_cache_size = 100
+        self.cache_ttl = 300  # 5 minutes
+        self._connect()
     
-    def __init__(self, mongodb_uri: Optional[str] = None):
-        """Initialize MongoDB connection for vector search"""
-        self.mongodb_uri = mongodb_uri or os.getenv('MONGODB_URI')
-        if not self.mongodb_uri:
-            logger.warning("MONGODB_URI not set - vector search will not work!")
+    def _connect(self):
+        """Initialize MongoDB and Supabase connections"""
+        try:
+            # MongoDB connection
+            mongo_uri = os.getenv("MONGODB_URI")
+            if not mongo_uri:
+                logger.warning("MONGODB_URI not set, vector search disabled")
+                return
+                
+            self.client = AsyncIOMotorClient(mongo_uri)
+            self.db = self.client.podinsight
+            self.collection = self.db.transcript_chunks_768d
+            
+            # Supabase connection
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+            
+            if supabase_url and supabase_key:
+                self.supabase = create_client(supabase_url, supabase_key)
+                logger.info("Connected to Supabase for episode metadata")
+            else:
+                logger.warning("Supabase credentials not set, episode metadata will be limited")
+            
+            logger.info("MongoDB Vector Search Handler initialized")
+            
+        except Exception as e:
+            logger.error(f"Failed to connect to MongoDB: {e}")
             self.client = None
             self.db = None
-        else:
-            self.client = MongoClient(
-                self.mongodb_uri,
-                maxPoolSize=10,
-                minPoolSize=2,
-                serverSelectionTimeoutMS=5000
-            )
-            self.db = self.client['podinsight']
-            self.collection = self.db['transcript_chunks_768d']
-        
-        # Simple in-memory cache (LRU with max 100 entries)
-        self.cache = OrderedDict()
-        self.cache_ttl = 300  # 5 minutes
-        self.max_cache_size = 100
-        
-    async def vector_search(
-        self, 
-        query_embedding: List[float], 
-        limit: int = 10,
-        min_score: float = 0.7
-    ) -> List[Dict[str, Any]]:
+    
+    async def vector_search(self, 
+                          embedding: List[float], 
+                          limit: int = 10,
+                          min_score: float = 0.7) -> List[Dict[str, Any]]:
         """
-        Perform vector similarity search using MongoDB Atlas
-        
-        Args:
-            query_embedding: 768D embedding vector
-            limit: Maximum number of results
-            min_score: Minimum similarity score threshold
-            
-        Returns:
-            List of matching chunks with metadata
+        Perform vector search using MongoDB Atlas Vector Search
         """
-        if self.db is None:
-            logger.error("MongoDB not connected")
+        if self.collection is None:
+            logger.warning("MongoDB not connected for vector search")
             return []
-            
-        # Check cache first
-        cache_key = f"{hash(str(query_embedding))}:{limit}"
-        cached_result = self._get_from_cache(cache_key)
-        if cached_result:
-            logger.info("Cache hit for vector search")
-            return cached_result
-            
+        
         try:
+            # Create cache key from embedding
+            embedding_str = str(embedding[:10])  # Use first 10 values for cache key
+            cache_key = hashlib.md5(f"{embedding_str}_{limit}_{min_score}".encode()).hexdigest()
+            
+            # Check cache
+            cached_result = self._get_from_cache(cache_key)
+            if cached_result is not None:
+                logger.info(f"Vector search cache hit")
+                return cached_result
+            
             start_time = time.time()
             
-            # MongoDB Atlas Vector Search pipeline
+            # Perform vector search using the correct field name
             pipeline = [
                 {
                     "$vectorSearch": {
                         "index": "vector_index_768d",
-                        "path": "embedding_768d",
-                        "queryVector": query_embedding,
-                        "numCandidates": limit * 10,  # Cast wider net
-                        "limit": limit
+                        "path": "embedding_768d",  # This is the correct field name
+                        "queryVector": embedding,
+                        "numCandidates": limit * 10,
+                        "limit": limit,
+                        "filter": {}
                     }
                 },
                 {
@@ -93,7 +102,6 @@ class MongoVectorSearchHandler:
                 },
                 {
                     "$project": {
-                        "_id": 0,
                         "episode_id": 1,
                         "feed_slug": 1,
                         "chunk_index": 1,
@@ -106,13 +114,14 @@ class MongoVectorSearchHandler:
                 }
             ]
             
-            # Execute search
-            results = list(self.collection.aggregate(pipeline))
+            # Execute search (async)
+            cursor = self.collection.aggregate(pipeline)
+            results = await cursor.to_list(None)
             
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
             
-            # Enrich results with episode metadata
+            # Enrich results with episode metadata from Supabase
             enriched_results = await self._enrich_with_metadata(results)
             
             # Cache the results
@@ -126,46 +135,18 @@ class MongoVectorSearchHandler:
     
     async def _enrich_with_metadata(self, chunks: List[Dict]) -> List[Dict[str, Any]]:
         """
-        Enrich chunk results with episode metadata from transcripts collection
+        Enrich chunk results with episode metadata from Supabase
         """
         if not chunks:
             return []
             
-        # Get unique episode IDs
-        episode_ids = list(set(chunk['episode_id'] for chunk in chunks))
+        # Get unique episode IDs (these are GUIDs)
+        episode_guids = list(set(chunk['episode_id'] for chunk in chunks))
         
-        # Fetch episode metadata
-        transcripts_collection = self.db['transcripts']
-        episodes = {}
-        
-        for episode in transcripts_collection.find(
-            {'episode_id': {'$in': episode_ids}},
-            {
-                'episode_id': 1,
-                'podcast_name': 1,
-                'episode_title': 1,
-                'published_at': 1,
-                'topics': 1
-            }
-        ):
-            episodes[episode['episode_id']] = episode
-        
-        # Enrich chunks
-        enriched = []
-        for chunk in chunks:
-            episode_id = chunk['episode_id']
-            if episode_id in episodes:
-                episode = episodes[episode_id]
-                enriched_chunk = {
-                    **chunk,
-                    'podcast_name': episode.get('podcast_name', 'Unknown'),
-                    'episode_title': episode.get('episode_title', 'Unknown Episode'),
-                    'published_at': episode.get('published_at'),
-                    'topics': episode.get('topics', [])
-                }
-                enriched.append(enriched_chunk)
-            else:
-                # Include chunk even if episode metadata not found
+        # If no Supabase connection, return chunks with minimal metadata
+        if not self.supabase:
+            enriched = []
+            for chunk in chunks:
                 enriched_chunk = {
                     **chunk,
                     'podcast_name': chunk.get('feed_slug', 'Unknown'),
@@ -174,8 +155,63 @@ class MongoVectorSearchHandler:
                     'topics': []
                 }
                 enriched.append(enriched_chunk)
+            return enriched
         
-        return enriched
+        # Fetch episode metadata from Supabase using guid field
+        try:
+            # Query Supabase for all episodes with matching guids
+            result = self.supabase.table('episodes').select('*').in_('guid', episode_guids).execute()
+            
+            # Create lookup dict by guid
+            episodes = {}
+            for episode in result.data:
+                episodes[episode['guid']] = episode
+            
+            # Enrich chunks
+            enriched = []
+            for chunk in chunks:
+                episode_guid = chunk['episode_id']
+                if episode_guid in episodes:
+                    episode = episodes[episode_guid]
+                    enriched_chunk = {
+                        **chunk,
+                        'podcast_name': episode.get('podcast_name', chunk.get('feed_slug', 'Unknown')),
+                        'episode_title': episode.get('episode_title', 'Unknown Episode'),
+                        'published_at': episode.get('published_at'),
+                        'topics': [],  # Topics not stored in Supabase episodes table
+                        's3_audio_path': episode.get('s3_audio_path'),
+                        'duration_seconds': episode.get('duration_seconds', 0)
+                    }
+                    enriched.append(enriched_chunk)
+                else:
+                    # Include chunk even if episode metadata not found
+                    logger.warning(f"Episode metadata not found for guid: {episode_guid}")
+                    enriched_chunk = {
+                        **chunk,
+                        'podcast_name': chunk.get('feed_slug', 'Unknown'),
+                        'episode_title': 'Unknown Episode',
+                        'published_at': None,
+                        'topics': []
+                    }
+                    enriched.append(enriched_chunk)
+            
+            logger.info(f"Enriched {len(enriched)} chunks with Supabase metadata")
+            return enriched
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Supabase metadata: {e}")
+            # Return chunks without enrichment on error
+            enriched = []
+            for chunk in chunks:
+                enriched_chunk = {
+                    **chunk,
+                    'podcast_name': chunk.get('feed_slug', 'Unknown'),
+                    'episode_title': 'Unknown Episode',
+                    'published_at': None,
+                    'topics': []
+                }
+                enriched.append(enriched_chunk)
+            return enriched
     
     def _get_from_cache(self, key: str) -> Optional[List[Dict]]:
         """Get item from cache if not expired"""

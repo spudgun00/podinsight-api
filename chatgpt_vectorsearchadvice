@@ -1,0 +1,42 @@
+Big-picture, I think the escalation from a single vector-only index to the “vector + metadata filters” design is exactly the right pragmatic step, and the doc captures the trade-offs well. A few thoughts on what’s solid, where I’d tighten bolts, and what I’d park for later:
+
+### What feels rock-solid
+
+* **Pre-filtering inside `$vectorSearch`** is the lowest-friction way to unblock search today. It makes the index footprint tiny, keeps latency predictable, and solves the “show / speaker” carve-outs that were killing relevance.
+* **Keeping text keywords in a *separate* Atlas Search index** (instead of trying to force hybrid in one definition) reflects how Atlas actually works right now. Good reality check; you’ll save yourself days of head-scratching.
+* **Application-level re-ranking** is annoying to write, but it’s the only place you can normalize the very different score domains (vector cosine ≈ 0-1, BM25 ≈ hundreds). Owning that logic now means you can swap in OpenSearch, Weaviate, etc. later without rewiring the UI.
+
+### Things I’d tighten before shipping
+
+1. **Score normalization & fusion.**
+   Min-max scaling the two score sets and then taking a weighted sum is usually enough, but hard-coded weights (“0.7 × vector + 0.3 × text”) will drift. Drop a quick *Bandit* or Bayesian weight tuner behind the scenes that learns from click-throughs; you’ll stabilize results in days, not weeks.
+
+2. **Chunk-size consistency.**
+   Your vector index works at transcript-chunk granularity; BM25 works at full text or chunk depending on mapping. Make sure the text index is *chunked identically*; otherwise a keyword hit may pull in a whole episode and blow up relevance when you merge.
+
+3. **Cold-start utility.**
+   For brand-new episodes without embeddings, vector search falls back to nothing. Fire a cheap background Cloud Function that pushes a *keyword-only* document into the text index immediately, then patches the embedding later. Users get “day-zero” findability without waiting for the GPU batch.
+
+4. **Filter field cardinality.**
+   `speaker` will have high cardinality (thousands). Atlas stores filter fields in a BKD tree; query time stays fine, but index build time can spike. If you spot slow builds, pre-hash speaker IDs to ints or switch to a sparse `keyword` string and re-try.
+
+### Stuff I’d push to “v2 after adoption”
+
+* **Exact-phrase boosting inside the vector pipeline.**
+  Handy, but you can approximate by spotting quotes client-side and post-multiplying scores exactly as you sketch. Not worth server-side complexity today.
+* **Executive-Optimized BI index.**
+  Great north-star, but entity extraction + importance scoring + faceting explodes write-path costs. Prove willingness-to-pay first; then batch-re-index with the richer fields.
+
+### Hidden dragons to watch
+
+* **\$vectorSearch numCandidates versus memory.** 200 candidates × 768 dims is \~600 KB per query per thread. On an M20 (4 GB) you’ll saturate RAM at \~6–8 concurrent queries. Either cap concurrency or drive numCandidates off a perf telemetry loop.
+
+* **Legal posture for transcripts.** You’re probably safe serving ≤ 400-character snippets under fair use, but once you start piping full transcripts into Mongo (especially when you enrich with entities) you’re creating a redistributable derivative work. Line up takedown handling now so you don’t scramble later.
+
+* **Future “native hybrid” promises from Mongo.** Atlas keeps hinting, but GA might still be quarters out and could require a brand-new index definition. Build your merge layer so you can flip a feature flag and route everything through the new operator when it lands.
+
+### Net opinion
+
+Ship the **vector + filter index now**, add the tiny text index for keyword fallbacks, and treat the merge-and-learn layer as first-class product code—because that’s where your search “feel” will live. Everything else (phrase boosts, BI facets, even switching to a true hybrid operator) becomes a low-risk refactor once that layer is battle-tested.
+
+If you nail scoring hygiene and keep GPU costs in check, this plan buys you credible, VC-grade search in a single afternoon’s deployment—exactly what you need while you validate that people will pay for the deeper roadmap.

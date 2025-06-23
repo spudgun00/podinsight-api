@@ -1,0 +1,37 @@
+{
+  "timestamp": "2025-06-22T22:10:59.712762",
+  "collection_used": "transcripts",
+  "findings": {
+    "mongodb_debug": {
+      "status": "success",
+      "mongodb_uri_set": true,
+      "connection": "connected",
+      "database_name": "podinsight",
+      "collection_name": "transcripts",
+      "test_searches": {
+        "bitcoin": {
+          "count": 0,
+          "score": 0,
+          "has_highlights": false
+        },
+        "AI": {
+          "count": 0,
+          "score": 0,
+          "has_highlights": false
+        },
+        "AI agents": {
+          "count": 0,
+          "score": 0,
+          "has_highlights": false
+        },
+        "crypto": {
+          "count": 0,
+          "score": 0,
+          "has_highlights": false
+        }
+      }
+    }
+  },
+  "issue": "search_returns_zero_results",
+  "likely_cause": "wrong_collection"
+}

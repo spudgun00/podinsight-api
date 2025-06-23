@@ -191,10 +191,11 @@ async def expand_chunk_context(chunk: Dict[str, Any], context_seconds: float = 2
         
         # Fetch surrounding chunks from same episode
         # Use simpler logic: get all chunks where start_time is within our window
-        surrounding_chunks = list(vector_handler.db.transcript_chunks_768d.find({
+        cursor = vector_handler.db.transcript_chunks_768d.find({
             "episode_id": chunk["episode_id"],
             "start_time": {"$gte": start_window, "$lte": end_window}
-        }).sort("start_time", 1))
+        }).sort("start_time", 1)
+        surrounding_chunks = await cursor.to_list(None)
         
         # Concatenate texts
         texts = []
@@ -270,51 +271,44 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     expanded_text = await expand_chunk_context(result, context_seconds=20.0)
                     
                     # Vector search provides chunks with timestamps
+                    # Handle published_at - it comes as string from Supabase
+                    published_at_str = result.get("published_at")
+                    if published_at_str:
+                        try:
+                            from dateutil import parser
+                            published_dt = parser.parse(published_at_str)
+                            published_at_iso = published_dt.isoformat()
+                            published_date = published_dt.strftime('%B %d, %Y')
+                        except:
+                            published_at_iso = published_at_str
+                            published_date = "Unknown date"
+                    else:
+                        published_at_iso = datetime.now().isoformat()
+                        published_date = "Unknown date"
+                    
                     formatted_results.append(SearchResult(
                         episode_id=result["episode_id"],
                         podcast_name=result["podcast_name"],
                         episode_title=result["episode_title"],
-                        published_at=result["published_at"].isoformat() if result.get("published_at") else datetime.now().isoformat(),
-                        published_date=result["published_at"].strftime('%B %d, %Y') if result.get("published_at") else "Unknown date",
+                        published_at=published_at_iso,
+                        published_date=published_date,
                         similarity_score=result["score"],
                         excerpt=expanded_text,  # Use expanded text instead of single chunk
                         word_count=len(expanded_text.split()),
-                        duration_seconds=0,  # Will be filled from Supabase
+                        duration_seconds=result.get("duration_seconds", 0),
                         topics=result.get("topics", []),
-                        s3_audio_path=None,  # Will be filled from Supabase
+                        s3_audio_path=result.get("s3_audio_path"),
                         timestamp={
                             "start_time": result.get("start_time", 0),  # Keep original timestamp for audio sync
                             "end_time": result.get("end_time", 0)
                         }
                     ))
                 
-                # Get audio paths and durations from Supabase
-                if formatted_results:
-                    pool = get_pool()
-                    episode_ids = list(set(r.episode_id for r in formatted_results))
-                    
-                    def get_audio_data(client):
-                        return client.table("episodes") \
-                            .select("id, s3_audio_path, duration_seconds") \
-                            .in_("id", episode_ids) \
-                            .execute()
-                    
-                    audio_data = await pool.execute_with_retry(get_audio_data)
-                    
-                    # Create lookup dict
-                    audio_by_id = {
-                        ep["id"]: {
-                            "s3_audio_path": ep.get("s3_audio_path"),
-                            "duration_seconds": ep.get("duration_seconds", 0)
-                        }
-                        for ep in audio_data.data
-                    }
-                    
-                    # Update results
-                    for result in formatted_results:
-                        if result.episode_id in audio_by_id:
-                            result.s3_audio_path = audio_by_id[result.episode_id]["s3_audio_path"]
-                            result.duration_seconds = audio_by_id[result.episode_id]["duration_seconds"]
+                # Audio paths and durations are now included in vector search results
+                # from the fixed mongodb_vector_search.py enrichment
+                for result, vector_result in zip(formatted_results, paginated_results):
+                    result.s3_audio_path = vector_result.get("s3_audio_path")
+                    result.duration_seconds = vector_result.get("duration_seconds", 0)
                 
                 return SearchResponse(
                     results=formatted_results,

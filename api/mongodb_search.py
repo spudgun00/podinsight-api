@@ -35,7 +35,7 @@ class MongoSearchHandler:
                 serverSelectionTimeoutMS=5000
             )
             self.db = self.client['podinsight']
-            self.collection = self.db['transcripts']
+            self.collection = self.db['transcript_chunks_768d']
         
         # Simple in-memory cache (LRU with max 100 entries)
         self.cache = OrderedDict()
