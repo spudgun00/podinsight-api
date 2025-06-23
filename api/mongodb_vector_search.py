@@ -32,11 +32,13 @@ class MongoVectorSearchHandler:
             if not mongo_uri:
                 logger.warning("MONGODB_URI not set, vector search disabled")
                 return
-                
-            self.client = AsyncIOMotorClient(mongo_uri)
-            # The database name is already in the URI, so we use get_database()
-            self.db = self.client.get_database()
+            
+            logger.info("Attempting MongoDB connection...")
+            self.client = AsyncIOMotorClient(mongo_uri, serverSelectionTimeoutMS=5000)
+            # Use the database name directly since it's in the URI
+            self.db = self.client.podinsight
             self.collection = self.db.transcript_chunks_768d
+            logger.info("MongoDB client created successfully")
             
             # Supabase connection
             supabase_url = os.getenv("SUPABASE_URL")
