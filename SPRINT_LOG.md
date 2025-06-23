@@ -2224,3 +2224,53 @@ All playbook requirements successfully implemented:
 4. Verify filtering works for podcast shows and speakers
 
 **Status:** Index building, search fix imminent
+
+---
+
+### Phase 3.4: MongoDB Index Active & API Redeployment - June 23, 2025
+
+**Duration:** ~30 minutes  
+**Status:** ✅ **COMPLETED**
+
+#### Index Build Completed
+
+**MongoDB Atlas Status:**
+- Index Status: ✅ **ACTIVE**
+- Documents indexed: 823,763 (100%)
+- Index is now queryable
+
+#### API Redeployment to Vercel
+
+**Deployment Issue Resolved:**
+- Hit Vercel Hobby plan limit (12 functions max, had 15)
+- Moved 3 backup files to `api_backup/` directory:
+  - `mongodb_vector_search_backup.py`
+  - `search_heavy.py`
+  - `search_lightweight_fixed.py`
+- Successfully reduced to exactly 12 functions
+
+**Deployment Complete:**
+- Production URL: https://podinsight-api.vercel.app
+- Deployment time: ~3 minutes
+- All functions deployed successfully
+
+#### Current System Status
+
+**✅ All Components Ready:**
+1. **MongoDB Atlas**: Vector search index ACTIVE with 823,763 documents
+2. **Modal.com**: Generating 768D embeddings successfully
+3. **Vercel API**: Redeployed with fresh MongoDB connection
+4. **Test Interface**: `test-podinsight-combined.html` ready for testing
+
+**Next Session Priorities:**
+1. Validate search returns results (no more 0 results)
+2. Test filtering by podcast show/speaker
+3. Measure actual performance vs baseline
+4. Implement filter parameters in API if needed
+
+**Documentation Created:**
+- `VECTOR_SEARCH_COMPARISON.md` - Complete technical and business analysis
+- `check_search_status.md` - Quick reference for troubleshooting
+- Updated `TESTING_ROADMAP.md` - Current status for next session
+
+**Status:** System fully deployed, ready for validation testing
