@@ -34,7 +34,8 @@ class MongoVectorSearchHandler:
                 return
                 
             self.client = AsyncIOMotorClient(mongo_uri)
-            self.db = self.client.podinsight
+            # The database name is already in the URI, so we use get_database()
+            self.db = self.client.get_database()
             self.collection = self.db.transcript_chunks_768d
             
             # Supabase connection

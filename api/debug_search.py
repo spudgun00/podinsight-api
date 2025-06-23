@@ -26,10 +26,22 @@ async def debug_search():
     try:
         from .mongodb_vector_search import get_vector_search_handler
         handler = await get_vector_search_handler()
+        
+        # Try to actually use the connection
+        test_query = None
+        if handler.collection is not None:
+            try:
+                # Try a simple count
+                test_query = await handler.collection.count_documents({}, limit=1)
+                test_query = "Connection successful"
+            except Exception as e:
+                test_query = f"Query failed: {str(e)}"
+        
         handler_status["vector_search_handler"] = {
             "initialized": handler.client is not None,
             "db_connected": handler.db is not None,
-            "collection_set": handler.collection is not None
+            "collection_set": handler.collection is not None,
+            "connection_test": test_query
         }
     except Exception as e:
         handler_status["vector_search_handler"] = {"error": str(e)}
