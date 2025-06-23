@@ -708,6 +708,10 @@ async def get_entities(
             detail=f"Failed to fetch entities: {str(e)}"
         )
 
+# Simple test endpoint
+from .simple_test import router as test_router
+app.include_router(test_router)
+
 @app.post("/api/search", response_model=SearchResponse)
 @limiter.limit("20/minute")
 async def search_episodes_endpoint(
