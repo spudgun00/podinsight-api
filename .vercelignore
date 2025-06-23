@@ -1,9 +1,11 @@
-# Ignore test files
+# Ignore test files and scripts directory
 test_*.py
 tests/
+scripts/
 
-# Ignore heavy implementation
+# Ignore heavy implementation and backups
 api/search_heavy.py
+api_backup/
 
 # Ignore Python cache
 __pycache__/
