@@ -95,11 +95,12 @@ class MongoVectorSearchHandler:
                         "score": {"$meta": "vectorSearchScore"}
                     }
                 },
-                {
-                    "$match": {
-                        "score": {"$gte": min_score}
-                    }
-                },
+                # Temporarily comment out score filtering to diagnose
+                # {
+                #     "$match": {
+                #         "score": {"$gte": min_score}
+                #     }
+                # },
                 {
                     "$project": {
                         "episode_id": 1,

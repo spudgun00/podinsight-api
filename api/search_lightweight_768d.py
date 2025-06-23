@@ -258,7 +258,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 vector_results = await vector_handler.vector_search(
                     embedding_768d,
                     limit=request.limit + request.offset,
-                    min_score=0.7  # Adjust threshold as needed
+                    min_score=0.0  # Lowered threshold to debug - was 0.7
                 )
                 
                 # Apply offset
