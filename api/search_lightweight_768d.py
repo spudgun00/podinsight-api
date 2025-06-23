@@ -397,86 +397,16 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     except Exception as e:
         logger.warning(f"MongoDB text search failed: {str(e)}")
     
-    # Final fallback to 384D pgvector
-    logger.info(f"Final fallback to 384D pgvector: {request.query}")
-    
-    # Import existing functions from search_lightweight
-    from .search_lightweight import (
-        check_query_cache,
-        store_query_cache,
-        search_episodes
-    )
-    
-    # Check 384D cache
-    cache_hit = False
-    embedding_384d = await check_query_cache(query_hash)
-    
-    if embedding_384d:
-        cache_hit = True
-    else:
-        # Generate 384D embedding
-        embedding_384d = await generate_embedding_384d_api(request.query)
-        
-        if embedding_384d:
-            asyncio.create_task(store_query_cache(request.query, query_hash, embedding_384d))
-        else:
-            # Last resort - return empty results
-            return SearchResponse(
-                results=[],
-                total_results=0,
-                cache_hit=False,
-                search_id=search_id,
-                query=request.query,
-                limit=request.limit,
-                offset=request.offset,
-                search_method="none"
-            )
-    
-    # Search with 384D embeddings
-    search_results = await search_episodes(embedding_384d, request.limit, request.offset)
-    
-    # Format results (existing logic)
-    formatted_results = []
-    for result in search_results["results"]:
-        episode_topics = search_results["topics_by_episode"].get(result["episode_id"], [])
-        
-        topics_str = ', '.join(episode_topics) if episode_topics else 'various topics'
-        excerpt = (
-            f"{result['episode_title'][:150]}... "
-            f"This episode from {result['podcast_name']} covers {topics_str}. "
-            f"Published on {result['published_at'][:10]}. "
-            f"Match score: {result['similarity']:.1%}"
-        )
-        
-        # Parse the published_at string to datetime
-        try:
-            published_dt = datetime.fromisoformat(result["published_at"].replace('Z', '+00:00'))
-            published_date = published_dt.strftime('%B %d, %Y')
-        except:
-            published_date = "Unknown date"
-        
-        formatted_results.append(SearchResult(
-            episode_id=result["episode_id"],
-            podcast_name=result["podcast_name"],
-            episode_title=result["episode_title"],
-            published_at=result["published_at"],
-            published_date=published_date,
-            similarity_score=result["similarity"],
-            excerpt=excerpt,
-            word_count=result.get("word_count", 0),
-            duration_seconds=result.get("duration_seconds", 0),
-            topics=episode_topics,
-            s3_audio_path=result.get("s3_audio_path"),
-            timestamp=None  # No timestamps in pgvector search
-        ))
+    # No more fallbacks - return empty results
+    logger.info(f"All search methods failed for: {request.query}")
     
     return SearchResponse(
-        results=formatted_results,
-        total_results=search_results["total"],
-        cache_hit=cache_hit,
+        results=[],
+        total_results=0,
+        cache_hit=False,
         search_id=search_id,
         query=request.query,
         limit=request.limit,
         offset=request.offset,
-        search_method="vector_384d"
+        search_method="none"
     )
