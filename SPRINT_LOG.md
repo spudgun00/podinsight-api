@@ -3,8 +3,8 @@
 *This document tracks the actual implementation progress against the playbook, capturing discoveries, deviations, and key learnings.*
 
 **Sprint Start Date:** June 14, 2025  
-**Current Status:** Sprint 1 Entity Search - ✅ **COMPLETE**  
-**Last Updated:** June 20, 2025 - 12:00 UTC
+**Current Status:** Modal.com GPU Optimization - ✅ **COMPLETE**  
+**Last Updated:** June 24, 2025 - 17:00 UTC
 
 ---
 
@@ -17,6 +17,7 @@
 | **Phase 2** - API Development | ✅ **COMPLETE** | 100% | FastAPI deployed with MongoDB search, 60x quality improvement |
 | **Phase 3** - Frontend Dashboard | ✅ **COMPLETE** | 100% | Dashboard live with topic velocity and search |
 | **Sprint 1** - Entity Search | ✅ **COMPLETE** | 100% | Entity tracking implemented - "Entities are Trackable" ✓ |
+| **Modal Optimization** | ✅ **COMPLETE** | 100% | 91% performance gain, $0.35/month costs, production-ready |
 
 ---
 
@@ -41,6 +42,28 @@
 | `kpis/kpis.json` | `kpis/kpis_<guid>.json` | 🔧 **Adapted** |
 | `entities/<guid>_clean.json` | `cleaned_entities/<guid>_clean.json` | 🔧 **Adapted** |
 | `embeddings/<guid>.npy` | `embeddings/<guid>.npy` | ✅ **Matches** |
+
+### Modal.com GPU Optimization (June 21-24, 2025)
+**Major Achievement:** Migrated from Vercel's 150s timeout to Modal's GPU infrastructure with 14s cold starts.
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Cold Start | 150s timeout | 14s | 91% faster |
+| Warm Response | N/A | 415ms | Instant |
+| Monthly Cost | N/A | $0.35 | <$1 target ✅ |
+| Model Size Support | 512MB limit | 2.1GB | 4x capacity |
+
+**Key Technical Discoveries:**
+1. **Memory Snapshots Work** - But only restore CPU RAM, not GPU VRAM
+2. **Physics Limitation** - 2.1GB model takes ~10s to transfer CPU→GPU (unavoidable)
+3. **Architecture Matters** - Must use `@modal.enter(snap=True)` for snapshots
+4. **Cost Efficiency** - Pay-per-use model perfect for low-volume, high-compute tasks
+
+**Implementation Details:**
+- Production endpoint: `podinsighthq--podinsight-embeddings-simple`
+- GPU: NVIDIA A10G with 24GB VRAM
+- Model: Instructor-XL (2.1GB, 768-dimensional embeddings)
+- Architecture: Class-based with memory snapshots enabled
 
 ---
 

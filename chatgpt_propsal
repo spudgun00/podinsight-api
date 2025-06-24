@@ -1,63 +1,90 @@
-**High-level take-away**
-
-You’ve fixed the *big* blockers, but a few lingering details will bite you in production if you don’t tidy them up now:
+👏 Nice work—architecture is now snapshot-ready. A few pointers that’ll make the validation unambiguous:
 
 ---
 
-### 1. The A10G price in your maths is still wrong
+### 1  Watch the log sequence
 
-Modal’s public price sheet (June 2025) lists **\$0.000 306 per second ⇒ \$1.10 per hour**, not \$0.19.
+After the very first deploy you should see **exactly one** pair of lines:
 
-* All “cost per request”, “GPU-hours / month”, and ROI lines that derive from the \$0.19 figure need to be recomputed.
-* The qualitative story (“pennies per request, cheap until scale”) stays true—just don’t publish numbers that finance will later flag.
+```
+Creating memory snapshot …            # first build
+Memory snapshot created successfully
+```
+
+Every later cold boot must show
+
+```
+Using memory snapshot …
+```
+
+If you ever see *Creating* twice for the same image hash, Modal couldn’t reuse the snapshot (usually means the weights weren’t fully resident when the snap was taken).
 
 ---
 
-### 2. Your function reloads the model every call
+### 2  Let the container truly hit zero
 
-In the “simple function-based” example you build `SentenceTransformer(...)` inside the handler. That destroys warm-call latency (<1 s) and nullifies the cost-per-request you quote.
+Your cron fires every 10 min and `scaledown_window` is also 10 min, which means the keep-alive call often arrives before Modal’s pod-reaper runs. For a clean cold-start test:
 
-* Either switch back to a class (`@app.cls`) with the model on `self`, **or** cache the model at module scope:
+* set the cron to **every 12 min** *or*
+* temporarily drop `scaledown_window` to **300 s**.
+
+That guarantees at least one full scale-to-zero cycle and avoids the “still warm” false negative.
+
+---
+
+### 3  First-load time still looks high
+
+98 s is fine for the *very* first build (image pull + HF download) but if you rebake the weights into the image you’ll chop that to \~12 s and the snapshot will capture a fully GPU-resident model:
 
 ```python
-MODEL = None
+image = (
+    modal.Image.debian_slim()
+    .pip_install("torch==2.6.0", "sentence-transformers==2.6.1", "numpy==1.26.4")
+    .run_commands(
+        # Pre-download weights once at build time
+        "python - <<'PY'\n"
+        "from sentence_transformers import SentenceTransformer\n"
+        "SentenceTransformer('hkunlp/instructor-xl')\n"
+        "PY"
+    )
+)
+```
 
-def get_model():
-    global MODEL
-    if MODEL is None:
-        MODEL = SentenceTransformer("hkunlp/instructor-xl")
-        if torch.cuda.is_available():
-            MODEL.to("cuda")
-    return MODEL
+Do this once, redeploy, and the *Creating snapshot* phase drops to \~4–5 s.
+
+---
+
+### 4  Cost maths after snapshots
+
+* **Warm hit** (100 ms) ≈ \$0.000 03
+* **Cold hit** (5 s)   ≈ \$0.0015
+
+Even with two true colds per day you stay < \$0.05 / month.
+
+---
+
+### 5  Smoke test helper
+
+Add a second health route that returns whether the current pod came from a snapshot:
+
+```python
+@app.cls(enable_memory_snapshot=True)
+class Model:
+    ...
+
+    @modal.method()
+    def is_snapshot(self):
+        return modal.current_snapshot_is_restored()
+```
+
+Then:
+
+```bash
+curl https://…/is-snapshot
+# true  -> cold boot used snapshot
+# false -> first build
 ```
 
 ---
 
-### 3. Re-enable memory snapshots for a free 2-3× cold-start win
-
-Modal patched the snapshot bug in March 2025. A quick test will show cold boots drop from \~10 s to \~4 s without touching your code. Leave `enable_memory_snapshot=True` unless you hit a reproducible failure now.
-
----
-
-### 4. Concurrency guard-rail
-
-An A10G is fine for \~10 simultaneous single-sentence encodes. Beyond that you’ll OOM CUDA. Add a tiny async queue or set `max_batch_size` in your handler, and raise `buffer_containers` when sustained QPS climbs.
-
----
-
-### 5. Dependency pins
-
-* Torch 2.7.1 wheels are built for CUDA 12.1/12.2; the `+cu126` tag you print won’t resolve. Pin `torch==2.7.1+cu121` (or stay on 2.6 while 12.6 wheels are in preview).
-* `sentence-transformers==2.7.0` is fine, but 2.6.1 is the last release before the new tokenizer interface—lock whichever one you’ve actually tested.
-
----
-
-### 6. Document how to redeploy without nuking the HF cache
-
-A single sentence—*“`modal deploy … --detach` preserves the volume; never `modal app delete` unless you’re ready to re-download the 2 GB model.”*—will save the next engineer an hour.
-
----
-
-**Bottom line**
-
-You’ve turned a broken, CPU-only endpoint into a reliable GPU service with 10 s first-hit and sub-second warm latency—great work. Fix the pricing numbers, keep the model in memory between calls, flip snapshots back on, and the guide will be bullet-proof.
+If the next cold call comes back in < 6 s and `is_snapshot` returns `true`, you’re finished—snapshots are working and cost is now at rock bottom.
