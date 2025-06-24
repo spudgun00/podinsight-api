@@ -132,11 +132,11 @@ embedding = result["embedding"]  # 768-dimensional vector
 
 | Usage Pattern | Estimated Monthly Cost |
 |---------------|----------------------|
-| **10 requests/day** | ~$0.64/month |
-| **100 requests/day** | ~$6.40/month |
-| **1000 requests/day** | ~$64/month |
+| **10 requests/day** | ~$3.70/month |
+| **100 requests/day** | ~$37/month |
+| **1000 requests/day** | ~$370/month |
 
-**Cost per request**: ~$0.002 (including GPU time)
+**Cost per request**: ~$0.011 (including GPU time)
 
 ---
 

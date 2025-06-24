@@ -23,10 +23,11 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
         "numpy>=1.26.0,<2.0",
-        "torch>=2.6.0",
-        "sentence-transformers==2.7.0",
+        "torch==2.7.1+cu121",  # Fixed CUDA version pin
+        "sentence-transformers==2.7.0",  # Tested version
         "fastapi",
         "pydantic",
+        extra_index_url="https://download.pytorch.org/whl/cu121"
     )
 )
 
@@ -36,12 +37,38 @@ volume = modal.Volume.from_name("podinsight-hf-cache", create_if_missing=True)
 # Embedding instruction for business context
 INSTRUCTION = "Represent the venture capital podcast discussion:"
 
+# Global model cache to avoid reloading
+MODEL = None
+
+def get_model():
+    """Get or load the model (cached globally)"""
+    global MODEL
+    if MODEL is None:
+        print("📥 Loading model to cache...")
+        start = time.time()
+        MODEL = SentenceTransformer('hkunlp/instructor-xl')
+        
+        # Move to GPU if available
+        if torch.cuda.is_available():
+            print(f"🖥️  Moving model to GPU: {torch.cuda.get_device_name(0)}")
+            MODEL.to('cuda')
+            # Warm up with dummy inference
+            _ = MODEL.encode([["warmup", "dummy"]], convert_to_tensor=False)
+        else:
+            print("⚠️  No GPU available, using CPU")
+            
+        load_time = time.time() - start
+        print(f"✅ Model loaded and cached in {load_time:.2f}s")
+    
+    return MODEL
+
 @app.function(
     image=image,
     gpu="A10G",
     volumes={"/root/.cache/huggingface": volume},
     scaledown_window=600,
-    enable_memory_snapshot=False,  # Disable for simplicity
+    enable_memory_snapshot=True,  # Re-enabled - Modal fixed the bug
+    max_containers=10,  # Concurrency guard-rail
 )
 def generate_embedding(text: str) -> dict:
     """Generate embedding for a single text"""
@@ -49,20 +76,13 @@ def generate_embedding(text: str) -> dict:
     start = time.time()
     
     try:
-        # Load model (will be cached after first load)
-        print("📥 Loading model...")
+        # Get cached model (fast for warm requests)
         model_start = time.time()
-        model = SentenceTransformer('hkunlp/instructor-xl')
+        model = get_model()
         model_load_time = time.time() - model_start
-        print(f"✅ Model loaded in {model_load_time:.2f}s")
         
-        # Check GPU
+        # Check GPU status
         gpu_available = torch.cuda.is_available()
-        if gpu_available:
-            print(f"🖥️  Using GPU: {torch.cuda.get_device_name(0)}")
-            model.to('cuda')
-        else:
-            print("⚠️  Using CPU")
         
         # Generate embedding
         embed_start = time.time()

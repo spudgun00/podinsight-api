@@ -259,25 +259,25 @@ NVIDIA A10G Pricing:
 ┌─────────────────────────────────────────────────────────────┐
 │ Usage Pattern        │ GPU Hours/Month │ Cost/Month         │
 ├─────────────────────────────────────────────────────────────┤
-│ 10 requests/day      │ ~3.3 hours      │ $0.64             │
-│ 50 requests/day      │ ~16.5 hours     │ $3.20             │
-│ 100 requests/day     │ ~33 hours       │ $6.40             │
-│ 500 requests/day     │ ~165 hours      │ $32.00            │
-│ 1000 requests/day    │ ~330 hours      │ $64.00            │
-│ Always-on (24/7)     │ ~720 hours      │ $425-790          │
+│ 10 requests/day      │ ~3.3 hours      │ $3.70             │
+│ 50 requests/day      │ ~16.5 hours     │ $18.50            │
+│ 100 requests/day     │ ~33 hours       │ $37.00            │
+│ 500 requests/day     │ ~165 hours      │ $185.00           │
+│ 1000 requests/day    │ ~330 hours      │ $370.00           │
+│ Always-on (24/7)     │ ~720 hours      │ $792.00           │
 └─────────────────────────────────────────────────────────────┘
 
-GPU Rate: ~$0.19/hour for A10G
-Per-request cost: ~$0.002 (including cold starts)
+GPU Rate: $1.10/hour for A10G
+Per-request cost: ~$0.011 (including cold starts)
 ```
 
 #### **Cost Comparison: Before vs After**
 
 | Scenario | Before (Broken) | After (Optimized) | Net Impact |
 |----------|----------------|-------------------|------------|
-| **10 requests/day** | $0 (not working) | $0.64/month | +$0.64 |
-| **100 requests/day** | $0 (not working) | $6.40/month | +$6.40 |
-| **1000 requests/day** | $0 (not working) | $64/month | +$64 |
+| **10 requests/day** | $0 (not working) | $3.70/month | +$3.70 |
+| **100 requests/day** | $0 (not working) | $37/month | +$37 |
+| **1000 requests/day** | $0 (not working) | $370/month | +$370 |
 
 **ROI Analysis**: The cost is the price of having a functional search system vs a completely broken one.
 
@@ -309,7 +309,7 @@ Alternative Configurations:
 ### **Financial Recommendations**
 
 #### **For Current Usage (Estimated 50-100 requests/day)**
-- **Recommended**: Current configuration ($3-6/month)
+- **Recommended**: Current configuration ($18-37/month)
 - **Budget**: Well within Modal's $5,000 credit allowance
 - **Monitoring**: Track actual usage vs estimates
 
@@ -319,14 +319,14 @@ User Growth Scenarios:
 ┌─────────────────────────────────────────────────────────────┐
 │ Users    │ Requests/Day │ Monthly Cost │ Cost/User/Month   │
 ├─────────────────────────────────────────────────────────────┤
-│ 100      │ 100          │ $6.40        │ $0.064            │
-│ 500      │ 500          │ $32.00       │ $0.064            │
-│ 1,000    │ 1,000        │ $64.00       │ $0.064            │
-│ 5,000    │ 5,000        │ $320.00      │ $0.064            │
-│ 10,000   │ 10,000       │ $640.00      │ $0.064            │
+│ 100      │ 100          │ $37.00       │ $0.37             │
+│ 500      │ 500          │ $185.00      │ $0.37             │
+│ 1,000    │ 1,000        │ $370.00      │ $0.37             │
+│ 5,000    │ 5,000        │ $1,850.00    │ $0.37             │
+│ 10,000   │ 10,000       │ $3,700.00    │ $0.37             │
 └─────────────────────────────────────────────────────────────┘
 
-Linear scaling: ~$0.064 per user per month
+Linear scaling: ~$0.37 per user per month
 ```
 
 ---
@@ -505,6 +505,21 @@ cd /path/to/podinsight-api
 
 # Verify deployment
 modal app list | grep podinsight-embeddings-simple
+```
+
+### **Volume Preservation (Critical)**
+```bash
+# ⚠️  IMPORTANT: Volume preservation during redeployment
+# The persistent volume contains 2GB+ of model weights
+
+# ✅ SAFE redeployment (preserves volume):
+modal deploy scripts/modal_web_endpoint_simple.py --detach
+
+# ❌ DANGER: This will delete the volume and require re-downloading:
+modal app delete podinsight-embeddings-simple
+
+# 💡 Best practice: Never delete the app unless you're ready to 
+# re-download the 2GB model on next cold start
 ```
 
 ### **Usage Examples**
@@ -939,25 +954,25 @@ Performance Optimization:
       "requests_per_day": 10,
       "cold_starts_per_day": 3,
       "gpu_hours_per_month": 3.3,
-      "estimated_cost": "$0.64"
+      "estimated_cost": "$3.70"
     },
     "production_light": {
       "requests_per_day": 100,
       "cold_starts_per_day": 8,
       "gpu_hours_per_month": 33,
-      "estimated_cost": "$6.40"
+      "estimated_cost": "$37.00"
     },
     "production_heavy": {
       "requests_per_day": 1000,
       "cold_starts_per_day": 15,
       "gpu_hours_per_month": 330,
-      "estimated_cost": "$64.00"
+      "estimated_cost": "$370.00"
     }
   },
   "cost_factors": {
-    "gpu_rate_per_hour": "$0.19",
-    "cold_start_cost": "$0.0053",
-    "warm_request_cost": "$0.00017"
+    "gpu_rate_per_hour": "$1.10",
+    "cold_start_cost": "$0.031",
+    "warm_request_cost": "$0.001"
   }
 }
 ```
