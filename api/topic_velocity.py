@@ -739,6 +739,14 @@ async def search_episodes_endpoint(
     """
     return await search_handler(search_request)
 
+# Add test endpoint for MongoDB vector search
+from .test_search import test_search_handler, TestSearchRequest, TestSearchResponse
+
+@app.post("/api/test-search", response_model=TestSearchResponse)
+async def test_search_endpoint(request: TestSearchRequest) -> TestSearchResponse:
+    """Test MongoDB vector search without Modal embedding generation"""
+    return await test_search_handler(request)
+
 # Import debug endpoints - temporarily disabled
 # from .debug_search import router as debug_router
 # app.include_router(debug_router)

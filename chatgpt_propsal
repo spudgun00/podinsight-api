@@ -1,0 +1,234 @@
+### 1 Current problem (1-sentence)
+
+Every user query stalls \~150 s because the embedding service cold-boots a fresh container, pulls the 2 GB Instructor-XL weights, runs on CPU, then scales back to 0, so Vercel times out before MongoDB ever receives a vector.
+
+---
+
+### 2 Solution space — three viable paths
+
+| Path                                         | Latency profile                                | Monthly cost @ 100 bursts/day              | Notes                                  |
+| -------------------------------------------- | ---------------------------------------------- | ------------------------------------------ | -------------------------------------- |
+| **Always-on GPU**                            | < 0.2 s every hit                              | A10G ≈ \$790 • T4 ≈ \$425 ([modal.com][1]) | Overkill for early traffic             |
+| **Auto-scale GPU + snapshots** *(our pick)*  | 7 s first hit after ≥10 min idle → <0.2 s warm | ≈ \$0.64–\$6.4                             | Keeps Instructor-XL quality, tiny bill |
+| **External SaaS embeddings** (OpenAI/Cohere) | \~0.15 s network                               | pennies                                    | Lower domain recall; vendor lock-in    |
+
+---
+
+### 3 Why we’re choosing **auto-scale + snapshots**
+
+* Preserves 768-D Instructor-XL relevance that VCs noticed immediately.
+* Total GPU cost stays **< \$10/mo** until volume justifies pinning a GPU.
+* Cold start (7 s) is inside Vercel’s 30 s limit and can be hidden with a skeleton UI + silent `/warm` ping.
+
+---
+
+### 4 Implementation for Claude to drop in
+
+```python
+# app/embedder.py  – deploy with `modal deploy app.embedder`
+
+import modal, torch
+from sentence_transformers import SentenceTransformer
+
+image = (
+    modal.Image.debian_slim()
+    .pip_install("torch==2.2.2+cu118", "sentence-transformers", "instructor")
+)
+vol = modal.Volume.from_name("hf-cache", create_if_missing=True)  # keeps weights
+
+app = modal.App("podinsight-embeddings", image=image)
+
+@app.cls(
+    gpu="A10G",                       # guaranteed GPU
+    volumes={"/root/.cache": vol},    # re-use HF download
+    min_containers=0,                 # scale to zero allowed
+    scaledown_window=600,             # stay warm 10 min after last hit
+    enable_memory_snapshot=True       # snapshot after first warm-up
+)
+class Embedder:
+    @modal.enter(snap=True)           # snapshot after weights load on CPU
+    def load(self):
+        self.model = SentenceTransformer("hkunlp/instructor-xl", device="cpu")
+
+    @modal.enter(snap=False)          # run every container start
+    def to_gpu(self):
+        self.model.to("cuda")
+
+    @modal.method()
+    def encode(self, queries: list[str]):
+        return self.model.encode(
+            queries, normalize_embeddings=True
+        ).tolist()
+```
+
+**Parameters referenced in Modal docs**
+
+* `min_containers`, `scaledown_window` — control warm pool ([modal.com][2])
+* `enable_memory_snapshot` — 3-4× faster cold boots ([modal.com][3])
+
+---
+
+### 5 Expected behaviour
+
+| Phase                                | Time (A10G) |
+| ------------------------------------ | ----------- |
+| Container boot                       | \~1 s       |
+| Restore snapshot & move model to GPU | 4–6 s       |
+| Encode 1 query                       | 0.08–0.12 s |
+| **Cold total**                       | **≈ 7 s**   |
+| **Warm total**                       | **< 0.2 s** |
+
+---
+
+### 6 Cost maths (auto-scale mode)
+
+* GPU time billed only while the container is alive.
+* One cold start = 7 s × \$0.000306 (A10G) ≃ \$0.0021.
+  *10 bursts/day → \$0.64 / mo; 100 bursts/day → \$6.4 / mo* ([modal.com][1])
+
+If daily bursts grow so cold starts exceed a few hundred seconds, flip `min_containers` to 1—cost rises (\~\$425 T4 or \$790 A10G) but latency is fully eliminated.
+
+---
+
+### 7 Validation checklist for Claude
+
+1. **Logs** show `Creating memory snapshot` on first call, `Using memory snapshot` thereafter.
+2. `torch.cuda.is_available()` prints **True** once per container.
+3. Modal dashboard never dips below 0 active containers while requests stream.
+4. Cold boot latency drops from \~150 s → \~7 s; warm p95 < 200 ms.
+5. MongoDB vector search remains <200 ms (index already active) ([mongodb.com][4]).
+
+---
+
+### 8 UX masking (1-liner)
+
+Front-end `useEffect` fires `/api/search-warm` on page load to pre-ping Modal; UI renders a shimmer skeleton until results stream. Users rarely see the 7-s cold path.
+
+---
+
+### 9 Key docs & links
+
+* **Modal Cold-start & snapshots** – [https://modal.com/docs/guide/memory-snapshot](https://modal.com/docs/guide/memory-snapshot) ([modal.com][3])
+* **Modal scaling params** – [https://modal.com/docs/guide/scale](https://modal.com/docs/guide/scale) ([modal.com][2])
+* **Modal GPU pricing** – [https://modal.com/pricing](https://modal.com/pricing) (A10G \$0.000306/s, T4 \$0.000164/s) ([modal.com][1])
+* **MongoDB vector-search filters** – [https://mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/](https://mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/) ([mongodb.com][5])
+
+---
+
+**Send the above to Claude and he’ll have everything he needs to patch the endpoint and explain the trade-offs to stakeholders.**
+
+[1]: https://modal.com/pricing?utm_source=chatgpt.com "Plan Pricing - Modal"
+[2]: https://modal.com/docs/guide/scale?utm_source=chatgpt.com "Scaling out | Modal Docs"
+[3]: https://modal.com/docs/guide/memory-snapshot?utm_source=chatgpt.com "Memory Snapshot (beta) | Modal Docs"
+[4]: https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/?utm_source=chatgpt.com "How to Index Fields for Vector Search - Atlas - MongoDB Docs"
+[5]: https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/?utm_source=chatgpt.com "Run Vector Search Queries - Atlas - MongoDB Docs"
+
+
+THEN I SHOWED THE ARCHITECTURE DIAGRAM AND RESPONSE:
+
+### TL;DR — nothing in the architecture diagram overturns the diagnosis
+
+Everything still points to **Modal cold-starts and CPU fallback** as the sole reason queries hang for \~150 s.  All other hops (Vercel → MongoDB, MongoDB index design, Supabase look-ups, network path) are correctly wired and fast in isolation.
+
+---
+
+## 1  Where the slowdown is happening
+
+1. **Container spins from zero** pulls the 2 GB Instructor-XL weights and PyTorch every time.
+2. **Weights stay on CPU** because the function isn’t explicitly requesting a GPU or finds none; “warm” inference clocks in at 30 s instead of the expected 80 ms.
+3. **Autoscaler scales to zero after 60 s idle** so the penalty repeats for every burst of traffic.
+4. **Vercel’s 30 s limit trips** before the vector even reaches MongoDB, so the rest of the pipeline (which is healthy and < 200 ms) never runs.
+
+No back-pressure, mis-routing, or data-store stalls show up anywhere else on the diagram.
+
+---
+
+## 2  Solution set at a glance
+
+| Option                                 | Latency profile                                 | Monthly \$ @ 100 bursts/day | Best for                                    |
+| -------------------------------------- | ----------------------------------------------- | --------------------------- | ------------------------------------------- |
+| **Pin one GPU** (`min_containers = 1`) | < 0.2 s every hit                               | \$425 (T4) – \$790 (A10G)   | High, steady traffic                        |
+| **Auto-scale + snapshots** *(chosen)*  | 7 s first hit after ≥10 min idle → < 0.2 s warm | \$0.64 – \$6.4              | Early-stage / bursty                        |
+| External SaaS embeddings               | ≈ 0.15 s network every call                     | pennies                     | OK quality, zero ops                        |
+| Small CPU model on Vercel              | 0.8 – 1.2 s every hit                           | free → \$7                  | Acceptable only if recall drop is tolerable |
+
+We keep Instructor-XL quality while spending almost nothing until usage grows, so **auto-scale with snapshots** is the pragmatic choice.
+
+---
+
+## 3  Proposed fix (code Claude can paste as-is)
+
+```python
+# app/embedder.py   — deploy with `modal deploy app.embedder`
+
+import modal, torch
+from sentence_transformers import SentenceTransformer
+
+image = (
+    modal.Image.debian_slim()
+    .pip_install("torch==2.2.2+cu118", "sentence-transformers", "instructor")
+)
+vol = modal.Volume.from_name("hf-cache", create_if_missing=True)  # persists HF weights
+
+app = modal.App("podinsight-embeddings", image=image)
+
+@app.cls(
+    gpu="A10G",                    # ensure GPU; swap to "T4" to halve cost
+    volumes={"/root/.cache": vol}, # no re-download on cold boot
+    min_containers=0,              # allow scale-to-zero
+    scaledown_window=600,          # stay hot for 10 min after last request
+    enable_memory_snapshot=True    # snapshot after first warm-up
+)
+class Embedder:
+    @modal.enter(snap=True)        # runs once per container, then snap
+    def load(self):
+        self.model = SentenceTransformer("hkunlp/instructor-xl", device="cpu")
+
+    @modal.enter(snap=False)       # runs each time container starts
+    def to_gpu(self):
+        self.model.to("cuda")
+
+    @modal.method()
+    def encode(self, queries: list[str]):
+        return self.model.encode(
+            queries, normalize_embeddings=True
+        ).tolist()
+```
+
+*Parameters come straight from Modal docs:*
+`gpu`, `min_containers`, `scaledown_window` → *Scaling & autoscaling* section;
+`enable_memory_snapshot` → *Memory snapshots & cold-start performance* section.
+
+---
+
+## 4  What to expect after deploy
+
+| Phase                                | Cold (first call after 10 min idle) | Warm        |
+| ------------------------------------ | ----------------------------------- | ----------- |
+| Boot container                       | \~1 s                               | —           |
+| Restore snapshot + move model to GPU | 4 – 6 s                             | —           |
+| Encode query                         | 80 – 120 ms                         | 80 – 120 ms |
+| **Total**                            | **≈ 7 s**                           | **< 0.2 s** |
+
+Seven seconds is well under Vercel’s 30-second hard stop; every subsequent request feels instant.
+
+---
+
+## 5  UX masking & guard-rails
+
+* **Front-end keep-alive** Hit a lightweight `/api/search-warm` when the user lands on the search page.
+* **Skeleton UI** Render shimmer rows while results stream; users rarely perceive the first-hit delay.
+* **Alert on GPU seconds** If cold-start seconds grow toward the cost of a pinned T4, raise a Slack alert and flip `min_containers` to 1.
+
+---
+
+### Key references (for Claude)
+
+* Modal scaling params — [https://modal.com/docs/guide/scale](https://modal.com/docs/guide/scale)
+* Modal memory snapshots — [https://modal.com/docs/guide/memory-snapshot](https://modal.com/docs/guide/memory-snapshot)
+* Modal GPU pricing — [https://modal.com/pricing](https://modal.com/pricing)
+* MongoDB Vector Search stage — [https://mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/](https://mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/)
+
+---
+
+**Bottom line:** the architecture map is sound; the only bottleneck is Modal’s cold-start / CPU fallback behaviour. The fix above swaps that 150-second wall for a one-time 7-second bump at negligible cost while preserving top-tier search relevance.
