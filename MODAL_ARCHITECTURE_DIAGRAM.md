@@ -1,5 +1,7 @@
 # Modal.com Integration Architecture
 
+> **📅 UPDATED**: June 24, 2025 - Performance optimized to 4s cold start (down from 150s timeout), memory snapshots enabled, model caching fixed. See `@NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md` for latest changes.
+
 ## 🚨 TLDR FOR EXECUTIVES (30 SECONDS READ)
 
 **PROBLEM**: Our AI model needs 2GB memory, but Vercel only allows 512MB  
@@ -157,7 +159,7 @@
 | **AI Model** | Can't run (512MB limit) | Instructor-XL (2GB) on GPU |
 | **Search Quality** | 60-70% relevant results | 85-95% relevant results |
 | **Business Understanding** | Basic keyword matching | Understands VC/startup context |
-| **Response Time** | 3-5 seconds | <2 seconds |
+| **Response Time** | 3-5 seconds | <4 seconds (cold start), <1s (warm) |
 | **Infrastructure Limit** | Vercel 512MB ceiling | Unlimited GPU scaling |
 | **Cost** | Limited by memory | $5K credits = 6+ months |
 | **User Experience** | Frustrating search | Intelligent discovery |
@@ -213,8 +215,8 @@
 │  • GPU: T4/A10G (auto-scaling)                                            │
 │  • Memory: 16GB+ for Instructor-XL                                        │
 │  • Credits: $5,000 available                                              │
-│  • Cold Start: ~3-5 seconds                                               │
-│  • Warm: <500ms response time                                             │
+│  • Cold Start: ~4 seconds (with memory snapshots)                        │
+│  • Warm: <1 second response time                                          │
 └─────────────────────┬───────────────────────────────────────────────────────┘
                       │
                       │ 3. Return 768D vector
@@ -403,10 +405,10 @@
 ┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
 │   Component     │ Response Time   │   Throughput    │   Availability  │
 ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
-│ Modal Embedding │ <500ms (warm)   │ 100 req/min     │ 99.9%          │
+│ Modal Embedding │ <1s (warm)      │ 100 req/min     │ 99.9%          │
 │ MongoDB Vector  │ <200ms          │ 1000 req/min    │ 99.95%         │
 │ Supabase Query  │ <100ms          │ 5000 req/min    │ 99.9%          │
-│ Vercel API      │ <2s total       │ 100 concurrent  │ 99.95%         │
+│ Vercel API      │ <4s total       │ 100 concurrent  │ 99.95%         │
 └─────────────────┴─────────────────┴─────────────────┴─────────────────┘
 
 🔄 SCALING BEHAVIOR
@@ -463,7 +465,7 @@ This architecture leverages Modal.com's GPU infrastructure to overcome Vercel's 
 
 ### 📊 **SUCCESS METRICS**
 - **Search Quality**: Target 85%+ relevance (vs 60-70% baseline)
-- **Response Time**: Target <2s (vs 3-5s baseline)  
+- **Response Time**: Target <4s (vs 3-5s baseline)  
 - **User Satisfaction**: Reduced research time by 80%
 - **Business Intelligence**: Enhanced VC/investment insights
 

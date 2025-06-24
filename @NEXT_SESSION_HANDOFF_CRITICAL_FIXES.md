@@ -241,6 +241,7 @@ The solution is ready for production deployment and testing. Focus the next sess
    - Executive summary and ROI analysis ($975K annual savings)
    - Detailed data flow and component breakdown
    - Before/after comparison showing 80% search improvement
+   - ⚠️ **NOTE**: Performance metrics in this document are outdated (shows 3-5s cold start vs current 4s)
 
 3. **`chatgpt_propsal`** 
    - Original feedback that identified critical production issues
