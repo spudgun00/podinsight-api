@@ -1,15 +1,27 @@
 # PodInsightHQ Testing Roadmap
 *Complete Production Readiness & Modal.com Integration Testing Strategy*
 
-## 🔥 QUICK START FOR NEXT SESSION
+## 🔥 QUICK START FOR NEXT SESSION (June 24 Update)
 
-**Current Status**: MongoDB vector search index created and API redeployed. Ready for testing!
+**Current Status**: Modal performance fix identified and solution ready to deploy!
 
-**Immediate Test**:
-1. Open `test-podinsight-combined.html` in your browser
-2. Try searching for "AI", "venture capital", or "startup"
-3. If you get results → SUCCESS! Search is fixed
-4. If you get 0 results → Check troubleshooting below
+**Root Cause Found**: Modal endpoint taking 150+ seconds due to:
+- Running on CPU instead of GPU
+- No memory snapshots
+- Re-downloading 2GB model every request
+- Container dying after 60 seconds
+
+**Solution Ready**: Optimized Modal deployment with:
+- GPU allocation (A10G)
+- Memory snapshots (7s cold start)
+- Persistent volume for model weights
+- 10-minute warm window
+
+**Immediate Actions**:
+1. Deploy: `./scripts/deploy_modal_optimized.sh`
+2. Update MODAL_EMBEDDING_URL in `.env`
+3. Test search - expect 7s first request, <200ms subsequent
+4. See `NEXT_SESSION_HANDOFF.md` for detailed instructions
 
 **Quick Command Line Test**:
 ```bash
@@ -528,23 +540,34 @@ curl -X POST https://podinsight-api.vercel.app/api/search \
 # Returns: 0
 ```
 
-### 🎯 **IMMEDIATE NEXT ACTIONS (Updated)**
+### 🎯 **IMMEDIATE NEXT ACTIONS (June 24, 2025 Update)**
 
-#### **Priority 1: Fix Vector Search Results**
-1. **Check MongoDB Atlas Console**:
-   - Verify `vector_index_768d` status is "ACTIVE"
-   - Run query to check if documents have `embedding_768d` field:
-   ```javascript
-   db.transcript_chunks_768d.findOne({"embedding_768d": {$exists: true}})
+#### **Priority 1: Deploy Modal Performance Fix**
+1. **Deploy Optimized Modal Endpoint**:
+   ```bash
+   ./scripts/deploy_modal_optimized.sh
    ```
+   - Uses GPU (A10G) instead of CPU
+   - Enables memory snapshots (7s cold start vs 150s)
+   - Implements 10-minute warm window
 
-2. **Lower Min Score Threshold**:
-   - Edit `api/mongodb_vector_search.py` line 100
-   - Change from `min_score=0.7` to `min_score=0.5` or remove entirely
+2. **Update Environment Variables**:
+   - Get new endpoint URL from Modal dashboard
+   - Update `MODAL_EMBEDDING_URL` in `.env`
+   - Update Vercel environment variables
+
+3. **Test Performance**:
+   ```bash
+   # First request (cold): expect ~7 seconds
+   time curl -X POST https://podinsight-api.vercel.app/api/search \
+     -H "Content-Type: application/json" \
+     -d '{"query": "AI", "limit": 3}'
    
-3. **Verify Documents Have 768D Embeddings**:
-   - If documents lack `embedding_768d` field, need to re-embed using Modal
-   - Check a sample of documents for the field presence
+   # Second request (warm): expect <200ms
+   time curl -X POST https://podinsight-api.vercel.app/api/search \
+     -H "Content-Type: application/json" \
+     -d '{"query": "venture capital", "limit": 3}'
+   ```
 
 #### **Priority 2: Test Filtering Capabilities**
 The index supports filtering by:
