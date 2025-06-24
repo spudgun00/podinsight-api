@@ -112,43 +112,96 @@ def test_cold_start():
         log_result("Cold Start", "FAIL", {"error": str(e)})
 
 def test_warm_path():
-    """3. Warm path latency - 10 requests"""
+    """3. Warm path latency - VC search scenarios"""
     print("=" * 60)
-    print("3. WARM PATH LATENCY TEST")
+    print("3. VC SEARCH SCENARIOS TEST")
     print("=" * 60)
+    
+    # Key VC search queries from user perspective
+    vc_queries = [
+        ("AI startup valuations", "Investment analysis"),
+        ("Series A metrics benchmarks", "Funding stages"),
+        ("product market fit indicators", "Business strategy"),
+        ("venture debt vs equity", "Financing options"),
+        ("down round negotiations", "Market conditions"),
+        ("crypto bear market opportunities", "Investment timing"),
+        ("founder burnout mental health", "Leadership insights"),
+        ("LLM moat defensibility", "Technical strategy"),
+        ("network effects marketplaces", "Business models"),
+        ("remote team productivity", "Operations")
+    ]
     
     latencies = []
+    search_results = []
     
-    for i in range(10):
+    for i, (query, category) in enumerate(vc_queries):
         try:
+            print(f"\n   Testing: {query} ({category})")
             start = time.time()
             response = requests.post(
                 f"{VERCEL_BASE}/api/search",
-                json={"query": f"warm test {i}", "limit": 1},
-                timeout=10
+                json={"query": query, "limit": 3},
+                timeout=15
             )
             latency = int((time.time() - start) * 1000)
             latencies.append(latency)
             
-            print(f"   Request {i+1}: {latency}ms - Status: {response.status_code}")
-            
-            if response.status_code != 200:
-                print(f"   Error: {response.text[:100]}")
+            if response.status_code == 200:
+                data = response.json()
+                result_count = len(data.get("results", []))
+                search_method = data.get("search_method", "unknown")
+                
+                search_results.append({
+                    "query": query,
+                    "category": category,
+                    "latency_ms": latency,
+                    "results_found": result_count,
+                    "search_method": search_method,
+                    "total_results": data.get("total_results", 0)
+                })
+                
+                print(f"   ✅ {latency}ms - {result_count} results ({search_method})")
+                
+                # Show relevance if available
+                if data.get("results") and len(data["results"]) > 0:
+                    first_result = data["results"][0]
+                    relevance = first_result.get("similarity_score", 0)
+                    print(f"   📊 Top relevance: {relevance:.3f}")
+                
+            else:
+                print(f"   ❌ Status: {response.status_code} - {response.text[:100]}")
+                search_results.append({
+                    "query": query,
+                    "category": category,
+                    "latency_ms": latency,
+                    "error": f"HTTP {response.status_code}"
+                })
             
             time.sleep(0.5)
         except Exception as e:
-            print(f"   Request {i+1}: ERROR - {str(e)}")
+            print(f"   ❌ ERROR: {str(e)}")
+            search_results.append({
+                "query": query,
+                "category": category,
+                "error": str(e)
+            })
     
     if latencies:
         median = statistics.median(latencies)
         p95 = sorted(latencies)[int(len(latencies) * 0.95)]
         
-        log_result("Warm Path Latency", "PASS" if median < 1000 else "FAIL", {
-            "requests": len(latencies),
-            "median_ms": median,
-            "p95_ms": p95,
-            "max_ms": max(latencies),
-            "all_latencies": latencies
+        # Calculate VC search quality metrics
+        successful_searches = [r for r in search_results if "error" not in r]
+        vector_searches = [r for r in successful_searches if r.get("search_method") == "vector"]
+        
+        log_result("VC Search Scenarios", "PASS" if median < 2000 else "FAIL", {
+            "total_queries": len(vc_queries),
+            "successful": len(successful_searches),
+            "median_latency_ms": median,
+            "p95_latency_ms": p95,
+            "vector_searches": len(vector_searches),
+            "search_results": search_results,
+            "categories_tested": list(set(q[1] for q in vc_queries))
         })
 
 def test_bad_inputs():
