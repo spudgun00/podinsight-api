@@ -17,7 +17,7 @@ class ModalInstructorXLEmbedder:
     def __init__(self):
         """Initialize Modal configuration"""
         # Get from environment or Modal dashboard
-        self.modal_url = os.getenv('MODAL_EMBEDDING_URL', 'https://podinsighthq--podinsight-embeddings-api-fastapi-app.modal.run')
+        self.modal_url = os.getenv('MODAL_EMBEDDING_URL', 'https://podinsighthq--podinsight-embeddings-simple-generate-embedding.modal.run')
         self.modal_token = None  # Public endpoint, no auth needed
     
     def encode_query(self, query: str) -> Optional[List[float]]:
@@ -61,8 +61,8 @@ class ModalInstructorXLEmbedder:
                 
                 payload = {"text": query}
                 
-                # Use the correct embed endpoint
-                embed_url = f"{self.modal_url}/embed"
+                # Use the correct endpoint (no /embed suffix)
+                embed_url = self.modal_url
                 
                 async with session.post(
                     embed_url,
