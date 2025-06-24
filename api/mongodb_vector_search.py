@@ -127,8 +127,17 @@ class MongoVectorSearchHandler:
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
             
+            # Debug log the raw results
+            if results:
+                logger.info(f"First result score: {results[0].get('score', 'No score')}")
+                logger.info(f"First result episode_id: {results[0].get('episode_id', 'No episode_id')}")
+            else:
+                logger.warning("Vector search returned no results from MongoDB")
+            
             # Enrich results with episode metadata from Supabase
             enriched_results = await self._enrich_with_metadata(results)
+            
+            logger.info(f"After enrichment: {len(enriched_results)} results")
             
             # Cache the results
             self._add_to_cache(cache_key, enriched_results)
@@ -166,7 +175,10 @@ class MongoVectorSearchHandler:
         # Fetch episode metadata from Supabase using guid field
         try:
             # Query Supabase for all episodes with matching guids
+            logger.info(f"Looking up {len(episode_guids)} episode GUIDs in Supabase")
+            logger.info(f"First 3 GUIDs: {episode_guids[:3]}")
             result = self.supabase.table('episodes').select('*').in_('guid', episode_guids).execute()
+            logger.info(f"Supabase returned {len(result.data)} episodes")
             
             # Create lookup dict by guid
             episodes = {}

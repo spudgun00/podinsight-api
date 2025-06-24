@@ -255,14 +255,17 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 logger.info(f"Using MongoDB 768D vector search: {request.query}")
                 
                 # Perform vector search
+                logger.info(f"Calling vector search with limit={request.limit + request.offset}, min_score=0.0")
                 vector_results = await vector_handler.vector_search(
                     embedding_768d,
                     limit=request.limit + request.offset,
                     min_score=0.0  # Lowered threshold to debug - was 0.7
                 )
+                logger.info(f"Vector search returned {len(vector_results)} results")
                 
                 # Apply offset
                 paginated_results = vector_results[request.offset:request.offset + request.limit]
+                logger.info(f"After pagination: {len(paginated_results)} results (offset={request.offset}, limit={request.limit})")
                 
                 # Convert to API format with expanded context
                 formatted_results = []
@@ -310,6 +313,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     result.s3_audio_path = vector_result.get("s3_audio_path")
                     result.duration_seconds = vector_result.get("duration_seconds", 0)
                 
+                logger.info(f"Returning {len(formatted_results)} formatted results")
                 return SearchResponse(
                     results=formatted_results,
                     total_results=len(vector_results),
