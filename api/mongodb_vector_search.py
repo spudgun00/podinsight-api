@@ -88,22 +88,24 @@ class MongoVectorSearchHandler:
                         "index": "vector_index_768d",
                         "path": "embedding_768d",  # This is the correct field name
                         "queryVector": embedding,
-                        "numCandidates": limit * 10,
+                        "numCandidates": min(limit * 10, 1000),  # Cap candidates to prevent full scan
                         "limit": limit,
                         "filter": {}
                     }
+                },
+                {
+                    "$limit": limit  # Critical: Add $limit right after $vectorSearch
                 },
                 {
                     "$addFields": {
                         "score": {"$meta": "vectorSearchScore"}
                     }
                 },
-                # Temporarily comment out score filtering to diagnose
-                # {
-                #     "$match": {
-                #         "score": {"$gte": min_score}
-                #     }
-                # },
+                {
+                    "$match": {
+                        "score": {"$exists": True, "$ne": None}  # Filter out null scores
+                    }
+                },
                 {
                     "$project": {
                         "episode_id": 1,

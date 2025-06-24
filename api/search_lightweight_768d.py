@@ -292,7 +292,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                         episode_title=result["episode_title"],
                         published_at=published_at_iso,
                         published_date=published_date,
-                        similarity_score=result["score"],
+                        similarity_score=float(result.get("score", 0.0)) if result.get("score") is not None else 0.0,
                         excerpt=expanded_text,  # Use expanded text instead of single chunk
                         word_count=len(expanded_text.split()),
                         duration_seconds=result.get("duration_seconds", 0),
@@ -322,7 +322,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 )
     
     except Exception as e:
-        logger.warning(f"768D vector search failed: {str(e)}")
+        logger.error(f"768D vector search failed for query '{request.query}': {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
     
     # Fallback to MongoDB text search
     try:
@@ -348,7 +351,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     episode_title=result["episode_title"],
                     published_at=result["published_at"],
                     published_date=result.get("published_date", "Unknown date"),
-                    similarity_score=result["relevance_score"],
+                    similarity_score=float(result.get("relevance_score", 0.0)) if result.get("relevance_score") is not None else 0.0,
                     excerpt=result["excerpt"],
                     word_count=result.get("word_count", 0),
                     duration_seconds=0,

@@ -865,13 +865,13 @@ ${report.rawConsoleText}
             `;
             
             html += data.results.map((result, index) => {
-                log(`Result ${index + 1}: ${result.episode_title} (${Math.round(result.relevance_score * 100)}% relevant)`, 'debug');
+                log(`Result ${index + 1}: ${result.episode_title} (${Math.round(result.similarity_score * 100)}% relevant)`, 'debug');
                 
                 return `
                     <div class="search-result">
                         <div class="result-header">
                             <div class="episode-title">${result.episode_title || 'Unknown Episode'}</div>
-                            <div class="relevance-score">${Math.round(result.relevance_score * 100)}% relevant</div>
+                            <div class="relevance-score">${Math.round(result.similarity_score * 100)}% relevant</div>
                         </div>
                         
                         <div class="excerpt">${result.excerpt}</div>

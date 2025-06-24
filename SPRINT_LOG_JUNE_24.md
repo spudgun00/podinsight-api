@@ -32,12 +32,31 @@
 | Test Category | Status | Results |
 |---------------|--------|---------|
 | **Health Check** | ✅ PASS | API responding correctly |
-| **Cold Start** | ✅ PASS | 14.4s (optimal for 2.1GB model) |
-| **VC Scenarios** | ✅ PASS | 5/5 tested (including retry) |
-| **Bad Inputs** | ✅ PASS | All edge cases handled |
-| **Unicode/Emoji** | ✅ PASS | Full international support |
-| **Concurrency** | ✅ PASS | 19/20 parallel requests |
+| **Cold Start** | ❌ FAIL | 14.4s but vector search failing |
+| **VC Scenarios** | ❌ FAIL | 5/5 HTTP 200s but returning fake data |
+| **Bad Inputs** | ❌ FAIL | API doesn't crash but data quality broken |
+| **Unicode/Emoji** | ❌ FAIL | API responds but with corrupted metadata |
+| **Concurrency** | ❌ FAIL | Consistent failures hidden by superficial testing |
 | **Production Fix** | ✅ PASS | Import error resolved |
+
+### 🚨 CRITICAL ISSUES DISCOVERED POST-TESTING
+
+**Data Quality Failures:**
+- All episodes show fake date "June 24, 2025" (fallback when published_at is None)
+- All transcripts show "No transcript available" 
+- All relevance scores show "NaN%" (frontend field mismatch)
+- Vector search failing, falling back to text search
+
+**Root Cause Analysis:**
+1. **Vector Search Failing**: Exception at line 324-325 in search_lightweight_768d.py
+2. **Supabase-MongoDB Disconnection**: Metadata enrichment returning None for published_at
+3. **Fallback Date Bug**: Uses `datetime.now()` when published_at is missing (line 286)
+4. **Frontend Bug**: Looking for `relevance_score` but API returns `similarity_score`
+
+**Why CLI Tests "Passed":**
+- Only checked HTTP status codes and result counts
+- Failed to verify data quality, real content, or meaningful results
+- Superficial validation masked complete system failure
 
 ### 🔧 Technical Achievements
 

@@ -1,0 +1,172 @@
+PodInsight Test Report
+====================================
+Session ID: 2025-06-24T20-52-55-155Z
+Test Date: 24/06/2025, 21:54:54
+Duration: 119.44 seconds
+
+SUMMARY
+-------
+Total Requests: 11
+Successful: 11
+Failed: 0
+Success Rate: 100.00%
+Average Response Time: 11741.73ms
+Last Error: None
+
+DETAILED LOGS
+-------------
+[21:52:55] [SUCCESS] PodInsight Advanced Testing Suite initialized
+[21:52:55] [INFO] Session ID: 2025-06-24T20-52-55-155Z
+[21:52:55] [INFO] API endpoint: https://podinsight-api.vercel.app
+[21:52:55] [INFO] Modal endpoint: https://podinsighthq--podinsight-embeddings-simple-generate-embedding.modal.run
+[21:52:55] [INFO] Found 2 previous test sessions:
+[21:52:55] [DEBUG] Session 1: 24/06/2025, 21:52:55 - 4 logs, 0 requests
+[21:52:55] [DEBUG] Session 2: 24/06/2025, 21:21:37 - 7 logs, 0 requests
+[21:52:55] [INFO] Keyboard shortcuts: Ctrl+Enter to search, Ctrl+L to clear console, Ctrl+S to download logs
+[21:52:59] [INFO] Running quick test: "AI startup valuations" (limit: 5)
+[21:52:59] [INFO] Performing search: query="AI startup valuations", limit=5
+[21:52:59] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:53:03] [INFO] Performing search: query="AI startup valuations", limit=5
+[21:53:03] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:53:17] [SUCCESS] Response received: status=200, time=18071ms
+[21:53:17] [SUCCESS] Search successful: 5 results found
+[21:53:17] [DEBUG] Result 1: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 2: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 3: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 4: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 5: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [SUCCESS] Response received: status=200, time=14795ms
+[21:53:17] [SUCCESS] Search successful: 5 results found
+[21:53:17] [DEBUG] Result 1: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 2: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 3: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 4: Episode from June 24, 2025 (NaN% relevant)
+[21:53:17] [DEBUG] Result 5: Episode from June 24, 2025 (NaN% relevant)
+[21:53:36] [INFO] Running quick test: "machine learning business models" (limit: 5)
+[21:53:36] [INFO] Performing search: query="machine learning business models", limit=5
+[21:53:36] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:53:38] [INFO] Performing search: query="machine learning business models", limit=5
+[21:53:38] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:53:57] [SUCCESS] Response received: status=200, time=19359ms
+[21:53:57] [SUCCESS] Search successful: 0 results found
+[21:53:57] [WARNING] No results found for query
+[21:53:57] [SUCCESS] Response received: status=200, time=21404ms
+[21:53:57] [SUCCESS] Search successful: 0 results found
+[21:53:57] [WARNING] No results found for query
+[21:54:01] [INFO] Running quick test: "LLM moat defensibility" (limit: 5)
+[21:54:01] [INFO] Performing search: query="LLM moat defensibility", limit=5
+[21:54:01] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:04] [INFO] Performing search: query="LLM moat defensibility", limit=5
+[21:54:04] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:05] [SUCCESS] Response received: status=200, time=4882ms
+[21:54:05] [SUCCESS] Search successful: 0 results found
+[21:54:05] [WARNING] No results found for query
+[21:54:07] [SUCCESS] Response received: status=200, time=3434ms
+[21:54:07] [SUCCESS] Search successful: 0 results found
+[21:54:07] [WARNING] No results found for query
+[21:54:11] [INFO] Performing search: query="LLM moat defensibility", limit=5
+[21:54:11] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:15] [SUCCESS] Response received: status=200, time=3515ms
+[21:54:15] [SUCCESS] Search successful: 0 results found
+[21:54:15] [WARNING] No results found for query
+[21:54:27] [INFO] Running quick test: "GPT-4 competitive advantage" (limit: 5)
+[21:54:27] [INFO] Performing search: query="GPT-4 competitive advantage", limit=5
+[21:54:27] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:28] [INFO] Performing search: query="GPT-4 competitive advantage", limit=5
+[21:54:28] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:33] [SUCCESS] Response received: status=200, time=5364ms
+[21:54:33] [SUCCESS] Search successful: 0 results found
+[21:54:33] [WARNING] No results found for query
+[21:54:33] [SUCCESS] Response received: status=200, time=6774ms
+[21:54:33] [SUCCESS] Search successful: 0 results found
+[21:54:33] [WARNING] No results found for query
+[21:54:36] [INFO] Running quick test: "AI infrastructure costs" (limit: 5)
+[21:54:36] [INFO] Performing search: query="AI infrastructure costs", limit=5
+[21:54:36] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:37] [INFO] Performing search: query="AI infrastructure costs", limit=5
+[21:54:37] [DEBUG] Sending POST request to https://podinsight-api.vercel.app/api/search
+[21:54:52] [SUCCESS] Response received: status=200, time=15092ms
+[21:54:52] [SUCCESS] Search successful: 0 results found
+[21:54:52] [WARNING] No results found for query
+[21:54:52] [SUCCESS] Response received: status=200, time=16469ms
+[21:54:52] [SUCCESS] Search successful: 0 results found
+[21:54:52] [WARNING] No results found for query
+
+RAW CONSOLE OUTPUT
+------------------
+21:52:55 SUCCESS PodInsight Advanced Testing Suite initialized
+21:52:55 INFO Session ID: 2025-06-24T20-52-55-155Z
+21:52:55 INFO API endpoint: https://podinsight-api.vercel.app
+21:52:55 INFO Modal endpoint: https://podinsighthq--podinsight-embeddings-simple-generate-embedding.modal.run
+21:52:55 INFO Found 2 previous test sessions:
+21:52:55 DEBUG Session 1: 24/06/2025, 21:52:55 - 4 logs, 0 requests
+21:52:55 DEBUG Session 2: 24/06/2025, 21:21:37 - 7 logs, 0 requests
+21:52:55 INFO Keyboard shortcuts: Ctrl+Enter to search, Ctrl+L to clear console, Ctrl+S to download logs
+21:52:59 INFO Running quick test: "AI startup valuations" (limit: 5)
+21:52:59 INFO Performing search: query="AI startup valuations", limit=5
+21:52:59 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:53:03 INFO Performing search: query="AI startup valuations", limit=5
+21:53:03 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:53:17 SUCCESS Response received: status=200, time=18071ms
+21:53:17 SUCCESS Search successful: 5 results found
+21:53:17 DEBUG Result 1: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 2: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 3: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 4: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 5: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 SUCCESS Response received: status=200, time=14795ms
+21:53:17 SUCCESS Search successful: 5 results found
+21:53:17 DEBUG Result 1: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 2: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 3: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 4: Episode from June 24, 2025 (NaN% relevant)
+21:53:17 DEBUG Result 5: Episode from June 24, 2025 (NaN% relevant)
+21:53:36 INFO Running quick test: "machine learning business models" (limit: 5)
+21:53:36 INFO Performing search: query="machine learning business models", limit=5
+21:53:36 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:53:38 INFO Performing search: query="machine learning business models", limit=5
+21:53:38 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:53:57 SUCCESS Response received: status=200, time=19359ms
+21:53:57 SUCCESS Search successful: 0 results found
+21:53:57 WARNING No results found for query
+21:53:57 SUCCESS Response received: status=200, time=21404ms
+21:53:57 SUCCESS Search successful: 0 results found
+21:53:57 WARNING No results found for query
+21:54:01 INFO Running quick test: "LLM moat defensibility" (limit: 5)
+21:54:01 INFO Performing search: query="LLM moat defensibility", limit=5
+21:54:01 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:04 INFO Performing search: query="LLM moat defensibility", limit=5
+21:54:04 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:05 SUCCESS Response received: status=200, time=4882ms
+21:54:05 SUCCESS Search successful: 0 results found
+21:54:05 WARNING No results found for query
+21:54:07 SUCCESS Response received: status=200, time=3434ms
+21:54:07 SUCCESS Search successful: 0 results found
+21:54:07 WARNING No results found for query
+21:54:11 INFO Performing search: query="LLM moat defensibility", limit=5
+21:54:11 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:15 SUCCESS Response received: status=200, time=3515ms
+21:54:15 SUCCESS Search successful: 0 results found
+21:54:15 WARNING No results found for query
+21:54:27 INFO Running quick test: "GPT-4 competitive advantage" (limit: 5)
+21:54:27 INFO Performing search: query="GPT-4 competitive advantage", limit=5
+21:54:27 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:28 INFO Performing search: query="GPT-4 competitive advantage", limit=5
+21:54:28 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:33 SUCCESS Response received: status=200, time=5364ms
+21:54:33 SUCCESS Search successful: 0 results found
+21:54:33 WARNING No results found for query
+21:54:33 SUCCESS Response received: status=200, time=6774ms
+21:54:33 SUCCESS Search successful: 0 results found
+21:54:33 WARNING No results found for query
+21:54:36 INFO Running quick test: "AI infrastructure costs" (limit: 5)
+21:54:36 INFO Performing search: query="AI infrastructure costs", limit=5
+21:54:36 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:37 INFO Performing search: query="AI infrastructure costs", limit=5
+21:54:37 DEBUG Sending POST request to https://podinsight-api.vercel.app/api/search
+21:54:52 SUCCESS Response received: status=200, time=15092ms
+21:54:52 SUCCESS Search successful: 0 results found
+21:54:52 WARNING No results found for query
+21:54:52 SUCCESS Response received: status=200, time=16469ms
+21:54:52 SUCCESS Search successful: 0 results found
+21:54:52 WARNING No results found for query
