@@ -226,6 +226,95 @@ The Modal optimization project has been **successfully completed** with all crit
 
 The solution is ready for production deployment and testing. Focus the next session on validation and performance measurement to confirm the optimizations work as expected.
 
+---
+
+## 📋 **Essential Documents for Next Session**
+
+### **🔥 MUST READ FIRST**
+1. **`@NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md`** (this document)
+   - Overview of all critical fixes implemented
+   - Testing priorities and expected performance
+   - Deployment commands and safety notes
+
+2. **`chatgpt_propsal`** 
+   - Original feedback that identified critical production issues
+   - All issues from this feedback have been resolved
+
+### **📊 Primary Documentation**
+3. **`MODAL_OPTIMIZATION_COMPREHENSIVE_GUIDE.md`** 
+   - Complete technical documentation (1000+ lines)
+   - Updated with corrected A10G pricing ($1.10/hour)
+   - Includes volume preservation documentation
+   - Cost analysis, architecture diagrams, troubleshooting
+
+4. **`MODAL_OPTIMIZATION_TEST_PLAN.md`**
+   - Testing methodology and results
+   - Updated with corrected cost estimates
+   - Performance benchmarks and validation steps
+
+### **🔧 Implementation Files**
+5. **`scripts/modal_web_endpoint_simple.py`** ⭐ **MAIN ENDPOINT**
+   - Production-ready optimized endpoint
+   - Fixed model caching (no reloading)
+   - Memory snapshots re-enabled
+   - Concurrency guard-rails added
+   - PyTorch 2.7.1+cu121 with security fixes
+
+6. **`scripts/deploy_modal_optimized.sh`**
+   - Deployment script with corrected cost estimates
+   - Updated to deploy the simple endpoint
+   - Includes performance validation steps
+
+### **📈 Performance Analysis**
+7. **`scripts/modal_web_endpoint_optimized.py`** 
+   - Original class-based approach (has issues)
+   - Keep for reference but use simple.py for production
+   - Shows evolution of the optimization approach
+
+### **🗂️ Supporting Files**
+8. **Git commit history** - Key commits to understand:
+   - `c9675ad` - This handoff document
+   - `4be4b9c` - Critical fixes implementation
+   - `8165d34` - Original Modal optimization
+   - Check: `git log --oneline -10`
+
+### **📂 File Organization Summary**
+```
+📁 PodInsights/podinsight-api/
+├── 🔥 @NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md  ← START HERE
+├── 📊 MODAL_OPTIMIZATION_COMPREHENSIVE_GUIDE.md ← Complete docs
+├── 📊 MODAL_OPTIMIZATION_TEST_PLAN.md          ← Testing guide  
+├── 📝 chatgpt_propsal                          ← Original feedback
+└── 📁 scripts/
+    ├── ⭐ modal_web_endpoint_simple.py         ← MAIN ENDPOINT
+    ├── 🔧 deploy_modal_optimized.sh            ← Deployment
+    └── 📈 modal_web_endpoint_optimized.py      ← Reference only
+```
+
+### **🎯 Quick Start for Next Session**
+```bash
+# 1. Read this handoff document first
+cat @NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md
+
+# 2. Check latest commit status  
+git log --oneline -5
+
+# 3. Deploy and test the optimized endpoint
+modal deploy scripts/modal_web_endpoint_simple.py
+
+# 4. Run performance tests
+modal run scripts/modal_web_endpoint_simple.py::generate_embedding \
+  --text "test performance"
+```
+
+### **🚨 Critical Context**
+- **All critical issues resolved**: A10G pricing corrected, model caching fixed, memory snapshots enabled
+- **Performance target**: ~4s cold start (down from 150s), <1s warm requests  
+- **Cost reality**: $37/month for 100 requests/day (not $6.40 as originally calculated)
+- **Production ready**: All safety measures implemented, documentation complete
+
+---
+
 **Last Updated**: June 24, 2025  
 **Commit**: `4be4b9c` - All critical fixes implemented  
 **Status**: Ready for production testing
