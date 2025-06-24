@@ -236,43 +236,49 @@ The solution is ready for production deployment and testing. Focus the next sess
    - Testing priorities and expected performance
    - Deployment commands and safety notes
 
-2. **`chatgpt_propsal`** 
+2. **`MODAL_ARCHITECTURE_DIAGRAM.md`** ⭐ **ESSENTIAL CONTEXT**
+   - Complete business and technical architecture overview
+   - Executive summary and ROI analysis ($975K annual savings)
+   - Detailed data flow and component breakdown
+   - Before/after comparison showing 80% search improvement
+
+3. **`chatgpt_propsal`** 
    - Original feedback that identified critical production issues
    - All issues from this feedback have been resolved
 
 ### **📊 Primary Documentation**
-3. **`MODAL_OPTIMIZATION_COMPREHENSIVE_GUIDE.md`** 
+4. **`MODAL_OPTIMIZATION_COMPREHENSIVE_GUIDE.md`** 
    - Complete technical documentation (1000+ lines)
    - Updated with corrected A10G pricing ($1.10/hour)
    - Includes volume preservation documentation
    - Cost analysis, architecture diagrams, troubleshooting
 
-4. **`MODAL_OPTIMIZATION_TEST_PLAN.md`**
+5. **`MODAL_OPTIMIZATION_TEST_PLAN.md`**
    - Testing methodology and results
    - Updated with corrected cost estimates
    - Performance benchmarks and validation steps
 
 ### **🔧 Implementation Files**
-5. **`scripts/modal_web_endpoint_simple.py`** ⭐ **MAIN ENDPOINT**
+6. **`scripts/modal_web_endpoint_simple.py`** ⭐ **MAIN ENDPOINT**
    - Production-ready optimized endpoint
    - Fixed model caching (no reloading)
    - Memory snapshots re-enabled
    - Concurrency guard-rails added
    - PyTorch 2.7.1+cu121 with security fixes
 
-6. **`scripts/deploy_modal_optimized.sh`**
+7. **`scripts/deploy_modal_optimized.sh`**
    - Deployment script with corrected cost estimates
    - Updated to deploy the simple endpoint
    - Includes performance validation steps
 
 ### **📈 Performance Analysis**
-7. **`scripts/modal_web_endpoint_optimized.py`** 
+8. **`scripts/modal_web_endpoint_optimized.py`** 
    - Original class-based approach (has issues)
    - Keep for reference but use simple.py for production
    - Shows evolution of the optimization approach
 
 ### **🗂️ Supporting Files**
-8. **Git commit history** - Key commits to understand:
+9. **Git commit history** - Key commits to understand:
    - `c9675ad` - This handoff document
    - `4be4b9c` - Critical fixes implementation
    - `8165d34` - Original Modal optimization
@@ -282,6 +288,7 @@ The solution is ready for production deployment and testing. Focus the next sess
 ```
 📁 PodInsights/podinsight-api/
 ├── 🔥 @NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md  ← START HERE
+├── ⭐ MODAL_ARCHITECTURE_DIAGRAM.md            ← ESSENTIAL CONTEXT
 ├── 📊 MODAL_OPTIMIZATION_COMPREHENSIVE_GUIDE.md ← Complete docs
 ├── 📊 MODAL_OPTIMIZATION_TEST_PLAN.md          ← Testing guide  
 ├── 📝 chatgpt_propsal                          ← Original feedback
@@ -296,13 +303,16 @@ The solution is ready for production deployment and testing. Focus the next sess
 # 1. Read this handoff document first
 cat @NEXT_SESSION_HANDOFF_CRITICAL_FIXES.md
 
-# 2. Check latest commit status  
+# 2. Read the architecture document for complete context
+cat MODAL_ARCHITECTURE_DIAGRAM.md
+
+# 3. Check latest commit status  
 git log --oneline -5
 
-# 3. Deploy and test the optimized endpoint
+# 4. Deploy and test the optimized endpoint
 modal deploy scripts/modal_web_endpoint_simple.py
 
-# 4. Run performance tests
+# 5. Run performance tests
 modal run scripts/modal_web_endpoint_simple.py::generate_embedding \
   --text "test performance"
 ```
