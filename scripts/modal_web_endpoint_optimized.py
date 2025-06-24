@@ -5,12 +5,18 @@ Based on ChatGPT's analysis and Modal best practices
 """
 
 import modal
-import torch
-from sentence_transformers import SentenceTransformer
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import time
+
+# These imports only work inside Modal containers
+try:
+    import torch
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    # Not available locally, will be available in Modal container
+    pass
 
 # Create Modal app with optimized configuration
 app = modal.App("podinsight-embeddings-optimized")
@@ -19,12 +25,12 @@ app = modal.App("podinsight-embeddings-optimized")
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
-        "torch==2.2.2+cu118",
+        "numpy>=1.26.0,<2.0",  # Fix NumPy compatibility issue
+        "torch>=2.6.0",  # Updated for security vulnerability fix
         "sentence-transformers==2.7.0",
         "instructor",
         "fastapi",
         "pydantic",
-        extra_index_url="https://download.pytorch.org/whl/cu118"
     )
 )
 
@@ -66,45 +72,61 @@ INSTRUCTION = "Represent the venture capital podcast discussion:"
     min_containers=0,  # Allow scale to zero
     max_containers=10,  # Cap for cost control
     scaledown_window=600,  # Stay warm for 10 minutes after last request
-    enable_memory_snapshot=True,  # Enable snapshots for 3-4x faster cold starts
-    container_idle_timeout=600,  # Match scaledown window
+    enable_memory_snapshot=False,  # Disable snapshots temporarily for debugging
 )
 class EmbedderOptimized:
     """Optimized embedder with GPU support and memory snapshots"""
     
-    @modal.enter(snap=True)
-    def load_model_to_cpu(self):
-        """Load model to CPU memory (runs before snapshot)"""
-        print("🔄 Loading Instructor-XL model to CPU...")
+    @modal.enter()
+    def load_model_and_setup_gpu(self):
+        """Load model and setup GPU (runs on container start)"""
+        print("🔄 Loading Instructor-XL model and setting up GPU...")
         start = time.time()
         
-        # Load to CPU first for snapshot
-        self.model = SentenceTransformer('hkunlp/instructor-xl', device='cpu')
-        
-        elapsed = time.time() - start
-        print(f"✅ Model loaded to CPU in {elapsed:.2f}s")
-    
-    @modal.enter(snap=False)
-    def move_model_to_gpu(self):
-        """Move model to GPU after snapshot restore (runs on each container start)"""
-        print("🚀 Moving model to GPU...")
-        start = time.time()
-        
-        # Check GPU availability
-        self.gpu_available = torch.cuda.is_available()
-        print(f"🖥️  GPU available: {self.gpu_available}")
-        
-        if self.gpu_available:
-            # Move model to GPU
-            self.model.to('cuda')
-            # Warm up GPU with a dummy inference
-            _ = self.model.encode([[INSTRUCTION, "warmup"]], convert_to_tensor=True)
-            print(f"✅ Model moved to GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            print("⚠️  WARNING: No GPU available, using CPU (will be slow)")
-        
-        elapsed = time.time() - start
-        print(f"✅ GPU setup complete in {elapsed:.2f}s")
+        try:
+            # First load model to CPU
+            print("📥 Loading model to CPU...")
+            model_start = time.time()
+            self.model = SentenceTransformer('hkunlp/instructor-xl', device='cpu')
+            model_elapsed = time.time() - model_start
+            print(f"✅ Model loaded to CPU in {model_elapsed:.2f}s")
+            
+            # Check GPU availability
+            self.gpu_available = torch.cuda.is_available()
+            print(f"🖥️  GPU available: {self.gpu_available}")
+            
+            if self.gpu_available:
+                print(f"🖥️  GPU device: {torch.cuda.get_device_name(0)}")
+                print(f"🖥️  GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+                
+                # Move model to GPU
+                gpu_start = time.time()
+                self.model.to('cuda')
+                # Warm up GPU with a dummy inference
+                _ = self.model.encode([[INSTRUCTION, "warmup"]], convert_to_tensor=True)
+                gpu_elapsed = time.time() - gpu_start
+                print(f"✅ Model moved to GPU in {gpu_elapsed:.2f}s: {torch.cuda.get_device_name(0)}")
+            else:
+                print("⚠️  WARNING: No GPU available, using CPU (will be slow)")
+            
+            elapsed = time.time() - start
+            print(f"✅ Complete setup finished in {elapsed:.2f}s")
+        except Exception as e:
+            print(f"❌ Error during setup: {e}")
+            print(f"📁 Cache directory contents:")
+            import os
+            cache_dir = "/root/.cache/huggingface"
+            if os.path.exists(cache_dir):
+                for item in os.listdir(cache_dir):
+                    print(f"  - {item}")
+            else:
+                print(f"  Cache directory {cache_dir} does not exist")
+            
+            # Try to set fallback state
+            self.gpu_available = False
+            elapsed = time.time() - start
+            print(f"⚠️  Setup failed in {elapsed:.2f}s")
+            raise
     
     @modal.method()
     def embed_single(self, text: str) -> dict:
@@ -160,19 +182,19 @@ class EmbedderOptimized:
             "inference_time_ms": round(inference_time, 2)
         }
     
-    @modal.web_endpoint(method="POST", path="/embed")
+    @modal.web_endpoint(method="POST")
     def web_embed_single(self, request: EmbedRequest) -> EmbedResponse:
         """HTTP endpoint for single embedding"""
         result = self.embed_single(request.text)
         return EmbedResponse(**result)
     
-    @modal.web_endpoint(method="POST", path="/embed_batch")
+    @modal.web_endpoint(method="POST")
     def web_embed_batch(self, request: BatchEmbedRequest) -> BatchEmbedResponse:
         """HTTP endpoint for batch embeddings"""
         result = self.embed_batch(request.texts)
         return BatchEmbedResponse(**result)
     
-    @modal.web_endpoint(method="GET", path="/health")
+    @modal.web_endpoint(method="GET")
     def health_check(self) -> dict:
         """Health check endpoint with GPU status"""
         return {
@@ -188,7 +210,7 @@ class EmbedderOptimized:
             "expected_warm_latency": "<200ms"
         }
     
-    @modal.web_endpoint(method="GET", path="/warm")
+    @modal.web_endpoint(method="GET")
     def warm_endpoint(self) -> dict:
         """Lightweight endpoint to keep container warm"""
         return {"status": "warm", "timestamp": time.time()}
@@ -203,7 +225,6 @@ embedder = EmbedderOptimized()
     volumes={"/root/.cache/huggingface": volume},
     scaledown_window=600,
     enable_memory_snapshot=True,
-    container_idle_timeout=600,
 )
 @modal.asgi_app()
 def fastapi_app():
