@@ -172,33 +172,54 @@ class MongoVectorSearchHandler:
                 enriched.append(enriched_chunk)
             return enriched
         
-        # Fetch episode metadata from Supabase using guid field
+        # Fetch episode metadata from MongoDB using guid field
         try:
-            # Query Supabase for all episodes with matching guids
-            logger.info(f"Looking up {len(episode_guids)} episode GUIDs in Supabase")
+            # Query MongoDB for all episodes with matching guids
+            logger.info(f"Looking up {len(episode_guids)} episode GUIDs in MongoDB episode_metadata")
             logger.info(f"First 3 GUIDs: {episode_guids[:3]}")
-            result = self.supabase.table('episodes').select('*').in_('guid', episode_guids).execute()
-            logger.info(f"Supabase returned {len(result.data)} episodes")
+            
+            # MongoDB query
+            metadata_docs = list(self.db.episode_metadata.find({"guid": {"$in": episode_guids}}))
+            logger.info(f"MongoDB returned {len(metadata_docs)} episodes")
             
             # Create lookup dict by guid
             episodes = {}
-            for episode in result.data:
-                episodes[episode['guid']] = episode
+            for doc in metadata_docs:
+                episodes[doc['guid']] = doc
             
             # Enrich chunks
             enriched = []
             for chunk in chunks:
                 episode_guid = chunk['episode_id']
                 if episode_guid in episodes:
-                    episode = episodes[episode_guid]
+                    doc = episodes[episode_guid]
+                    
+                    # Extract metadata from the nested structure
+                    raw_feed = doc.get('raw_entry_original_feed', {})
+                    
+                    # Get episode title from nested structure first, fallback to root
+                    episode_title = raw_feed.get('episode_title') or doc.get('episode_title') or 'Unknown Episode'
+                    
+                    # Get podcast name from nested structure first, fallback to root
+                    podcast_name = raw_feed.get('podcast_title') or doc.get('podcast_title') or chunk.get('feed_slug', 'Unknown')
+                    
+                    # Get published date
+                    published_at = raw_feed.get('published_date_iso') or doc.get('published_at')
+                    
+                    # Get guests information
+                    guests = doc.get('guests', [])
+                    guest_names = [guest.get('name', '') for guest in guests if guest.get('name')]
+                    
                     enriched_chunk = {
                         **chunk,
-                        'podcast_name': episode.get('podcast_name', chunk.get('feed_slug', 'Unknown')),
-                        'episode_title': episode.get('episode_title', 'Unknown Episode'),
-                        'published_at': episode.get('published_at'),
-                        'topics': [],  # Topics not stored in Supabase episodes table
-                        's3_audio_path': episode.get('s3_audio_path'),
-                        'duration_seconds': episode.get('duration_seconds', 0)
+                        'podcast_name': podcast_name,
+                        'episode_title': episode_title,
+                        'published_at': published_at,
+                        'topics': [],  # Topics might be in different field
+                        's3_audio_path': doc.get('s3_audio_path') or raw_feed.get('s3_audio_path_raw'),
+                        'duration_seconds': doc.get('duration_seconds', 0),
+                        'guests': guest_names,
+                        'segment_count': doc.get('segment_count', 0)
                     }
                     enriched.append(enriched_chunk)
                 else:
@@ -209,15 +230,17 @@ class MongoVectorSearchHandler:
                         'podcast_name': chunk.get('feed_slug', 'Unknown'),
                         'episode_title': 'Unknown Episode',
                         'published_at': None,
-                        'topics': []
+                        'topics': [],
+                        'guests': [],
+                        'segment_count': 0
                     }
                     enriched.append(enriched_chunk)
             
-            logger.info(f"Enriched {len(enriched)} chunks with Supabase metadata")
+            logger.info(f"Enriched {len(enriched)} chunks with MongoDB metadata")
             return enriched
             
         except Exception as e:
-            logger.error(f"Failed to fetch Supabase metadata: {e}")
+            logger.error(f"Failed to fetch MongoDB metadata: {e}")
             # Return chunks without enrichment on error
             enriched = []
             for chunk in chunks:
