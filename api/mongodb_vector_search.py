@@ -5,12 +5,16 @@ import os
 import time
 import logging
 import hashlib
+import asyncio
 from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from collections import OrderedDict
 from supabase import create_client
 
 logger = logging.getLogger(__name__)
+
+# Global instance to reuse connections
+_handler_instance = None
 
 
 class MongoVectorSearchHandler:
@@ -34,7 +38,15 @@ class MongoVectorSearchHandler:
                 return
             
             logger.info("Attempting MongoDB connection...")
-            self.client = AsyncIOMotorClient(mongo_uri, serverSelectionTimeoutMS=5000)
+            # Increase timeout and add retry options
+            self.client = AsyncIOMotorClient(
+                mongo_uri, 
+                serverSelectionTimeoutMS=10000,  # Increased from 5000
+                connectTimeoutMS=10000,
+                socketTimeoutMS=10000,
+                maxPoolSize=10,
+                retryWrites=True
+            )
             
             # Get database name from environment or use default
             db_name = os.getenv("MONGODB_DATABASE", "podinsight")
@@ -138,16 +150,30 @@ class MongoVectorSearchHandler:
             logger.info(f"Database name: {self.db.name}")
             logger.info(f"Embedding length: {len(embedding)}")
             
-            try:
-                cursor = self.collection.aggregate(pipeline)
-                results = await cursor.to_list(None)
-            except Exception as e:
-                logger.error(f"MongoDB aggregate error: {e}")
-                logger.error(f"Error type: {type(e).__name__}")
-                # Try to get more details about the error
-                if hasattr(e, 'details'):
-                    logger.error(f"Error details: {e.details}")
-                results = []
+            # Try up to 3 times with exponential backoff
+            results = []
+            last_error = None
+            
+            for attempt in range(3):
+                try:
+                    cursor = self.collection.aggregate(pipeline)
+                    results = await cursor.to_list(None)
+                    if attempt > 0:
+                        logger.info(f"Vector search succeeded on attempt {attempt + 1}")
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    last_error = e
+                    if attempt < 2:  # Not the last attempt
+                        wait_time = (attempt + 1) * 2  # 2, 4 seconds
+                        logger.warning(f"Vector search attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(f"MongoDB aggregate error after 3 attempts: {e}")
+                        logger.error(f"Error type: {type(e).__name__}")
+                        # Try to get more details about the error
+                        if hasattr(e, 'details'):
+                            logger.error(f"Error details: {e.details}")
+                        results = []
             
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
@@ -309,12 +335,10 @@ class MongoVectorSearchHandler:
         if self.client:
             self.client.close()
 
-# Create singleton instance
-_vector_search_handler = None
-
+# Use global instance for connection pooling
 async def get_vector_search_handler() -> MongoVectorSearchHandler:
     """Get or create singleton vector search handler"""
-    global _vector_search_handler
-    if _vector_search_handler is None:
-        _vector_search_handler = MongoVectorSearchHandler()
-    return _vector_search_handler
+    global _handler_instance
+    if _handler_instance is None:
+        _handler_instance = MongoVectorSearchHandler()
+    return _handler_instance

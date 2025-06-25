@@ -332,17 +332,21 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     result.s3_audio_path = vector_result.get("s3_audio_path")
                     result.duration_seconds = vector_result.get("duration_seconds", 0)
                 
-                logger.info(f"Returning {len(formatted_results)} formatted results")
-                return SearchResponse(
-                    results=formatted_results,
-                    total_results=len(vector_results),
-                    cache_hit=cache_hit,
-                    search_id=search_id,
-                    query=request.query,
-                    limit=request.limit,
-                    offset=request.offset,
-                    search_method="vector_768d"
-                )
+                # Only return vector results if we actually got some
+                if len(formatted_results) > 0:
+                    logger.info(f"Returning {len(formatted_results)} formatted results")
+                    return SearchResponse(
+                        results=formatted_results,
+                        total_results=len(vector_results),
+                        cache_hit=cache_hit,
+                        search_id=search_id,
+                        query=request.query,
+                        limit=request.limit,
+                        offset=request.offset,
+                        search_method="vector_768d"
+                    )
+                else:
+                    logger.warning(f"Vector search returned 0 results, falling back to text search")
     
     except Exception as e:
         logger.error(f"768D vector search failed for query '{request.query}': {str(e)}")

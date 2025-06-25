@@ -38,6 +38,15 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Import warmup function
+from .warmup import warmup_connections
+
+@app.on_event("startup")
+async def startup_event():
+    """Run warmup on startup"""
+    logger.info("Starting API warmup...")
+    await warmup_connections()
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
