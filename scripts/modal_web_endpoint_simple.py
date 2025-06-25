@@ -36,8 +36,9 @@ image = (
 # Create persistent volume for model weights
 volume = modal.Volume.from_name("podinsight-hf-cache", create_if_missing=True)
 
-# Embedding instruction for business context
-INSTRUCTION = "Represent the venture capital podcast discussion:"
+# Embedding instruction - set to empty string to match how chunks were likely indexed
+# Can be changed to "Represent the venture capital podcast discussion:" if needed
+INSTRUCTION = ""
 
 # Global model cache to avoid reloading
 MODEL = None
@@ -118,34 +119,32 @@ def _generate_embedding(text: str) -> Dict:
         # Generate embedding
         embed_start = time.time()
         
-        # Try both formats to see which works
-        try:
-            # Format 1: Instructor format
+        # Handle empty instruction case
+        if INSTRUCTION:
+            # Use instructor format with instruction
             formatted_input = [[INSTRUCTION, text]]
-            
-            # Try without autocast first
+            print(f"   Using instructor format with: '{INSTRUCTION}'")
+        else:
+            # Use simple text format when no instruction
+            formatted_input = text
+            print(f"   Using simple text format (no instruction)")
+        
+        try:
             embedding = model.encode(
                 formatted_input,
                 normalize_embeddings=True,
                 convert_to_tensor=False,
                 show_progress_bar=False
-            )[0]
+            )
             
-            print(f"   ✅ Format 1 succeeded without autocast")
+            # Handle output based on format
+            if INSTRUCTION and isinstance(embedding, list):
+                embedding = embedding[0]
+            
+            print(f"   ✅ Embedding generated successfully")
         except Exception as e:
-            print(f"   ❌ Format 1 failed: {e}")
-            try:
-                # Format 2: Simple text
-                embedding = model.encode(
-                    text,
-                    normalize_embeddings=True,
-                    convert_to_tensor=False,
-                    show_progress_bar=False
-                )
-                print(f"   ✅ Format 2 succeeded")
-            except Exception as e2:
-                print(f"   ❌ Format 2 also failed: {e2}")
-                raise e2
+            print(f"   ❌ Embedding failed: {e}")
+            raise e
         
         embed_time = time.time() - embed_start
         total_time = time.time() - start
