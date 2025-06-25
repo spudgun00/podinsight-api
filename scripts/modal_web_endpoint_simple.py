@@ -159,9 +159,18 @@ def _generate_embedding(text: str) -> Dict:
         
         # Convert to list properly
         if isinstance(embedding, np.ndarray):
-            embedding_list = embedding.tolist()
+            # Check if it's a 2D array from instructor format
+            if len(embedding.shape) == 2 and embedding.shape[0] == 1:
+                # Flatten from (1, 768) to (768,)
+                embedding_list = embedding[0].tolist()
+            else:
+                embedding_list = embedding.tolist()
         elif hasattr(embedding, 'cpu'):  # PyTorch tensor
-            embedding_list = embedding.cpu().numpy().tolist()
+            arr = embedding.cpu().numpy()
+            if len(arr.shape) == 2 and arr.shape[0] == 1:
+                embedding_list = arr[0].tolist()
+            else:
+                embedding_list = arr.tolist()
         else:
             embedding_list = list(embedding)
         
