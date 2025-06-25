@@ -121,8 +121,21 @@ class MongoVectorSearchHandler:
             ]
             
             # Execute search (async)
-            cursor = self.collection.aggregate(pipeline)
-            results = await cursor.to_list(None)
+            logger.info(f"Executing vector search with index: vector_index_768d")
+            logger.info(f"Collection name: {self.collection.name}")
+            logger.info(f"Database name: {self.db.name}")
+            logger.info(f"Embedding length: {len(embedding)}")
+            
+            try:
+                cursor = self.collection.aggregate(pipeline)
+                results = await cursor.to_list(None)
+            except Exception as e:
+                logger.error(f"MongoDB aggregate error: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                # Try to get more details about the error
+                if hasattr(e, 'details'):
+                    logger.error(f"Error details: {e.details}")
+                results = []
             
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
