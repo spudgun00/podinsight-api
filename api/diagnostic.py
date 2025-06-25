@@ -38,11 +38,12 @@ async def diagnostic_root():
         }
     except Exception as e:
         logger.error(f"[diagnostic] Error: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail={
+        return {
+            "status": "error",
             "error": str(e),
             "type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        })
+            "traceback": traceback.format_exc().split('\n')
+        }
 
 @app.get("/vc")
 async def diagnostic_vc():
