@@ -119,25 +119,27 @@ Instead of fixing field mappings, we copied all S3 metadata files directly to Mo
 
 ## 📋 Comprehensive Testing Plan
 
-### Phase 1: API Integration (REQUIRED FIRST)
+### Phase 1: API Integration (✅ COMPLETED - June 25, 2025)
 
-The API currently reads episode metadata from Supabase. It needs to be updated to read from MongoDB `episode_metadata` collection.
+**UPDATE**: API code has been updated and pushed to GitHub (commit e88153d). Awaiting Vercel deployment.
 
-**Required Changes**:
+**Changes Made**:
 
 ```python
-# Current (mongodb_vector_search.py lines 166-205)
-# Enriches from Supabase episodes table
+# OLD: Enriched from Supabase episodes table
 result = self.supabase.table('episodes').select('*').in_('guid', episode_guids).execute()
 
-# Should be:
-# Enrich from MongoDB episode_metadata collection
-metadata_docs = self.db.episode_metadata.find({"guid": {"$in": episode_guids}})
+# NEW: Enriches from MongoDB episode_metadata collection
+metadata_docs = list(self.db.episode_metadata.find({"guid": {"$in": episode_guids}}))
+
+# Extracts nested metadata correctly:
+raw_feed = doc.get('raw_entry_original_feed', {})
+episode_title = raw_feed.get('episode_title') or doc.get('episode_title') or 'Unknown Episode'
 ```
 
-**Files to Update**:
-1. `api/mongodb_vector_search.py` - Update `_enrich_with_metadata()` method
-2. `api/search_lightweight_768d.py` - May need updates for metadata access
+**Files Updated**:
+1. ✅ `api/mongodb_vector_search.py` - Updated `_enrich_with_metadata()` method
+2. ✅ Handles nested data structure, guest names, segment counts
 
 ### Phase 2: Unit Testing
 
@@ -317,10 +319,10 @@ Enhanced Results to User
 
 ## ✅ Action Items
 
-### Immediate (Today)
-1. [ ] Update API to read from MongoDB `episode_metadata` collection
-2. [ ] Deploy API changes to Vercel
-3. [ ] Run quick smoke test to verify titles appear
+### Immediate (Today) - STATUS UPDATE
+1. [✅] Update API to read from MongoDB `episode_metadata` collection (DONE - commit e88153d)
+2. [⏳] Deploy API changes to Vercel (PENDING - automatic deployment in progress)
+3. [ ] Run quick smoke test to verify titles appear (WAITING for deployment)
 
 ### Short Term (This Week)
 1. [ ] Run comprehensive E2E test suite
@@ -338,11 +340,23 @@ Enhanced Results to User
 
 ## 📚 Related Documentation
 
-- **Issue Report**: `SUPABASE_EPISODE_METADATA_ISSUE_REPORT.md` - Complete analysis of the metadata problem
-- **Architecture**: `MODAL_ARCHITECTURE_DIAGRAM.md` - System architecture with Modal.com integration
-- **Database**: `DATABASE_ARCHITECTURE.md` - Dual database architecture (needs update)
-- **Testing**: `scripts/test_e2e_production.py` - Comprehensive test suite
-- **Sprint Logs**: `SPRINT_LOG_JUNE_24_FINAL.md` - Previous work and discoveries
+### Architecture & System Design:
+- **MODAL_ARCHITECTURE_DIAGRAM.md** - Complete Modal.com integration (768D embeddings, GPU acceleration)
+- **DATABASE_ARCHITECTURE.md** - ✅ UPDATED June 25 - Shows MongoDB's 3 collections including new `episode_metadata`
+
+### Issue Analysis & Solutions:
+- **SUPABASE_EPISODE_METADATA_ISSUE_REPORT.md** - Root cause analysis showing 90% placeholder data
+- **MONGODB_METADATA_API_UPDATE.md** - Technical details of API changes to read from MongoDB
+- **SESSION_SUMMARY_JUNE_25_2025.md** - Handoff document with all context for next session
+
+### Testing & Validation:
+- **scripts/test_e2e_production.py** - Comprehensive E2E test suite
+- **scripts/test_data_quality.py** - Data quality validation (target: 5/5 passing)
+- **test-podinsight-advanced.html** - Web UI for manual testing
+
+### Historical Context:
+- **SPRINT_LOG_JUNE_24_FINAL.md** - Modal.com optimization journey (14s cold start achieved)
+- **COMPLETE_MODAL_VECTOR_SEARCH_DEBUG_SESSION.md** - Initial problem discovery
 
 ---
 

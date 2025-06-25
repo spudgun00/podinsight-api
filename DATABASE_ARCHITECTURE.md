@@ -1,10 +1,15 @@
 # Database Architecture: Supabase vs MongoDB
 
-**Last Updated**: June 20, 2025  
+**Last Updated**: June 25, 2025  
 **Purpose**: Document the ACTUAL dual-database architecture and current AS-IS state
-**Context**: Post-Sprint 1 audit for accurate Sprint 2 planning
+**Context**: Post-MongoDB metadata migration - Episode metadata now in MongoDB
 
-## 🎯 **CURRENT AS-IS STATE (June 21 2025)**
+## 🎯 **CURRENT AS-IS STATE (June 25 2025)**
+
+### 🆕 Major Update: MongoDB Episode Metadata Migration
+- **NEW**: MongoDB `episode_metadata` collection with 1,236 episodes
+- **CHANGE**: API now reads episode metadata from MongoDB instead of Supabase
+- **REASON**: Supabase had 90% placeholder data; real metadata exists in S3/MongoDB
 
 **✅ ACTIVE Infrastructure:**
 - **Embeddings:** 1,171 episodes with 384D vectors in Supabase (`sentence-transformers/all-MiniLM-L6-v2`)
@@ -178,6 +183,44 @@ search_queries (
   // Migration metadata
   migrated_at: ISODate("2025-06-19T23:45:00Z"),
   source_s3_path: "pod-insights-stage/thisweekin/..."
+}
+
+// NEW: episode_transcripts collection
+{
+  _id: ObjectId("..."),
+  episode_id: "3a50ef5b-6965-4ae5-a062-2841f83ca24b",
+  podcast_name: "This Week in Startups",
+  full_text: "Complete transcript...",
+  segments: [...],
+  topics: ["AI Agents", "B2B SaaS"]
+}
+
+// NEW: transcript_chunks_768d collection (Modal.com vector search)
+{
+  _id: ObjectId("..."),
+  episode_id: "3a50ef5b-6965-4ae5-a062-2841f83ca24b",
+  chunk_text: "Sequoia invested $200M in OpenAI...",
+  embedding_768d: [768 float values],
+  start_time: 1420.5,
+  end_time: 1450.2
+}
+
+// NEW: episode_metadata collection (June 25, 2025)
+{
+  _id: ObjectId("..."),
+  guid: "0e983347-7815-4b62-87a6-84d988a772b7",
+  raw_entry_original_feed: {
+    episode_title: "Chris Dixon: Stablecoins, Startups, and the Crypto Stack",
+    podcast_title: "a16z Podcast",
+    published_date_iso: "2025-06-09T10:00:00",
+    feed_url: "https://feeds.simplecast.com/JGE3yC0V"
+  },
+  guests: [
+    {"name": "Chris Dixon", "role": "guest"}
+  ],
+  segment_count: 411,
+  _import_timestamp: "2025-06-25T15:37:06.123Z",
+  _s3_path: "s3://pod-insights-stage/a16z-podcast/..."
 }
 ```
 
@@ -468,12 +511,17 @@ The current hybrid architecture provides flexibility to add these components wit
 
 ---
 
-## Summary
+## Summary (Updated June 25, 2025)
 
 | Database | Primary Use Cases | Key Data Types |
 |----------|------------------|----------------|
-| **Supabase** | Analytics, Metadata, User Management | Episodes, Topics, Entities, Signals |
-| **MongoDB** | Content, Search, AI Features | Transcripts, Embeddings, Chunks |
+| **Supabase** | Analytics, Topics, User Management | ~~Episodes~~, Topics, Entities, Signals |
+| **MongoDB** | Content, Search, AI Features, **Episode Metadata** | Transcripts, Embeddings, Chunks, **Episode Metadata** |
+
+### MongoDB Collections:
+1. `episode_transcripts` - 1,171 full transcripts
+2. `transcript_chunks_768d` - 823,763 vector chunks  
+3. `episode_metadata` - 1,236 episodes (NEW - replaces Supabase episodes)
 
 This architecture enables both the current dashboard analytics AND the future semantic search features in the Sprint 2 plan. Each database plays to its strengths while maintaining clean separation of concerns.
 

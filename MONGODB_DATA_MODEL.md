@@ -191,21 +191,27 @@ The ID fields are correctly aligned:
 ```
 episode_metadata.guid = transcript_chunks_768d.episode_id
 
-Example:
-- episode_metadata.guid: "1216c2e7-42b8-42ca-92d7-bad784f80af2"
-- transcript_chunks_768d.episode_id: "1216c2e7-42b8-42ca-92d7-bad784f80af2" ✅ SAME!
+Examples of ID formats (all valid):
+- Standard UUID: "0e983347-7815-4b62-87a6-84d988a772b7" (most common)
+- UUID v1: "e405359e-ea57-11ef-b8c4-ff74e39a637e" (timestamp-based)
+- Custom format: "flightcast:qoefujdsy5huurb987mnjpw2" (specific podcasts)
 ```
 
 ### Key Points
 1. The `episode_id` field in chunks **contains the GUID value**
-2. The naming is inconsistent but the values match
-3. No mapping or transformation needed
-4. The API code should already work if it's comparing these values
+2. Different podcasts use different ID formats, but they're **consistent between collections**
+3. The API code correctly matches these values
+4. Not all chunks may have corresponding metadata (yet)
 
-### Why Search Might Still Show "Unknown Episode"
-1. **Deployment Issue**: API changes not yet deployed to Vercel
-2. **Data Subset**: Some chunks might be from a different dataset
-3. **Query Logic**: API might not be looking up metadata correctly
+### Data Coverage Status (June 25, 2025)
+✅ **100% Coverage**: All 1,171 unique episodes in chunks have corresponding metadata
+- 0 orphan episodes (chunks without metadata)
+- 65 extra metadata entries (likely episodes being processed)
+
+### Why Search Might Show "Unknown Episode" 
+1. **Deployment Issues**: API timeout errors suggest deployment problems
+2. **Caching**: Old cached results from before metadata import
+3. **API Logic**: Possible issue with the MongoDB query despite matching IDs
 
 ## 🚀 API Integration Points
 
@@ -240,33 +246,39 @@ MongoDB Metadata Lookup (episode_metadata)
 
 ## 🔧 Recommended Solution (Going Forward)
 
-### 1. **Document the Schema Clearly**
-Add comments in code and documentation that `episode_id` contains GUID values:
+### 1. **Accept Multiple ID Formats**
+The system should handle various GUID formats gracefully:
 ```javascript
-// transcript_chunks_768d.episode_id contains the RSS feed GUID
-// This matches episode_metadata.guid
+// Valid ID formats we support:
+const isValidEpisodeId = (id) => {
+  return (
+    // Standard UUID
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+    // Custom format (e.g., "flightcast:...")
+    /^[a-z]+:[a-z0-9]+$/i.test(id) ||
+    // Other valid formats as discovered
+    id.length > 10
+  );
+};
 ```
 
-### 2. **Consider Field Renaming (Long-term)**
-For clarity, consider renaming during next major refactor:
-```javascript
-// Future schema improvement
-db.transcript_chunks_768d.updateMany(
-  {},
-  {$rename: {"episode_id": "episode_guid"}}
-)
-```
-
-### 3. **Add Validation**
-Ensure all new chunks have valid GUIDs:
-```javascript
-// Validation rule
-{
-  episode_id: {
-    $regex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  }
+### 2. **Handle Missing Metadata Gracefully**
+The current implementation correctly returns "Unknown Episode" when metadata is missing:
+```python
+# This is the right approach - graceful fallback
+enriched_chunk = {
+    **chunk,
+    'episode_title': 'Unknown Episode',  # Clear indicator
+    'podcast_name': chunk.get('feed_slug', 'Unknown'),
+    # ... other fields with defaults
 }
 ```
+
+### 3. **Data Completeness Strategy**
+To improve coverage:
+1. Import metadata for all unique episode_ids found in chunks
+2. Log episodes with missing metadata for future imports
+3. Consider using feed_slug + date as secondary lookup
 
 ## 📋 Action Items
 
