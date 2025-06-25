@@ -1,0 +1,1 @@
+# This makes api/diag a proper Python package
