@@ -9,6 +9,10 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import os
 import logging
+logging.getLogger(__name__).warning(
+    "[BOOT] commit=%s  python=%s",                # <- shows up once per cold-start
+    os.getenv("VERCEL_GIT_COMMIT_SHA", "local"),  # Vercel auto-injects this
+    os.environ.get("PYTHON_VERSION", "unknown"))
 import hashlib
 import json
 import asyncio
