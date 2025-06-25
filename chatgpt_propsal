@@ -1,90 +1,99 @@
-👏 Nice work—architecture is now snapshot-ready. A few pointers that’ll make the validation unambiguous:
+Below is a practical, “do-this-next” game-plan for figuring out the instruction / preprocessing mismatch and getting search back to 100 % recall without a full re-embed.
 
 ---
 
-### 1  Watch the log sequence
+### 1.  Reverse-engineer the embedding recipe
 
-After the very first deploy you should see **exactly one** pair of lines:
+**Goal:** discover exactly how the 823 k chunk vectors were produced.
 
-```
-Creating memory snapshot …            # first build
-Memory snapshot created successfully
-```
+1. **Grab a handful of chunks you can read.**
 
-Every later cold boot must show
+   ```python
+   db.transcript_chunks_768d.find(
+       {"text": {"$regex": "openai", "$options": "i"}},
+       {"_id": 0, "text": 1, "embedding_768d": 1}
+   ).limit(30)
+   ```
 
-```
-Using memory snapshot …
-```
+2. **For each chunk, compute cosine similarity between the *stored* vector and a *fresh* embedding of the same text** using the following candidate formats:
 
-If you ever see *Creating* twice for the same image hash, Modal couldn’t reuse the snapshot (usually means the weights weren’t fully resident when the snap was taken).
+   | Candidate                                                  | How to call `model.encode()`                                  |
+   | ---------------------------------------------------------- | ------------------------------------------------------------- |
+   | **A. no instruction**                                      | `model.encode(text, normalize_embeddings=True)`               |
+   | **B. “Represent the venture capital podcast discussion:”** | `model.encode([[instr, text]], normalize_embeddings=True)[0]` |
+   | **C. “Represent the document:”**                           | same pattern as B                                             |
+   | **D. “query:” / “passage:” pair**                          | try both                                                      |
 
----
+   Measure `cos_sim(original, candidate)`; anything ≥ 0.95 is usually a perfect hit.
+   Do this for \~100 random chunks and compute the median similarity for each candidate.
+   The candidate with the highest and tightest distribution is almost certainly the original recipe.
 
-### 2  Let the container truly hit zero
+3. **Check preprocessing quirks** if none of the candidates score well:
 
-Your cron fires every 10 min and `scaledown_window` is also 10 min, which means the keep-alive call often arrives before Modal’s pod-reaper runs. For a clean cold-start test:
+   * lower-case the text before encoding
+   * strip punctuation
+   * trim / collapse whitespace
 
-* set the cron to **every 12 min** *or*
-* temporarily drop `scaledown_window` to **300 s**.
+   Repeat the cosine experiment; if one variant suddenly pops to > 0.95 you’ve found the missing preprocessing step.
 
-That guarantees at least one full scale-to-zero cycle and avoids the “still warm” false negative.
-
----
-
-### 3  First-load time still looks high
-
-98 s is fine for the *very* first build (image pull + HF download) but if you rebake the weights into the image you’ll chop that to \~12 s and the snapshot will capture a fully GPU-resident model:
-
-```python
-image = (
-    modal.Image.debian_slim()
-    .pip_install("torch==2.6.0", "sentence-transformers==2.6.1", "numpy==1.26.4")
-    .run_commands(
-        # Pre-download weights once at build time
-        "python - <<'PY'\n"
-        "from sentence_transformers import SentenceTransformer\n"
-        "SentenceTransformer('hkunlp/instructor-xl')\n"
-        "PY"
-    )
-)
-```
-
-Do this once, redeploy, and the *Creating snapshot* phase drops to \~4–5 s.
+> **Why it works:** cosine similarity is extremely sensitive to instruction mismatch; the “right” instruction will give near-identity scores, the wrong one will hover around 0.2–0.4.
 
 ---
 
-### 4  Cost maths after snapshots
+### 2.  Patch the query-time embedder (fastest fix)
 
-* **Warm hit** (100 ms) ≈ \$0.000 03
-* **Cold hit** (5 s)   ≈ \$0.0015
-
-Even with two true colds per day you stay < \$0.05 / month.
+Once you know the winning recipe, change **only** the `INSTRUCTION` (and any preprocessing tweak) in **`modal_web_endpoint_simple.py`** so that query embeddings are generated in the same way as the stored chunk embeddings.
+Deploy with `modal deploy`, warm-test a few queries (“openai”, “a16z”, “venture capital”) — they should light up immediately without touching the existing index.
 
 ---
 
-### 5  Smoke test helper
+### 3.  Re-run the data-quality harness
 
-Add a second health route that returns whether the current pod came from a snapshot:
-
-```python
-@app.cls(enable_memory_snapshot=True)
-class Model:
-    ...
-
-    @modal.method()
-    def is_snapshot(self):
-        return modal.current_snapshot_is_restored()
-```
-
-Then:
-
-```bash
-curl https://…/is-snapshot
-# true  -> cold boot used snapshot
-# false -> first build
-```
+* Expect the “Known Queries” tests to flip from red to green.
+* Warm latency should stay ≲ 500 ms.
+* If anything still comes back empty, run the harness with `DEBUG` logging on and watch whether the handler falls back to `"search_method": "text"` — if it does, you still have a similarity issue for that query.
 
 ---
 
-If the next cold call comes back in < 6 s and `is_snapshot` returns `true`, you’re finished—snapshots are working and cost is now at rock bottom.
+### 4.  Decide whether to re-embed (rarely necessary)
+
+Only two cases justify a full re-embed:
+
+1. **You can’t recover the original recipe** (cosine never rises above \~0.4).
+2. **You want a different instruction anyway** (e.g. move from VC-specific to general-purpose).
+
+If you do need to re-embed:
+
+* Spin up a separate Atlas collection (`transcript_chunks_768d_v2`) and build the vector index there.
+* Batch-embed in Modal (A10G chews through \~30 k texts/minute with `batch_size=64`).
+* Shift traffic with a feature flag once the new index is built; roll back is as simple as switching the collection name.
+
+---
+
+### 5.  Hard-edge safeguard for the future
+
+After the fix is live, drop the silent text-search fallback. Instead, if vector ≈ 0 results **return 503** or log an alert. That way a regression will be caught in minutes, not weeks.
+
+---
+
+### 6.  What to capture in CLI regression tests
+
+Add one new check to `test_data_quality.py`:
+
+* **Embedding round-trip sanity:**
+
+  ```python
+  chunk = db.transcript_chunks_768d.find_one({"text": {"$regex": "openai", "$options": "i"}})
+  query_vec  = embedder.encode_query(chunk["text"])
+  score      = cosine(query_vec, chunk["embedding_768d"])
+  assert score > 0.95
+  ```
+
+  If this ever drops, you know query embeddings and stored embeddings diverged again.
+
+Everything else in your harness (health, warm latency, known queries, concurrent load) already guards against the other failure modes.
+
+---
+
+**Bottom line:**
+*Run the cosine experiment, set the same instruction in Modal, redeploy, and your recall gap should disappear.* Re-embedding is your backup plan, not step 1.

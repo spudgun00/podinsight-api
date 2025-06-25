@@ -36,9 +36,9 @@ image = (
 # Create persistent volume for model weights
 volume = modal.Volume.from_name("podinsight-hf-cache", create_if_missing=True)
 
-# Embedding instruction - set to empty string to match how chunks were likely indexed
-# Can be changed to "Represent the venture capital podcast discussion:" if needed
-INSTRUCTION = ""
+# Embedding instruction - must match how chunks were originally indexed
+# Testing revealed chunks were embedded with this exact instruction
+INSTRUCTION = "Represent the venture capital podcast discussion:"
 
 # Global model cache to avoid reloading
 MODEL = None
@@ -138,8 +138,10 @@ def _generate_embedding(text: str) -> Dict:
             )
             
             # Handle output based on format
-            if INSTRUCTION and isinstance(embedding, list):
-                embedding = embedding[0]
+            if INSTRUCTION:
+                # When using instruction format, the model returns nested array
+                if isinstance(embedding, list) and len(embedding) > 0 and isinstance(embedding[0], list):
+                    embedding = embedding[0]
             
             print(f"   ✅ Embedding generated successfully")
         except Exception as e:
@@ -168,7 +170,7 @@ def _generate_embedding(text: str) -> Dict:
         
         return {
             "embedding": embedding_list,
-            "dimension": len(embedding),
+            "dimension": len(embedding_list),
             "model": "instructor-xl",
             "gpu_available": gpu_available,
             "inference_time_ms": round(embed_time * 1000, 2),
