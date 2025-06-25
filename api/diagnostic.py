@@ -119,5 +119,5 @@ async def diagnostic_vc():
             "traceback": traceback.format_exc()
         }
 
-# Handler for Vercel
-handler = app
+# Handler for Vercel - use the app directly
+app = app

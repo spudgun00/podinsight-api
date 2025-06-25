@@ -292,6 +292,14 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 )
                 logger.info(f"Vector search returned {len(vector_results)} results")
                 
+                # ALWAYS log first result for debugging
+                if vector_results:
+                    first_result = vector_results[0]
+                    logger.info(f"[ALWAYS_LOG] First result score: {first_result.get('score', 'NO_SCORE')}")
+                    logger.info(f"[ALWAYS_LOG] First result keys: {list(first_result.keys())[:10]}")
+                else:
+                    logger.info(f"[ALWAYS_LOG] Vector search returned EMPTY results for '{clean_query}'")
+                
                 if DEBUG_MODE:
                     logger.info(f"[DEBUG] search_id: {search_id}")
                     logger.info(f"[DEBUG] clean_query: {clean_query}")
