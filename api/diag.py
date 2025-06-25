@@ -1,12 +1,13 @@
 # api/diag.py
+# Each file under /api is an **independent** Vercel serverless fn.
+# Expose ONE ASGI app right here; no need to import the main API.
 import os, time, traceback, logging, requests, math
 from motor.motor_asyncio import AsyncIOMotorClient
-from fastapi import APIRouter
-from api.topic_velocity import app        # <- this is the **existing** FastAPI instance
+from fastapi import FastAPI
 
-router = APIRouter()
+app = FastAPI()
 
-@router.get("/")
+@app.get("/")
 async def root():
     """Basic MongoDB connectivity check."""
     try:
@@ -31,8 +32,8 @@ async def root():
         logging.exception("diag root failed")
         return {"error": str(e), "trace": traceback.format_exc()[:500]}
 
-@router.get("/vc")
-async def venture_capital():
+@app.get("/vc")
+async def diag_vc():
     """Full Modal->Atlas vector round-trip for the query 'venture capital'."""
     try:
         t0 = time.perf_counter()
@@ -75,9 +76,7 @@ async def venture_capital():
         logging.exception("diag vc failed")
         return {"error": str(e), "trace": traceback.format_exc()[:500]}
 
-@router.get("/test")
+@app.get("/test")
 async def test_route():
     """Simple test to verify routing works"""
-    return {"status": "ok", "message": "Test route works"}
-
-app.include_router(router, prefix="/api/diag")
+    return {"status": "ok", "message": "diag file reached"}
