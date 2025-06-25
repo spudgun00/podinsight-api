@@ -11,31 +11,42 @@ def smoke_test():
     
     print(f"🔍 Running smoke test against {api_url}")
     
-    try:
-        # Test with a query that should always return results
-        response = requests.post(
-            api_url,
-            json={"query": "openai", "limit": 5},
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            print(f"❌ API returned status {response.status_code}")
-            return False
-        
-        data = response.json()
-        total_results = data.get("total_results", 0)
-        
-        if total_results >= 5:
-            print(f"✅ Smoke test passed! Found {total_results} results")
-            return True
-        else:
-            print(f"❌ Smoke test failed! Only {total_results} results (expected >= 5)")
-            return False
+    # Test multiple queries
+    test_queries = [
+        ("openai", 5),
+        ("venture capital", 1),
+        ("podcast", 1)
+    ]
+    
+    all_passed = True
+    
+    for query, expected_min in test_queries:
+        try:
+            response = requests.post(
+                api_url,
+                json={"query": query, "limit": 5},
+                timeout=30
+            )
             
-    except Exception as e:
-        print(f"❌ Smoke test failed with exception: {e}")
-        return False
+            if response.status_code != 200:
+                print(f"❌ '{query}' returned status {response.status_code}")
+                all_passed = False
+                continue
+            
+            data = response.json()
+            total_results = data.get("total_results", 0)
+            
+            if total_results >= expected_min:
+                print(f"✅ '{query}' passed - found {total_results} results")
+            else:
+                print(f"❌ '{query}' failed - only {total_results} results (expected >= {expected_min})")
+                all_passed = False
+                
+        except Exception as e:
+            print(f"❌ '{query}' failed with exception: {e}")
+            all_passed = False
+    
+    return all_passed
 
 if __name__ == "__main__":
     success = smoke_test()

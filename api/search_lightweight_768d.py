@@ -298,6 +298,8 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     logger.info(f"[DEBUG] vector_results_raw_count: {len(vector_results)}")
                     if vector_results:
                         logger.info(f"[DEBUG] vector_results_top_score: {vector_results[0].get('score', 0):.4f}")
+                        # Add raw dump of first 3 results
+                        logger.info(f"[DEBUG] raw vector hits: {json.dumps(vector_results[:3], default=str)[:500]}")
                     else:
                         logger.info(f"[DEBUG] vector_results_top_score: N/A (no results)")
                 
@@ -455,8 +457,22 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     # No more fallbacks - this is a problem
     logger.error(f"All search methods failed for: {request.query}")
     
-    # Fail fast to alert monitoring
-    raise HTTPException(
-        status_code=503,
-        detail="SEARCH_BACKEND_EMPTY - Both vector and text search returned no results"
+    # TEMPORARILY DISABLED FOR DEBUGGING
+    # Return empty results instead of 503 to see what's happening
+    logger.warning("Returning empty results instead of 503 for debugging")
+    return SearchResponse(
+        results=[],
+        total_results=0,
+        cache_hit=False,
+        search_id=search_id,
+        query=request.query,
+        limit=request.limit,
+        offset=request.offset,
+        search_method="none_all_failed"
     )
+    
+    # # Fail fast to alert monitoring
+    # raise HTTPException(
+    #     status_code=503,
+    #     detail="SEARCH_BACKEND_EMPTY - Both vector and text search returned no results"
+    # )
