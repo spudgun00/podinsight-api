@@ -4,6 +4,12 @@ print(
     f"py={sys.version.split()[0]}  ts={int(time.time())}",
     flush=True)
 
+import logging
+logging.basicConfig(level="INFO")
+logging.info("[BOOT-FILE] %s  commit=%s",
+             __file__,
+             os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Optional, Any

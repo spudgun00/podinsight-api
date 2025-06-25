@@ -4,11 +4,16 @@ Primary: MongoDB Atlas Vector Search (768D)
 Secondary: MongoDB Text Search
 Tertiary: Supabase pgvector (384D)
 """
+import os
+import logging
+logging.basicConfig(level="INFO")
+logging.info("[BOOT-FILE] %s  commit=%s",
+             __file__,
+             os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
+
 from fastapi import HTTPException
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import os
-import logging
 logging.getLogger(__name__).warning(
     "[BOOT] commit=%s  python=%s",                # <- shows up once per cold-start
     os.getenv("VERCEL_GIT_COMMIT_SHA", "local"),  # Vercel auto-injects this
