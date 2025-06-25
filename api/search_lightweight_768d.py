@@ -285,11 +285,18 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Perform vector search - fetch enough results for pagination
                 num_to_fetch = request.limit + request.offset
                 logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
-                vector_results = await vector_handler.vector_search(
-                    embedding_768d,
-                    limit=num_to_fetch,
-                    min_score=0.0  # Lowered threshold to debug - was 0.7
-                )
+                try:
+                    vector_results = await vector_handler.vector_search(
+                        embedding_768d,
+                        limit=num_to_fetch,
+                        min_score=0.0  # Lowered threshold to debug - was 0.7
+                    )
+                except Exception as ve:
+                    logger.error(f"[VECTOR_SEARCH_ERROR] Exception during vector search: {str(ve)}")
+                    logger.error(f"[VECTOR_SEARCH_ERROR] Type: {type(ve).__name__}")
+                    import traceback
+                    logger.error(f"[VECTOR_SEARCH_ERROR] Traceback: {traceback.format_exc()}")
+                    vector_results = []
                 logger.info(f"Vector search returned {len(vector_results)} results")
                 
                 # ALWAYS log first result for debugging

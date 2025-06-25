@@ -80,6 +80,8 @@ class MongoVectorSearchHandler:
         """
         Perform vector search using MongoDB Atlas Vector Search
         """
+        logger.info(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
+        
         if self.collection is None:
             logger.warning("MongoDB not connected for vector search")
             return []

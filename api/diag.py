@@ -75,4 +75,9 @@ async def venture_capital():
         logging.exception("diag vc failed")
         return {"error": str(e), "trace": traceback.format_exc()[:500]}
 
+@router.get("/test")
+async def test_route():
+    """Simple test to verify routing works"""
+    return {"status": "ok", "message": "Test route works"}
+
 app.include_router(router, prefix="/api/diag")
