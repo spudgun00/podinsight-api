@@ -159,6 +159,7 @@ class MongoVectorSearchHandler:
                     cursor = self.collection.aggregate(pipeline)
                     results = await cursor.to_list(None)
                     logger.info(f"[VECTOR_SEARCH] Attempt {attempt+1} returned {len(results)} results")
+                    logger.info(f"[DEBUG] raw vector hits: {results[:3] if results else 'EMPTY'}")
                     if attempt > 0:
                         logger.info(f"Vector search succeeded on attempt {attempt + 1}")
                     break  # Success, exit retry loop
