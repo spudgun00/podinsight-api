@@ -73,7 +73,13 @@ class ModalInstructorXLEmbedder:
                     if response.status == 200:
                         data = await response.json()
                         embedding = data.get("embedding", data)  # Handle different response formats
-                        logger.info(f"Generated 768D embedding via Modal for: {query[:50]}...")
+                        
+                        # Un-nest accidental double list
+                        if isinstance(embedding, list) and len(embedding) == 1 and isinstance(embedding[0], list):
+                            logger.warning(f"Detected nested embedding array, flattening...")
+                            embedding = embedding[0]
+                        
+                        logger.info(f"Generated 768D embedding via Modal for: {query[:50]}... (dim: {len(embedding) if embedding else 0})")
                         return embedding
                     else:
                         error_text = await response.text()

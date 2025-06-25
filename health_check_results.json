@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-06-25T19:14:52.991023",
+  "components": {
+    "modal": {
+      "status": "HEALTHY",
+      "message": "768D embeddings, GPU: True",
+      "response_time_ms": 28.72
+    },
+    "api_health": {
+      "status": "HEALTHY",
+      "message": "Health check passed",
+      "response_time_ms": 66.30396842956543
+    }
+  },
+  "critical_queries": {
+    "openai": {
+      "status": "FAIL",
+      "results": 0,
+      "method": "vector_768d",
+      "response_time_ms": 685.1470470428467
+    },
+    "venture capital": {
+      "status": "FAIL",
+      "results": 0,
+      "method": "vector_768d",
+      "response_time_ms": 503.1418800354004
+    },
+    "artificial intelligence": {
+      "status": "FAIL",
+      "results": 0,
+      "method": "vector_768d",
+      "response_time_ms": 700.6709575653076
+    },
+    "podcast": {
+      "status": "FAIL",
+      "results": 0,
+      "method": "vector_768d",
+      "response_time_ms": 458.76407623291016
+    },
+    "sam altman": {
+      "status": "FAIL",
+      "results": 0,
+      "method": "vector_768d",
+      "response_time_ms": 667.7429676055908
+    }
+  },
+  "overall_status": "UNHEALTHY",
+  "summary": "Search failing (0/5 queries passing)"
+}

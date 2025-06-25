@@ -22,6 +22,9 @@ from .embeddings_768d_modal import get_embedder
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Debug mode from environment
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
 # Use same request/response models
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Search query")
@@ -224,8 +227,17 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     Enhanced search handler with 768D vector search
     Fallback chain: 768D Vector → Text Search → 384D Vector
     """
-    # Generate query hash for caching
-    query_hash = hashlib.sha256(request.query.encode()).hexdigest()
+    # Normalize query for consistent processing
+    clean_query = request.query.strip().lower()
+    
+    # Debug logging
+    if DEBUG_MODE:
+        logger.info(f"[DEBUG] Original query: '{request.query}'")
+        logger.info(f"[DEBUG] Clean query: '{clean_query}'")
+        logger.info(f"[DEBUG] Offset: {request.offset}, Limit: {request.limit}")
+    
+    # Generate query hash for caching using normalized query
+    query_hash = hashlib.sha256(clean_query.encode()).hexdigest()
     search_id = f"search_{query_hash[:8]}_{datetime.now().timestamp()}"
     
     # Try 768D Vector Search first
@@ -239,8 +251,12 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
         
         if not embedding_768d:
             # Generate new 768D embedding
-            logger.info(f"Generating 768D embedding for: {request.query}")
-            embedding_768d = await generate_embedding_768d_local(request.query)
+            logger.info(f"Generating 768D embedding for: {clean_query}")
+            embedding_768d = await generate_embedding_768d_local(clean_query)
+            
+            if DEBUG_MODE and embedding_768d:
+                logger.info(f"[DEBUG] Embedding length: {len(embedding_768d)}")
+                logger.info(f"[DEBUG] First 5 values: {embedding_768d[:5]}")
             
             # TODO: Cache to MongoDB instead of Supabase
             # if embedding_768d:
@@ -252,19 +268,22 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             vector_handler = await get_vector_search_handler()
             
             if vector_handler.db is not None:
-                logger.info(f"Using MongoDB 768D vector search: {request.query}")
+                logger.info(f"Using MongoDB 768D vector search: {clean_query}")
                 
-                # Perform vector search
-                logger.info(f"Calling vector search with limit={request.limit + request.offset}, min_score=0.0")
+                # Perform vector search - fetch enough results for pagination
+                num_to_fetch = request.limit + request.offset
+                logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
                 vector_results = await vector_handler.vector_search(
                     embedding_768d,
-                    limit=request.limit + request.offset,
+                    limit=num_to_fetch,
                     min_score=0.0  # Lowered threshold to debug - was 0.7
                 )
                 logger.info(f"Vector search returned {len(vector_results)} results")
                 
-                # Apply offset
-                paginated_results = vector_results[request.offset:request.offset + request.limit]
+                # Apply offset - slice from offset to end, not offset+limit
+                paginated_results = vector_results[request.offset:]
+                if len(paginated_results) > request.limit:
+                    paginated_results = paginated_results[:request.limit]
                 logger.info(f"After pagination: {len(paginated_results)} results (offset={request.offset}, limit={request.limit})")
                 
                 # Convert to API format with expanded context
@@ -336,10 +355,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
         mongo_handler = await get_search_handler()
         
         if mongo_handler.db is not None:
-            logger.info(f"Falling back to MongoDB text search: {request.query}")
+            logger.info(f"Falling back to MongoDB text search: {clean_query}")
             
             mongo_results = await mongo_handler.search_transcripts(
-                request.query, 
+                clean_query, 
                 limit=request.limit + request.offset
             )
             
