@@ -760,5 +760,67 @@ async def search_episodes_endpoint(
 # from .debug_search import router as debug_router
 # app.include_router(debug_router)
 
+@app.get("/__diag")
+async def diag():
+    """
+    Diagnostic endpoint to check environment variables and index configuration
+    """
+    from pymongo import MongoClient
+    
+    uri = os.getenv("MONGODB_URI")
+    db_name = os.getenv("MONGODB_DATABASE", "podinsight")
+    
+    try:
+        c = MongoClient(uri, serverSelectionTimeoutMS=3000)
+        col = c[db_name].transcript_chunks_768d
+        
+        # List indexes
+        idx = list(col.list_indexes())
+        
+        # Quick vector search with dummy embedding
+        try:
+            hit = col.aggregate([
+                {"$vectorSearch": {
+                    "index": "vector_index_768d",
+                    "path": "embedding_768d",
+                    "queryVector": [0]*768,
+                    "numCandidates": 10,
+                    "limit": 1
+                }},
+                {"$project": {"_id": 0, "episode_id": 1}}
+            ]).try_next()
+        except Exception as e:
+            hit = None
+            logger.error(f"Vector search test failed: {e}")
+        
+        # Get collection stats
+        try:
+            count = col.estimated_document_count()
+        except:
+            count = -1
+        
+        return {
+            "db_name": db_name,
+            "collection_count": count,
+            "indexes": [i["name"] for i in idx],
+            "vector_index_found": any(i["name"] == "vector_index_768d" for i in idx),
+            "vector_dummy_hit": hit is not None,
+            "env_vars_present": {
+                "MONGODB_URI": bool(uri),
+                "MONGODB_DATABASE": bool(db_name),
+                "MODAL_EMBEDDING_URL": bool(os.getenv("MODAL_EMBEDDING_URL"))
+            }
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "db_name": db_name,
+            "env_vars_present": {
+                "MONGODB_URI": bool(uri),
+                "MONGODB_DATABASE": bool(db_name),
+                "MODAL_EMBEDDING_URL": bool(os.getenv("MODAL_EMBEDDING_URL"))
+            }
+        }
+
 # Handler for Vercel
 handler = app
