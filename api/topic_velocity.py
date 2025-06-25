@@ -1,3 +1,9 @@
+import os, sys, time
+print(
+    f"[BOOT-TOP] sha={os.getenv('VERCEL_GIT_COMMIT_SHA','local')} "
+    f"py={sys.version.split()[0]}  ts={int(time.time())}",
+    flush=True)
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Optional, Any
