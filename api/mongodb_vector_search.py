@@ -178,8 +178,9 @@ class MongoVectorSearchHandler:
             logger.info(f"Looking up {len(episode_guids)} episode GUIDs in MongoDB episode_metadata")
             logger.info(f"First 3 GUIDs: {episode_guids[:3]}")
             
-            # MongoDB query
-            metadata_docs = list(self.db.episode_metadata.find({"guid": {"$in": episode_guids}}))
+            # MongoDB query - MUST use async/await with motor
+            cursor = self.db.episode_metadata.find({"guid": {"$in": episode_guids}})
+            metadata_docs = await cursor.to_list(None)
             logger.info(f"MongoDB returned {len(metadata_docs)} episodes")
             
             # Create lookup dict by guid
