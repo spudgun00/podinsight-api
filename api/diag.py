@@ -4,8 +4,8 @@ import os, json
 
 app = FastAPI()
 
-@app.get("/__diag")
-@app.get("/api/__diag")
+@app.get("/diag")
+@app.get("/api/diag")
 async def diag():
     uri = os.getenv("MONGODB_URI")
     db_name = os.getenv("MONGODB_DATABASE", "podinsight")
@@ -21,8 +21,8 @@ async def diag():
     }
     return msg
 
-@app.get("/__diag/vc")
-@app.get("/api/__diag/vc")
+@app.get("/diag/vc")
+@app.get("/api/diag/vc")
 async def diag_vc():
     from pymongo import MongoClient
     import requests, os
