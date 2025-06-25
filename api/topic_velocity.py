@@ -822,5 +822,56 @@ async def diag():
             }
         }
 
+# ------------------------------------  diagnostics  ------------------------------------
+from motor.motor_asyncio import AsyncIOMotorClient
+import math, traceback, requests, os, time, logging
+
+@app.get("/diag", tags=["diag"])
+async def diag_root():
+    """Very small health ping – proves Atlas connection"""
+    t0 = time.time()
+    uri = os.getenv("MONGODB_URI")
+    db  = os.getenv("MONGODB_DATABASE", "podinsight")
+    client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+    cnt = await client[db].transcript_chunks_768d.estimated_document_count()
+    return {
+        "count": cnt,
+        "elapsed_ms": round((time.time()-t0)*1e3),
+        "db": db,
+        "env_ok": {k: bool(os.getenv(k)) for k in
+                   ["MONGODB_URI","MONGODB_DATABASE","MODAL_EMBEDDING_URL"]}
+    }
+
+@app.get("/diag/vc", tags=["diag"])
+async def diag_vc():
+    """End-to-end vector search for 'venture capital'"""
+    try:
+        t0 = time.time()
+        vec = requests.post(
+            os.getenv("MODAL_EMBEDDING_URL"),
+            json={"text": "venture capital"}, timeout=15).json()["embedding"]
+        embed_ms = round((time.time()-t0)*1e3)
+
+        client = AsyncIOMotorClient(os.getenv("MONGODB_URI"))
+        t1 = time.time()
+        hits = await client.podinsight.transcript_chunks_768d.aggregate([
+            {"$vectorSearch": {
+                "index":"vector_index_768d",
+                "path":"embedding_768d",
+                "queryVector":vec,
+                "numCandidates":100,
+                "limit":3}},
+            {"$addFields":{"score":{"$meta":"vectorSearchScore"}}},
+            {"$project":{"score":1,"text":{"$substr":["$text",0,80]}}}
+        ]).to_list(None)
+        search_ms = round((time.time()-t1)*1e3)
+
+        return {"hits": len(hits), "embed_ms": embed_ms,
+                "search_ms": search_ms, "top": hits}
+    except Exception as e:
+        logging.exception("diag_vc failed")
+        return {"error": str(e), "trace": traceback.format_exc()[:500]}
+# ----------------------------------------------------------------------------------------
+
 # Handler for Vercel
 handler = app
