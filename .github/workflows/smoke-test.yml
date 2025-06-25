@@ -1,0 +1,32 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [ main ]
+  deployment_status:
+
+jobs:
+  smoke-test:
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install requests
+    
+    - name: Wait for deployment
+      run: sleep 30
+    
+    - name: Run smoke test
+      run: |
+        python scripts/smoke_test.py
+      env:
+        API_URL: https://podinsight-api.vercel.app/api/search

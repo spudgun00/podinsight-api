@@ -18,6 +18,7 @@ from .database import get_pool
 from .mongodb_search import get_search_handler
 from .mongodb_vector_search import get_vector_search_handler
 from .embeddings_768d_modal import get_embedder
+from .embedding_utils import embed_query, validate_embedding
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -64,11 +65,18 @@ class SearchResponse(BaseModel):
 
 async def generate_embedding_768d_local(text: str) -> List[float]:
     """
-    Generate 768D embedding using local Instructor-XL model
+    Generate 768D embedding using standardized function
     """
     try:
-        embedder = get_embedder()
-        return embedder.encode_query(text)
+        # Use standardized embedding function
+        embedding = embed_query(text)
+        
+        # Validate before returning
+        if embedding and validate_embedding(embedding):
+            return embedding
+        else:
+            logger.error(f"Embedding validation failed for: {text}")
+            return None
     except Exception as e:
         logger.error(f"Error generating 768D embedding: {e}")
         return None
@@ -257,6 +265,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             if DEBUG_MODE and embedding_768d:
                 logger.info(f"[DEBUG] Embedding length: {len(embedding_768d)}")
                 logger.info(f"[DEBUG] First 5 values: {embedding_768d[:5]}")
+                # Calculate embedding norm
+                import math
+                norm = math.sqrt(sum(x*x for x in embedding_768d))
+                logger.info(f"[DEBUG] Embedding norm: {norm:.4f} (should be ~1.0 if normalized)")
             
             # TODO: Cache to MongoDB instead of Supabase
             # if embedding_768d:
@@ -279,6 +291,15 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     min_score=0.0  # Lowered threshold to debug - was 0.7
                 )
                 logger.info(f"Vector search returned {len(vector_results)} results")
+                
+                if DEBUG_MODE:
+                    logger.info(f"[DEBUG] search_id: {search_id}")
+                    logger.info(f"[DEBUG] clean_query: {clean_query}")
+                    logger.info(f"[DEBUG] vector_results_raw_count: {len(vector_results)}")
+                    if vector_results:
+                        logger.info(f"[DEBUG] vector_results_top_score: {vector_results[0].get('score', 0):.4f}")
+                    else:
+                        logger.info(f"[DEBUG] vector_results_top_score: N/A (no results)")
                 
                 # Apply offset - slice from offset to end, not offset+limit
                 paginated_results = vector_results[request.offset:]
@@ -335,6 +356,8 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Only return vector results if we actually got some
                 if len(formatted_results) > 0:
                     logger.info(f"Returning {len(formatted_results)} formatted results")
+                    if DEBUG_MODE:
+                        logger.info(f"[DEBUG] fallback_used: vector_768d")
                     return SearchResponse(
                         results=formatted_results,
                         total_results=len(vector_results),
@@ -347,6 +370,8 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     )
                 else:
                     logger.warning(f"Vector search returned 0 results, falling back to text search")
+                    if DEBUG_MODE:
+                        logger.info(f"[DEBUG] fallback_used: text (vector returned 0)")
     
     except Exception as e:
         logger.error(f"768D vector search failed for query '{request.query}': {str(e)}")
@@ -427,16 +452,11 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     except Exception as e:
         logger.warning(f"MongoDB text search failed: {str(e)}")
     
-    # No more fallbacks - return empty results
-    logger.info(f"All search methods failed for: {request.query}")
+    # No more fallbacks - this is a problem
+    logger.error(f"All search methods failed for: {request.query}")
     
-    return SearchResponse(
-        results=[],
-        total_results=0,
-        cache_hit=False,
-        search_id=search_id,
-        query=request.query,
-        limit=request.limit,
-        offset=request.offset,
-        search_method="none"
+    # Fail fast to alert monitoring
+    raise HTTPException(
+        status_code=503,
+        detail="SEARCH_BACKEND_EMPTY - Both vector and text search returned no results"
     )

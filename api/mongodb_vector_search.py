@@ -112,7 +112,7 @@ class MongoVectorSearchHandler:
                         "index": "vector_index_768d",
                         "path": "embedding_768d",  # This is the correct field name
                         "queryVector": embedding,
-                        "numCandidates": min(limit * 10, 1000),  # Cap candidates to prevent full scan
+                        "numCandidates": min(limit * 50, 2000),  # Higher recall with one DB round-trip
                         "limit": limit,
                         "filter": {}
                     }
@@ -127,7 +127,7 @@ class MongoVectorSearchHandler:
                 },
                 {
                     "$match": {
-                        "score": {"$exists": True, "$ne": None}  # Filter out null scores
+                        "score": {"$gte": 0}  # Explicit score check to avoid null/NaN issues
                     }
                 },
                 {
@@ -177,6 +177,11 @@ class MongoVectorSearchHandler:
             
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
+            
+            # Log top scores for debugging
+            if results:
+                top_scores = [r.get("score", 0) for r in results[:3]]
+                logger.info(f"Top 3 scores: {top_scores}")
             
             # Debug log the raw results
             if results:
