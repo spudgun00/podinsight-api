@@ -8,6 +8,14 @@
   },
   "rewrites": [
     {
+      "source": "/api/diag",
+      "destination": "/api/diag"
+    },
+    {
+      "source": "/api/diag/(.*)",
+      "destination": "/api/diag"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     }
