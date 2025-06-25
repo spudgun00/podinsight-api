@@ -35,8 +35,12 @@ class MongoVectorSearchHandler:
             
             logger.info("Attempting MongoDB connection...")
             self.client = AsyncIOMotorClient(mongo_uri, serverSelectionTimeoutMS=5000)
-            # Use the database name directly since it's in the URI
-            self.db = self.client.podinsight
+            
+            # Get database name from environment or use default
+            db_name = os.getenv("MONGODB_DATABASE", "podinsight")
+            logger.info(f"Using MongoDB database: {db_name}")
+            
+            self.db = self.client[db_name]
             self.collection = self.db.transcript_chunks_768d
             logger.info("MongoDB client created successfully")
             
@@ -69,6 +73,11 @@ class MongoVectorSearchHandler:
             return []
         
         try:
+            # Verify connection
+            if self.collection is None:
+                logger.error("MongoDB collection is None - connection failed")
+                return []
+            
             # Create cache key from embedding
             embedding_str = str(embedding[:10])  # Use first 10 values for cache key
             cache_key = hashlib.md5(f"{embedding_str}_{limit}_{min_score}".encode()).hexdigest()
@@ -80,6 +89,9 @@ class MongoVectorSearchHandler:
                 return cached_result
             
             start_time = time.time()
+            
+            # Log search parameters
+            logger.info(f"Vector search - embedding dim: {len(embedding)}, limit: {limit}, min_score: {min_score}")
             
             # Perform vector search using the correct field name
             pipeline = [
