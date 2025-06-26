@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from collections import OrderedDict
 from supabase import create_client
+from pymongo.errors import OperationFailure
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class MongoVectorSearchHandler:
         """
         logger.warning("[VECTOR_SEARCH_ENTER] path=%s idx=%s  len=%d",
                        self.collection.full_name if self.collection else "None", "vector_index_768d", len(embedding))
-        logger.info(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
+        logger.warning(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
         
         if self.collection is None:
             logger.warning("MongoDB not connected for vector search")
@@ -205,7 +206,10 @@ class MongoVectorSearchHandler:
             self._add_to_cache(cache_key, enriched_results)
             
             return enriched_results
-            
+        
+        except OperationFailure as e:
+            logger.error("[VECTOR_SEARCH_OPFAIL] code=%s  msg=%s", e.code, e.details)
+            return []
         except Exception as e:
             logger.error(f"Vector search error: {e}")
             return []

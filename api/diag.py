@@ -80,3 +80,6 @@ async def diag_vc():
 async def test_route():
     """Simple test to verify routing works"""
     return {"status": "ok", "message": "diag file reached"}
+
+# Vercel expects the app to be exported
+handler = app

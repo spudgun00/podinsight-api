@@ -294,7 +294,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Perform vector search - fetch enough results for pagination
                 num_to_fetch = request.limit + request.offset
                 logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
-                logger.info(
+                logger.warning(
                     "[VECTOR_HANDLER] about to call %s from module %s",
                     vector_handler.__class__.__qualname__,
                     vector_handler.__class__.__module__,
