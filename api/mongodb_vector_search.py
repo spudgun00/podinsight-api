@@ -19,51 +19,55 @@ _handler_instance = None
 
 class MongoVectorSearchHandler:
     def __init__(self):
-        self._client = None
-        self._collection = None
-        self.cache = OrderedDict()
-        self.max_cache_size = 100
-        self.cache_ttl = 300  # 5 minutes
-    
-    def _get_collection(self):
-        """Get MongoDB collection, creating client if needed within current event loop"""
-        # Always create a new collection reference for the current event loop
-        mongo_uri = os.getenv("MONGODB_URI")
-        if not mongo_uri:
-            logger.warning("MONGODB_URI not set, vector search disabled")
-            return None
+        uri = os.getenv("MONGODB_URI")
+        db_name = os.getenv("MONGODB_DATABASE", "podinsight")
         
-        # Create client if needed
-        if self._client is None:
-            logger.info("Creating MongoDB client...")
+        if not uri:
+            logger.warning("MONGODB_URI not set, vector search disabled")
+            self._client = None
+            self._db_name = None
+            self.db = None  # Compatibility property
+        else:
+            # One Motor client that survives across requests
             self._client = AsyncIOMotorClient(
-                mongo_uri, 
+                uri,
                 serverSelectionTimeoutMS=10000,
                 connectTimeoutMS=10000,
                 socketTimeoutMS=10000,
                 maxPoolSize=10,
                 retryWrites=True
             )
+            self._db_name = db_name
+            self.db = self._client[db_name]  # Compatibility property
         
-        # Always get fresh collection reference for current event loop
-        db_name = os.getenv("MONGODB_DATABASE", "podinsight")
-        collection = self._client[db_name]["transcript_chunks_768d"]
-        logger.info(f"MongoDB collection obtained for current request: {collection.full_name}")
-        
-        return collection
+        self.cache = OrderedDict()
+        self.max_cache_size = 100
+        self.cache_ttl = 300  # 5 minutes
+    
+    def _db(self):
+        """Return DB object (cheap property lookup)."""
+        return self._client[self._db_name] if self._client else None
+    
+    def _collection(self):
+        """Return a fresh Collection bound to *this* event-loop."""
+        db = self._db()
+        return db["transcript_chunks_768d"] if db is not None else None
     
     async def vector_search(self, 
                           embedding: List[float], 
                           limit: int = 10,
-                          min_score: float = 0.7) -> List[Dict[str, Any]]:
+                          min_score: float = 0.0) -> List[Dict[str, Any]]:
         """
         Perform vector search using MongoDB Atlas Vector Search
         """
-        collection = self._get_collection()
-        logger.warning("[VECTOR_SEARCH_ENTER] path=%s idx=%s  len=%d",
-                       collection.full_name if collection is not None else "None", "vector_index_768d", len(embedding))
-        logger.warning(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
+        logger.info(
+            "[VECTOR_SEARCH_ENTER] db=%s col=%s dim=%d",
+            self._db_name if self._db_name else "None",
+            "transcript_chunks_768d",
+            len(embedding)
+        )
         
+        collection = self._collection()
         if collection is None:
             logger.warning("MongoDB not connected for vector search")
             return []
@@ -82,76 +86,33 @@ class MongoVectorSearchHandler:
             
             start_time = time.time()
             
-            # Log search parameters
-            logger.info(f"Vector search - embedding dim: {len(embedding)}, limit: {limit}, min_score: {min_score}")
-            
-            # Perform vector search using the correct field name
+            # Perform vector search
             pipeline = [
                 {
                     "$vectorSearch": {
                         "index": "vector_index_768d",
-                        "path": "embedding_768d",  # This is the correct field name
+                        "path": "embedding_768d",
                         "queryVector": embedding,
-                        "numCandidates": min(limit * 50, 2000),  # Higher recall with one DB round-trip
-                        "limit": limit,
-                        "filter": {}
+                        "numCandidates": min(limit * 50, 2000),
+                        "limit": limit
                     }
                 },
-                {
-                    "$limit": limit  # Critical: Add $limit right after $vectorSearch
-                },
-                {
-                    "$addFields": {
-                        "score": {"$meta": "vectorSearchScore"}
-                    }
-                },
-                {
-                    "$match": {
-                        "score": {"$gte": 0}  # Explicit score check to avoid null/NaN issues
-                    }
-                },
-                {
-                    "$project": {
-                        "episode_id": 1,
-                        "feed_slug": 1,
-                        "chunk_index": 1,
-                        "text": 1,
-                        "start_time": 1,
-                        "end_time": 1,
-                        "speaker": 1,
-                        "score": 1
-                    }
-                }
+                {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+                {"$match": {"score": {"$gte": min_score}}},
+                {"$limit": limit}
             ]
             
-            # Execute search (async)
-            logger.info(f"Executing vector search with index: vector_index_768d")
-            logger.info(f"Collection name: {collection.name}")
-            logger.info(f"Embedding length: {len(embedding)}")
+            # Execute search
+            try:
+                results = await collection.aggregate(pipeline).to_list(limit)
+            except Exception:
+                logger.exception("[VECTOR_SEARCH] Mongo aggregate failed")
+                return []
             
-            # Since we fixed the event loop issue, no need for retry logic
-            cursor = collection.aggregate(pipeline)
-            results = await cursor.to_list(None)
-            logger.info(f"[VECTOR_SEARCH] Returned {len(results)} results")
-            logger.info(f"[DEBUG] raw vector hits: {results[:3] if results else 'EMPTY'}")
+            logger.info("[VECTOR_SEARCH] got %d hits", len(results))
             
             elapsed = time.time() - start_time
-            logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
-            
-            # Log top scores for debugging
-            if results:
-                top_scores = [r.get("score", 0) for r in results[:3]]
-                logger.info(f"Top 3 scores: {top_scores}")
-            
-            # Debug log the raw results
-            if results:
-                logger.info(f"First result score: {results[0].get('score', 'No score')}")
-                logger.info(f"First result episode_id: {results[0].get('episode_id', 'No episode_id')}")
-            else:
-                logger.warning("Vector search returned no results from MongoDB")
-            
-            # Return results directly without Supabase enrichment
-            logger.info(f"Returning {len(results)} results without Supabase enrichment")
+            logger.info(f"Vector search took {elapsed:.2f}s")
             
             # Cache the results
             self._add_to_cache(cache_key, results)

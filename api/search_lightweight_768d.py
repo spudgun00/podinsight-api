@@ -446,31 +446,31 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     timestamp=result.get("timestamp")
                 ))
             
-            # Get audio data from Supabase (same as above)
-            if formatted_results:
-                pool = get_pool()
-                episode_ids = [r.episode_id for r in formatted_results]
-                
-                def get_audio_paths(client):
-                    return client.table("episodes") \
-                        .select("id, s3_audio_path, duration_seconds") \
-                        .in_("id", episode_ids) \
-                        .execute()
-                
-                audio_data = await pool.execute_with_retry(get_audio_paths)
-                
-                audio_by_id = {
-                    ep["id"]: {
-                        "s3_audio_path": ep.get("s3_audio_path"),
-                        "duration_seconds": ep.get("duration_seconds", 0)
-                    }
-                    for ep in audio_data.data
-                }
-                
-                for result in formatted_results:
-                    if result.episode_id in audio_by_id:
-                        result.s3_audio_path = audio_by_id[result.episode_id]["s3_audio_path"]
-                        result.duration_seconds = audio_by_id[result.episode_id]["duration_seconds"]
+            # Skip Supabase enrichment to avoid UUID errors
+            # if formatted_results:
+            #     pool = get_pool()
+            #     episode_ids = [r.episode_id for r in formatted_results]
+            #     
+            #     def get_audio_paths(client):
+            #         return client.table("episodes") \
+            #             .select("id, s3_audio_path, duration_seconds") \
+            #             .in_("id", episode_ids) \
+            #             .execute()
+            #     
+            #     audio_data = await pool.execute_with_retry(get_audio_paths)
+            #     
+            #     audio_by_id = {
+            #         ep["id"]: {
+            #             "s3_audio_path": ep.get("s3_audio_path"),
+            #             "duration_seconds": ep.get("duration_seconds", 0)
+            #         }
+            #         for ep in audio_data.data
+            #     }
+            #     
+            #     for result in formatted_results:
+            #         if result.episode_id in audio_by_id:
+            #             result.s3_audio_path = audio_by_id[result.episode_id]["s3_audio_path"]
+            #             result.duration_seconds = audio_by_id[result.episode_id]["duration_seconds"]
             
             return SearchResponse(
                 results=formatted_results,
