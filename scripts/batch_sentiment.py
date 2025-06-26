@@ -187,20 +187,20 @@ class BatchSentimentProcessor:
         words = topic.lower().split()
 
         if topic == "AI Agents":
-            # MongoDB doesn't support lookahead, so search for "AI" or "agent" keywords
-            search_pattern = "\\b(ai|artificial intelligence|ai agent|ai-agent|agents|agentic)\\b"
+            # Very broad AI-related terms
+            search_pattern = "\\b(ai|artificial|intelligence|machine learning|ml|gpt|llm|chatgpt|openai|anthropic|model|models)\\b"
         elif topic == "Capital Efficiency":
-            # Search for capital or efficiency terms
-            search_pattern = "\\b(capital efficiency|capital|efficiency|burn rate|runway|unit economics)\\b"
+            # Common business/money terms
+            search_pattern = "\\b(money|funding|investment|capital|cash|burn|revenue|profit|cost|costs|efficient|efficiency)\\b"
         elif topic == "DePIN":
-            # DePIN or decentralized physical infrastructure
-            search_pattern = "\\b(depin|decentralized physical|physical infrastructure)\\b"
+            # Infrastructure and network terms
+            search_pattern = "\\b(infrastructure|network|networks|decentralized|distributed|hardware|physical|iot|devices)\\b"
         elif topic == "B2B SaaS":
-            # B2B or SaaS
-            search_pattern = "\\b(b2b|business to business|saas|software as a service|enterprise software)\\b"
+            # Software and business terms
+            search_pattern = "\\b(software|saas|startup|startups|business|company|companies|product|platform|service|enterprise|b2b)\\b"
         elif topic == "Crypto/Web3":
-            # Crypto or Web3 or blockchain
-            search_pattern = "\\b(crypto|web3|web 3|blockchain|defi|nft|token|ethereum|bitcoin|cryptocurrency)\\b"
+            # Crypto and blockchain terms
+            search_pattern = "\\b(crypto|bitcoin|ethereum|blockchain|web3|defi|nft|token|tokens|wallet|coin|coins|currency)\\b"
         else:
             # Default: escape the topic as-is
             search_pattern = re.escape(topic)
