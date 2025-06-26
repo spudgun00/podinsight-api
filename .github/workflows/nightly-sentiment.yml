@@ -43,7 +43,7 @@ jobs:
 
       - name: Upload batch logs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: batch-sentiment-logs
           path: scripts/batch_sentiment.log
