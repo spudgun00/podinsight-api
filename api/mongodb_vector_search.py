@@ -18,8 +18,8 @@ _handler_instance = None
 
 
 class MongoVectorSearchHandler:
-    # Class-level client to share across instances
-    _client = None
+    # Per-event-loop client storage
+    _client_per_loop = {}
     
     def __init__(self):
         self.cache = OrderedDict()
@@ -35,10 +35,13 @@ class MongoVectorSearchHandler:
             logger.warning("MONGODB_URI not set, vector search disabled")
             return None
             
-        # Create client once at class level
-        if MongoVectorSearchHandler._client is None:
-            logger.info("Creating MongoDB client (class-level)")
-            MongoVectorSearchHandler._client = AsyncIOMotorClient(
+        # Get client for current event loop
+        loop_id = id(asyncio.get_running_loop())
+        client = MongoVectorSearchHandler._client_per_loop.get(loop_id)
+        
+        if client is None:
+            logger.info(f"Creating MongoDB client for event loop {loop_id}")
+            client = AsyncIOMotorClient(
                 uri,
                 serverSelectionTimeoutMS=10000,
                 connectTimeoutMS=10000,
@@ -46,9 +49,10 @@ class MongoVectorSearchHandler:
                 maxPoolSize=10,
                 retryWrites=True
             )
+            MongoVectorSearchHandler._client_per_loop[loop_id] = client
         
-        # Always get fresh collection reference for current event loop
-        db = MongoVectorSearchHandler._client[db_name]
+        # Never cache the collection – it inherits the loop from its client
+        db = client[db_name]
         return db["transcript_chunks_768d"]
     
     async def vector_search(self, 
@@ -150,10 +154,11 @@ class MongoVectorSearchHandler:
         }
     
     async def close(self):
-        """Close MongoDB connection"""
-        if MongoVectorSearchHandler._client:
-            MongoVectorSearchHandler._client.close()
-            MongoVectorSearchHandler._client = None
+        """Close MongoDB connections for all event loops"""
+        for loop_id, client in MongoVectorSearchHandler._client_per_loop.items():
+            logger.info(f"Closing MongoDB client for event loop {loop_id}")
+            client.close()
+        MongoVectorSearchHandler._client_per_loop.clear()
 
 # Use global instance for connection pooling
 async def get_vector_search_handler() -> MongoVectorSearchHandler:

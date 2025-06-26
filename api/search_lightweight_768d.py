@@ -203,7 +203,9 @@ async def expand_chunk_context(chunk: Dict[str, Any], context_seconds: float = 2
         from .mongodb_vector_search import get_vector_search_handler
         vector_handler = await get_vector_search_handler()
         
-        if vector_handler.db is None:
+        # Get collection directly
+        collection = vector_handler._get_collection()
+        if collection is None:
             return chunk.get("text", "")
         
         # Calculate time window
@@ -212,7 +214,7 @@ async def expand_chunk_context(chunk: Dict[str, Any], context_seconds: float = 2
         
         # Fetch surrounding chunks from same episode
         # Use simpler logic: get all chunks where start_time is within our window
-        cursor = vector_handler.db.transcript_chunks_768d.find({
+        cursor = collection.find({
             "episode_id": chunk["episode_id"],
             "start_time": {"$gte": start_window, "$lte": end_window}
         }).sort("start_time", 1)
