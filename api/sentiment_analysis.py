@@ -135,10 +135,10 @@ class handler(BaseHTTPRequestHandler):
                     topic_pattern = re.compile(re.escape(topic), re.IGNORECASE)
 
                     # Find chunks in this date range that mention the topic
-                    # Note: transcript_chunks_768d uses 'text' field, not 'full_text'
+                    # Note: transcript_chunks_768d uses 'text' field and 'created_at' for dates
                     query = {
                         "text": {"$regex": topic_pattern},
-                        "published_at": {
+                        "created_at": {
                             "$gte": week_start,
                             "$lt": week_end
                         }
