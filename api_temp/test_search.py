@@ -26,40 +26,40 @@ async def test_search_handler(request: TestSearchRequest) -> TestSearchResponse:
     try:
         # Get MongoDB vector search handler
         vector_handler = await get_vector_search_handler()
-        
+
         if vector_handler.db is None:
             return TestSearchResponse(
                 results=[],
                 total_results=0,
                 message="MongoDB not connected"
             )
-        
+
         # First, get a sample document with an embedding
         sample_doc = await vector_handler.db.transcript_chunks_768d.find_one(
             {"embedding_768d": {"$exists": True}},
             {"embedding_768d": 1, "text": 1}
         )
-        
+
         if not sample_doc or "embedding_768d" not in sample_doc:
             return TestSearchResponse(
                 results=[],
                 total_results=0,
                 message="No documents with embeddings found"
             )
-        
+
         # Use the existing embedding to search
         test_embedding = sample_doc["embedding_768d"]
         sample_text = sample_doc.get("text", "Unknown")[:100]
-        
+
         logger.info(f"Using embedding from document: {sample_text}...")
-        
+
         # Perform vector search with the existing embedding
         results = await vector_handler.vector_search(
             test_embedding,
             limit=request.limit,
             min_score=0.0  # No threshold
         )
-        
+
         # Format results
         formatted_results = []
         for result in results[:5]:  # Limit to 5 for testing
@@ -70,13 +70,13 @@ async def test_search_handler(request: TestSearchRequest) -> TestSearchResponse:
                 "podcast_name": result.get("podcast_name", "Unknown"),
                 "episode_title": result.get("episode_title", "Unknown")
             })
-        
+
         return TestSearchResponse(
             results=formatted_results,
             total_results=len(results),
             message=f"Success! Found {len(results)} results using embedding from: {sample_text}"
         )
-        
+
     except Exception as e:
         logger.error(f"Test search error: {str(e)}")
         return TestSearchResponse(

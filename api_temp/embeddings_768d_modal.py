@@ -13,20 +13,20 @@ logger = logging.getLogger(__name__)
 
 class ModalInstructorXLEmbedder:
     """Handles 768D embeddings via Modal.com"""
-    
+
     def __init__(self):
         """Initialize Modal configuration"""
         # Get from environment or Modal dashboard
         self.modal_url = os.getenv('MODAL_EMBEDDING_URL', 'https://podinsighthq--podinsight-embeddings-simple-generate-embedding.modal.run')
         self.modal_token = None  # Public endpoint, no auth needed
-    
+
     def encode_query(self, query: str) -> Optional[List[float]]:
         """
         Encode search query to 768D vector using Modal (synchronous wrapper)
-        
+
         Args:
             query: Search query text
-            
+
         Returns:
             List of 768 float values or None if error
         """
@@ -41,14 +41,14 @@ class ModalInstructorXLEmbedder:
         except RuntimeError:
             # No event loop, create one
             return asyncio.run(self._encode_query_async(query))
-    
+
     async def _encode_query_async(self, query: str) -> Optional[List[float]]:
         """
         Async method to encode search query to 768D vector using Modal
-        
+
         Args:
             query: Search query text
-            
+
         Returns:
             List of 768 float values or None if error
         """
@@ -58,12 +58,12 @@ class ModalInstructorXLEmbedder:
                     "Content-Type": "application/json"
                 }
                 # No auth header since it's a public endpoint
-                
+
                 payload = {"text": query}
-                
+
                 # Use the correct endpoint (no /embed suffix)
                 embed_url = self.modal_url
-                
+
                 async with session.post(
                     embed_url,
                     json=payload,
@@ -73,50 +73,50 @@ class ModalInstructorXLEmbedder:
                     if response.status == 200:
                         data = await response.json()
                         embedding = data.get("embedding", data)  # Handle different response formats
-                        
+
                         # Un-nest accidental double list
                         if isinstance(embedding, list) and len(embedding) == 1 and isinstance(embedding[0], list):
                             logger.warning(f"Detected nested embedding array, flattening...")
                             embedding = embedding[0]
-                        
+
                         logger.info(f"Generated 768D embedding via Modal for: {query[:50]}... (dim: {len(embedding) if embedding else 0})")
                         return embedding
                     else:
                         error_text = await response.text()
                         logger.error(f"Modal API error {response.status}: {error_text}")
                         return None
-                        
+
         except asyncio.TimeoutError:
             logger.error("Modal API timeout - function may be cold starting (30s timeout)")
             return None
         except Exception as e:
             logger.error(f"Modal embedding error: {e}")
             return None
-    
+
     async def encode_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
         """
         Encode multiple texts to 768D vectors
-        
+
         Args:
             texts: List of text strings
-            
+
         Returns:
             List of embedding vectors or None if error
         """
         # No auth needed for public endpoint
-            
+
         try:
             # Use the batch endpoint
             batch_url = f"{self.modal_url}/embed_batch"
-            
+
             async with aiohttp.ClientSession() as session:
                 headers = {
                     "Content-Type": "application/json"
                 }
                 # No auth header since it's a public endpoint
-                
+
                 payload = {"texts": texts}
-                
+
                 async with session.post(
                     batch_url,
                     json=payload,
@@ -139,7 +139,7 @@ class ModalInstructorXLEmbedder:
                             else:
                                 return None  # Fail if any request fails
                         return results
-                        
+
         except Exception as e:
             logger.error(f"Modal batch embedding error: {e}")
             return None

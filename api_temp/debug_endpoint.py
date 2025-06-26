@@ -16,22 +16,22 @@ async def debug_search(
     x_admin_key: Optional[str] = Header(None)
 ):
     """Debug endpoint to test search pipeline"""
-    
+
     # Check auth
     if x_admin_key != DEBUG_KEY:
         raise HTTPException(status_code=403, detail="Invalid admin key")
-    
+
     try:
         # 1. Normalize query
         clean_query = q.strip().lower()
-        
+
         # 2. Generate embedding
         embedder = get_embedder()
         embedding = embedder.encode_query(clean_query)
-        
+
         # 3. Get vector handler
         vector_handler = await get_vector_search_handler()
-        
+
         debug_info = {
             "original_query": q,
             "clean_query": clean_query,
@@ -40,7 +40,7 @@ async def debug_search(
             "mongodb_connected": vector_handler.db is not None,
             "collection_name": vector_handler.collection.name if vector_handler.collection else None
         }
-        
+
         # 4. Try vector search
         if embedding and vector_handler.db:
             results = await vector_handler.vector_search(
@@ -48,7 +48,7 @@ async def debug_search(
                 limit=5,
                 min_score=0.0
             )
-            
+
             debug_info["vector_search_count"] = len(results)
             debug_info["first_result"] = {
                 "score": results[0].get("score") if results else None,
@@ -56,9 +56,9 @@ async def debug_search(
             }
         else:
             debug_info["vector_search_error"] = "No embedding or DB connection"
-        
+
         return debug_info
-        
+
     except Exception as e:
         return {
             "error": str(e),
