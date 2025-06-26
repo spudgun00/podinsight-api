@@ -1,5 +1,5 @@
 """
-Fixed MongoDB Vector Search with Supabase metadata integration
+MongoDB Vector Search with lazy connection initialization to fix event loop issues
 """
 import os
 import time
@@ -9,7 +9,6 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from collections import OrderedDict
-from supabase import create_client
 from pymongo.errors import OperationFailure
 
 logger = logging.getLogger(__name__)
@@ -20,59 +19,38 @@ _handler_instance = None
 
 class MongoVectorSearchHandler:
     def __init__(self):
-        self.client = None
-        self.db = None
-        self.collection = None
-        self.supabase = None
+        self._client = None
+        self._collection = None
         self.cache = OrderedDict()
         self.max_cache_size = 100
         self.cache_ttl = 300  # 5 minutes
-        self._connect()
     
-    def _connect(self):
-        """Initialize MongoDB and Supabase connections"""
-        try:
-            # MongoDB connection
-            mongo_uri = os.getenv("MONGODB_URI")
-            if not mongo_uri:
-                logger.warning("MONGODB_URI not set, vector search disabled")
-                return
-            
-            logger.info("Attempting MongoDB connection...")
-            # Increase timeout and add retry options
-            self.client = AsyncIOMotorClient(
+    def _get_collection(self):
+        """Get MongoDB collection, creating client if needed within current event loop"""
+        # Always create a new collection reference for the current event loop
+        mongo_uri = os.getenv("MONGODB_URI")
+        if not mongo_uri:
+            logger.warning("MONGODB_URI not set, vector search disabled")
+            return None
+        
+        # Create client if needed
+        if self._client is None:
+            logger.info("Creating MongoDB client...")
+            self._client = AsyncIOMotorClient(
                 mongo_uri, 
-                serverSelectionTimeoutMS=10000,  # Increased from 5000
+                serverSelectionTimeoutMS=10000,
                 connectTimeoutMS=10000,
                 socketTimeoutMS=10000,
                 maxPoolSize=10,
                 retryWrites=True
             )
-            
-            # Get database name from environment or use default
-            db_name = os.getenv("MONGODB_DATABASE", "podinsight")
-            logger.info(f"Using MongoDB database: {db_name}")
-            
-            self.db = self.client[db_name]
-            self.collection = self.db.transcript_chunks_768d
-            logger.info("MongoDB client created successfully")
-            
-            # Supabase connection
-            supabase_url = os.getenv("SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
-            
-            if supabase_url and supabase_key:
-                self.supabase = create_client(supabase_url, supabase_key)
-                logger.info("Connected to Supabase for episode metadata")
-            else:
-                logger.warning("Supabase credentials not set, episode metadata will be limited")
-            
-            logger.info("MongoDB Vector Search Handler initialized")
-            
-        except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
-            self.client = None
-            self.db = None
+        
+        # Always get fresh collection reference for current event loop
+        db_name = os.getenv("MONGODB_DATABASE", "podinsight")
+        collection = self._client[db_name]["transcript_chunks_768d"]
+        logger.info(f"MongoDB collection obtained for current request: {collection.full_name}")
+        
+        return collection
     
     async def vector_search(self, 
                           embedding: List[float], 
@@ -81,19 +59,16 @@ class MongoVectorSearchHandler:
         """
         Perform vector search using MongoDB Atlas Vector Search
         """
+        collection = self._get_collection()
         logger.warning("[VECTOR_SEARCH_ENTER] path=%s idx=%s  len=%d",
-                       self.collection.full_name if self.collection is not None else "None", "vector_index_768d", len(embedding))
+                       collection.full_name if collection is not None else "None", "vector_index_768d", len(embedding))
         logger.warning(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
         
-        if self.collection is None:
+        if collection is None:
             logger.warning("MongoDB not connected for vector search")
             return []
         
         try:
-            # Verify connection
-            if self.collection is None:
-                logger.error("MongoDB collection is None - connection failed")
-                return []
             
             # Create cache key from embedding
             embedding_str = str(embedding[:10])  # Use first 10 values for cache key
@@ -151,36 +126,14 @@ class MongoVectorSearchHandler:
             
             # Execute search (async)
             logger.info(f"Executing vector search with index: vector_index_768d")
-            logger.info(f"Collection name: {self.collection.name}")
-            logger.info(f"Database name: {self.db.name}")
+            logger.info(f"Collection name: {collection.name}")
             logger.info(f"Embedding length: {len(embedding)}")
             
-            # Try up to 3 times with exponential backoff
-            results = []
-            last_error = None
-            
-            for attempt in range(3):
-                try:
-                    cursor = self.collection.aggregate(pipeline)
-                    results = await cursor.to_list(None)
-                    logger.info(f"[VECTOR_SEARCH] Attempt {attempt+1} returned {len(results)} results")
-                    logger.info(f"[DEBUG] raw vector hits: {results[:3] if results else 'EMPTY'}")
-                    if attempt > 0:
-                        logger.info(f"Vector search succeeded on attempt {attempt + 1}")
-                    break  # Success, exit retry loop
-                except Exception as e:
-                    last_error = e
-                    if attempt < 2:  # Not the last attempt
-                        wait_time = (attempt + 1) * 2  # 2, 4 seconds
-                        logger.warning(f"Vector search attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
-                        await asyncio.sleep(wait_time)
-                    else:
-                        logger.error(f"MongoDB aggregate error after 3 attempts: {e}")
-                        logger.error(f"Error type: {type(e).__name__}")
-                        # Try to get more details about the error
-                        if hasattr(e, 'details'):
-                            logger.error(f"Error details: {e.details}")
-                        results = []
+            # Since we fixed the event loop issue, no need for retry logic
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(None)
+            logger.info(f"[VECTOR_SEARCH] Returned {len(results)} results")
+            logger.info(f"[DEBUG] raw vector hits: {results[:3] if results else 'EMPTY'}")
             
             elapsed = time.time() - start_time
             logger.info(f"Vector search took {elapsed:.2f}s, found {len(results)} results")
@@ -197,15 +150,13 @@ class MongoVectorSearchHandler:
             else:
                 logger.warning("Vector search returned no results from MongoDB")
             
-            # Enrich results with episode metadata from Supabase
-            enriched_results = await self._enrich_with_metadata(results)
-            
-            logger.info(f"After enrichment: {len(enriched_results)} results")
+            # Return results directly without Supabase enrichment
+            logger.info(f"Returning {len(results)} results without Supabase enrichment")
             
             # Cache the results
-            self._add_to_cache(cache_key, enriched_results)
+            self._add_to_cache(cache_key, results)
             
-            return enriched_results
+            return results
         
         except OperationFailure as e:
             logger.error("[VECTOR_SEARCH_OPFAIL] code=%s  msg=%s", e.code, e.details)
@@ -213,113 +164,6 @@ class MongoVectorSearchHandler:
         except Exception as e:
             logger.error(f"Vector search error: {e}")
             return []
-    
-    async def _enrich_with_metadata(self, chunks: List[Dict]) -> List[Dict[str, Any]]:
-        """
-        Enrich chunk results with episode metadata from Supabase
-        """
-        if not chunks:
-            return []
-            
-        # Get unique episode IDs (these are GUIDs)
-        episode_guids = list(set(chunk['episode_id'] for chunk in chunks))
-        
-        # If no Supabase connection, return chunks with minimal metadata
-        if not self.supabase:
-            enriched = []
-            for chunk in chunks:
-                enriched_chunk = {
-                    **chunk,
-                    'podcast_name': chunk.get('feed_slug', 'Unknown'),
-                    'episode_title': 'Unknown Episode',
-                    'published_at': None,
-                    'topics': []
-                }
-                enriched.append(enriched_chunk)
-            return enriched
-        
-        # Fetch episode metadata from MongoDB using guid field
-        try:
-            # Query MongoDB for all episodes with matching guids
-            logger.info(f"Looking up {len(episode_guids)} episode GUIDs in MongoDB episode_metadata")
-            logger.info(f"First 3 GUIDs: {episode_guids[:3]}")
-            
-            # MongoDB query - MUST use async/await with motor
-            cursor = self.db.episode_metadata.find({"guid": {"$in": episode_guids}})
-            metadata_docs = await cursor.to_list(None)
-            logger.info(f"MongoDB returned {len(metadata_docs)} episodes")
-            
-            # Create lookup dict by guid
-            episodes = {}
-            for doc in metadata_docs:
-                episodes[doc['guid']] = doc
-            
-            # Enrich chunks
-            enriched = []
-            for chunk in chunks:
-                episode_guid = chunk['episode_id']
-                if episode_guid in episodes:
-                    doc = episodes[episode_guid]
-                    
-                    # Extract metadata from the nested structure
-                    raw_feed = doc.get('raw_entry_original_feed', {})
-                    
-                    # Get episode title from nested structure first, fallback to root
-                    episode_title = raw_feed.get('episode_title') or doc.get('episode_title') or 'Unknown Episode'
-                    
-                    # Get podcast name from nested structure first, fallback to root
-                    podcast_name = raw_feed.get('podcast_title') or doc.get('podcast_title') or chunk.get('feed_slug', 'Unknown')
-                    
-                    # Get published date
-                    published_at = raw_feed.get('published_date_iso') or doc.get('published_at')
-                    
-                    # Get guests information
-                    guests = doc.get('guests', [])
-                    guest_names = [guest.get('name', '') for guest in guests if guest.get('name')]
-                    
-                    enriched_chunk = {
-                        **chunk,
-                        'podcast_name': podcast_name,
-                        'episode_title': episode_title,
-                        'published_at': published_at,
-                        'topics': [],  # Topics might be in different field
-                        's3_audio_path': doc.get('s3_audio_path') or raw_feed.get('s3_audio_path_raw'),
-                        'duration_seconds': doc.get('duration_seconds', 0),
-                        'guests': guest_names,
-                        'segment_count': doc.get('segment_count', 0)
-                    }
-                    enriched.append(enriched_chunk)
-                else:
-                    # Include chunk even if episode metadata not found
-                    logger.warning(f"Episode metadata not found for guid: {episode_guid}")
-                    enriched_chunk = {
-                        **chunk,
-                        'podcast_name': chunk.get('feed_slug', 'Unknown'),
-                        'episode_title': 'Unknown Episode',
-                        'published_at': None,
-                        'topics': [],
-                        'guests': [],
-                        'segment_count': 0
-                    }
-                    enriched.append(enriched_chunk)
-            
-            logger.info(f"Enriched {len(enriched)} chunks with MongoDB metadata")
-            return enriched
-            
-        except Exception as e:
-            logger.error(f"Failed to fetch MongoDB metadata: {e}")
-            # Return chunks without enrichment on error
-            enriched = []
-            for chunk in chunks:
-                enriched_chunk = {
-                    **chunk,
-                    'podcast_name': chunk.get('feed_slug', 'Unknown'),
-                    'episode_title': 'Unknown Episode',
-                    'published_at': None,
-                    'topics': []
-                }
-                enriched.append(enriched_chunk)
-            return enriched
     
     def _get_from_cache(self, key: str) -> Optional[List[Dict]]:
         """Get item from cache if not expired"""
@@ -347,8 +191,8 @@ class MongoVectorSearchHandler:
     
     async def close(self):
         """Close MongoDB connection"""
-        if self.client:
-            self.client.close()
+        if self._client:
+            self._client.close()
 
 # Use global instance for connection pooling
 async def get_vector_search_handler() -> MongoVectorSearchHandler:
