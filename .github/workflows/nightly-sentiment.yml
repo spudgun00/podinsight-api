@@ -18,7 +18,7 @@ jobs:
   sentiment-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 30  # Allow up to 30 minutes for processing
-    environment: Production  # Use the Production environment to access secrets
+    environment: Production – podinsight-api  # Use the Production environment to access secrets
 
     steps:
       - name: Checkout repository
