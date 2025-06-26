@@ -1,0 +1,63 @@
+name: Nightly Sentiment Analysis
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day (10 PM EST, 7 PM PST)
+    - cron: '0 2 * * *'
+
+  # Allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: 'Number of weeks to process'
+        required: false
+        default: '12'
+        type: string
+
+jobs:
+  sentiment-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # Allow up to 30 minutes for processing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pymongo python-dateutil
+
+      - name: Run batch sentiment analysis
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          cd scripts
+          python batch_sentiment.py
+
+      - name: Upload batch logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: batch-sentiment-logs
+          path: scripts/batch_sentiment.log
+          retention-days: 7
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Nightly sentiment analysis failed"
+          echo "Check the workflow logs and artifacts for details"
+          exit 1
+
+      - name: Success notification
+        if: success()
+        run: |
+          echo "✅ Nightly sentiment analysis completed successfully"
+          echo "Pre-computed sentiment data is now available via API v2"
