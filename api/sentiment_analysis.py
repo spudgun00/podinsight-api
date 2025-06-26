@@ -87,7 +87,7 @@ class handler(BaseHTTPRequestHandler):
 
         client = MongoClient(mongodb_uri)
         db = client['podinsight']
-        collection = db['transcripts']
+        collection = db['transcript_chunks_768d']
 
         try:
             # Get date range
@@ -134,21 +134,23 @@ class handler(BaseHTTPRequestHandler):
                     # Create case-insensitive regex for topic
                     topic_pattern = re.compile(re.escape(topic), re.IGNORECASE)
 
-                    # Find episodes in this date range that mention the topic
-                    # Note: MongoDB transcript structure uses 'published_at' not 'published_date'
+                    # Find chunks in this date range that mention the topic
+                    # Note: transcript_chunks_768d uses 'text' field, not 'full_text'
                     query = {
-                        "full_text": {"$regex": topic_pattern},
+                        "text": {"$regex": topic_pattern},
                         "published_at": {
                             "$gte": week_start,
                             "$lt": week_end
                         }
                     }
 
-                    # Count episodes
-                    episode_count = collection.count_documents(query)
+                    # Count chunks (as a proxy for episode mentions)
+                    chunk_count = collection.count_documents(query)
+                    # Estimate episode count (rough approximation: ~30 chunks per episode)
+                    episode_count = max(1, chunk_count // 30) if chunk_count > 0 else 0
 
-                    if episode_count == 0:
-                        logger.info(f"No episodes found for {topic} in week {week_label} ({week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')})")
+                    if chunk_count == 0:
+                        logger.info(f"No chunks found for {topic} in week {week_label} ({week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')})")
                         sentiment_results.append({
                             "topic": topic,
                             "week": week_label,
@@ -157,12 +159,13 @@ class handler(BaseHTTPRequestHandler):
                         })
                         continue
 
-                    # Get sample of episodes (limit to prevent timeout)
+                    # Get sample of chunks (limit to prevent timeout)
                     cursor = collection.find(query, {
-                        "full_text": 1,
+                        "text": 1,
                         "episode_title": 1,
+                        "episode_id": 1,
                         "_id": 0
-                    }).limit(20)  # Analyze up to 20 episodes per topic/week
+                    }).limit(50)  # Analyze up to 50 chunks per topic/week
 
                     transcripts = list(cursor)
 
@@ -171,7 +174,7 @@ class handler(BaseHTTPRequestHandler):
                     analyzed_count = 0
 
                     for transcript in transcripts:
-                        content = transcript.get('full_text', '').lower()
+                        content = transcript.get('text', '').lower()
 
                         # Find context around topic mentions (±200 characters)
                         contexts = []
@@ -224,7 +227,7 @@ class handler(BaseHTTPRequestHandler):
                         "episodeCount": episode_count
                     })
 
-                    logger.info(f"Topic: {topic}, Week: {week_label}, Sentiment: {avg_sentiment:.2f}, Episodes: {episode_count}")
+                    logger.info(f"Topic: {topic}, Week: {week_label}, Sentiment: {avg_sentiment:.2f}, Chunks: {chunk_count}, Est. Episodes: {episode_count}")
 
             return sentiment_results
 

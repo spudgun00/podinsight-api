@@ -1,0 +1,78 @@
+{
+  "timestamp": "2025-06-26T14:06:06.476501",
+  "api_url": "https://podinsight-api.vercel.app/api",
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1
+  },
+  "results": {
+    "Health Check": {
+      "success": true,
+      "details": [
+        "Status: healthy",
+        "Database: connected",
+        "Version: 1.0.0"
+      ],
+      "error": null
+    },
+    "Basic Search": {
+      "success": true,
+      "details": [
+        "Query: 'artificial intelligence'",
+        "Results: 5",
+        "Method: vector_768d",
+        "First result: Latent Space: The AI Engineer Podcast"
+      ],
+      "error": null
+    },
+    "Search Metadata": {
+      "success": true,
+      "details": [
+        "Query: 'venture capital'",
+        "Results with metadata: 3",
+        "Sample: The Pitch - #156 Barberino\u2019s: Italian Luxury Takes on the Amer..."
+      ],
+      "error": null
+    },
+    "Search Pagination": {
+      "success": true,
+      "details": [
+        "Page 1: 2 results",
+        "Page 2: 2 results",
+        "No overlap: True"
+      ],
+      "error": null
+    },
+    "Various Queries": {
+      "success": true,
+      "details": [
+        "GPT-4: 2 results",
+        "Sam Altman: 2 results",
+        "crypto: 2 results",
+        "startup funding: 2 results",
+        "machine learning: 2 results"
+      ],
+      "error": null
+    },
+    "Performance": {
+      "success": true,
+      "details": [
+        "Average response time: 2.56s",
+        "Individual times: ['2.58s', '3.76s', '1.34s']"
+      ],
+      "error": null
+    },
+    "Edge Cases": {
+      "success": false,
+      "details": [
+        "Empty query: Status 422",
+        "Whitespace query: \u2713 Handled",
+        "Uppercase query: \u2713 Handled",
+        "Long query: \u2713 Handled",
+        "Unicode query: \u2713 Handled"
+      ],
+      "error": null
+    }
+  }
+}
