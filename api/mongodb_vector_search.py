@@ -82,7 +82,7 @@ class MongoVectorSearchHandler:
         Perform vector search using MongoDB Atlas Vector Search
         """
         logger.warning("[VECTOR_SEARCH_ENTER] path=%s idx=%s  len=%d",
-                       self.collection.full_name if self.collection else "None", "vector_index_768d", len(embedding))
+                       self.collection.full_name if self.collection is not None else "None", "vector_index_768d", len(embedding))
         logger.warning(f"[VECTOR_SEARCH_START] Called with limit={limit}, min_score={min_score}, embedding_len={len(embedding) if embedding else 0}")
         
         if self.collection is None:
