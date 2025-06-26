@@ -18,6 +18,7 @@ jobs:
   sentiment-analysis:
     runs-on: ubuntu-latest
     timeout-minutes: 30  # Allow up to 30 minutes for processing
+    environment: Production  # Use the Production environment to access secrets
 
     steps:
       - name: Checkout repository
@@ -39,6 +40,8 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           cd scripts
+          # Add database name to MongoDB URI if not present
+          echo "Running batch sentiment analysis..."
           python batch_sentiment.py
 
       - name: Upload batch logs (on failure)
