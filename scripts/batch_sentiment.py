@@ -188,20 +188,20 @@ class BatchSentimentProcessor:
         words = topic.lower().split()
 
         if topic == "AI Agents":
-            # Very broad AI-related terms
-            search_pattern = "\\b(ai|artificial|intelligence|machine learning|ml|gpt|llm|chatgpt|openai|anthropic|model|models)\\b"
+            # Specific AI agent and autonomous system terms
+            search_pattern = "\\b(ai agent|ai agents|autonomous agent|agentic|llm agent|gpt agent|claude|chatgpt|copilot|ai assistant|langchain|autogpt|babyagi|crew ai|multi.agent)\\b"
         elif topic == "Capital Efficiency":
-            # Common business/money terms
-            search_pattern = "\\b(money|funding|investment|capital|cash|burn|revenue|profit|cost|costs|efficient|efficiency)\\b"
+            # Specific capital efficiency and burn rate terms
+            search_pattern = "\\b(capital efficiency|burn rate|runway|unit economics|ltv.cac|gross margin|path to profitability|cash flow positive|default alive|ramen profitable)\\b"
         elif topic == "DePIN":
-            # Infrastructure and network terms
-            search_pattern = "\\b(infrastructure|network|networks|decentralized|distributed|hardware|physical|iot|devices)\\b"
+            # Specific DePIN and decentralized infrastructure terms
+            search_pattern = "\\b(depin|decentralized physical infrastructure|helium|filecoin|arweave|akash|render network|hivemapper|dimo|physical infrastructure network)\\b"
         elif topic == "B2B SaaS":
-            # Software and business terms
-            search_pattern = "\\b(software|saas|startup|startups|business|company|companies|product|platform|service|enterprise|b2b)\\b"
+            # Specific B2B SaaS metrics and terms
+            search_pattern = "\\b(b2b saas|arr|mrr|annual recurring revenue|monthly recurring|net retention|gross retention|churn rate|acv|sales.led growth|product.led growth|plg)\\b"
         elif topic == "Crypto/Web3":
-            # Crypto and blockchain terms
-            search_pattern = "\\b(crypto|bitcoin|ethereum|blockchain|web3|defi|nft|token|tokens|wallet|coin|coins|currency)\\b"
+            # Specific crypto/web3 investment terms
+            search_pattern = "\\b(web3|crypto startup|token economics|tokenomics|defi protocol|layer 1|layer 2|zk.rollup|blockchain infrastructure|onchain|stablecoin|smart contract)\\b"
         else:
             # Default: escape the topic as-is
             search_pattern = re.escape(topic)
