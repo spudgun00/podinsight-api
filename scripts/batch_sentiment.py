@@ -182,11 +182,34 @@ class BatchSentimentProcessor:
         """Process sentiment for a specific topic and week"""
         logger.info(f"Processing {topic} for {week_info['week_label']} ({week_info['year']})")
 
-        topic_pattern = re.compile(re.escape(topic), re.IGNORECASE)
+        # Create flexible search pattern
+        # For multi-word topics, search for any of the key words
+        words = topic.lower().split()
+
+        if topic == "AI Agents":
+            # Search for "AI" AND "agent" (or variations)
+            search_pattern = "(?=.*\\b(ai|artificial intelligence)\\b)(?=.*\\b(agent|agents)\\b)"
+        elif topic == "Capital Efficiency":
+            # Search for "capital" OR "efficiency" in business context
+            search_pattern = "\\b(capital efficiency|capital.{0,20}efficien|efficien.{0,20}capital|capital allocation|burn rate)\\b"
+        elif topic == "DePIN":
+            # DePIN or decentralized physical infrastructure
+            search_pattern = "\\b(depin|decentralized physical|physical infrastructure network)\\b"
+        elif topic == "B2B SaaS":
+            # B2B or SaaS
+            search_pattern = "\\b(b2b|business.to.business|saas|software.as.a.service)\\b"
+        elif topic == "Crypto/Web3":
+            # Crypto or Web3 or blockchain
+            search_pattern = "\\b(crypto|web3|web 3|blockchain|defi|nft|token|ethereum|bitcoin)\\b"
+        else:
+            # Default: escape the topic as-is
+            search_pattern = re.escape(topic)
+
+        topic_pattern = re.compile(search_pattern, re.IGNORECASE)
 
         # Query chunks in this date range that mention the topic
         query = {
-            "text": {"$regex": topic_pattern},
+            "text": {"$regex": search_pattern, "$options": "i"},
             "created_at": {
                 "$gte": week_info['start_date'],
                 "$lt": week_info['end_date']
@@ -232,7 +255,7 @@ class BatchSentimentProcessor:
                 "text": 1, "episode_id": 1, "_id": 0
             }))
 
-        # Calculate sentiment
+        # Calculate sentiment (pass original topic for context finding)
         sentiment_result = self.calculate_sentiment_for_chunks(chunks, topic_pattern)
 
         # Estimate episode count (approximate: 30 chunks per episode)
