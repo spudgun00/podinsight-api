@@ -346,42 +346,51 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             # Convert to API format with expanded context
             formatted_results = []
             for result in paginated_results:
-                # Expand context for better readability
-                expanded_text = await expand_chunk_context(result, context_seconds=20.0)
-                
-                # Vector search provides chunks with timestamps
-                # Handle published_at - it comes as string from Supabase
-                published_at_str = result.get("published_at")
-                if published_at_str:
+                try:
+                    # Expand context for better readability
                     try:
-                        from dateutil import parser
-                        published_dt = parser.parse(published_at_str)
-                        published_at_iso = published_dt.isoformat()
-                        published_date = published_dt.strftime('%B %d, %Y')
-                    except:
-                        published_at_iso = published_at_str
+                        expanded_text = await expand_chunk_context(result, context_seconds=20.0)
+                    except Exception as e:
+                        logger.warning(f"Context expansion failed: {e} - using original text")
+                        expanded_text = result.get("text", "")
+                    
+                    # Vector search provides chunks with timestamps
+                    # Handle published_at - it comes as string from Supabase
+                    published_at_str = result.get("published_at")
+                    if published_at_str:
+                        try:
+                            from dateutil import parser
+                            published_dt = parser.parse(published_at_str)
+                            published_at_iso = published_dt.isoformat()
+                            published_date = published_dt.strftime('%B %d, %Y')
+                        except:
+                            published_at_iso = published_at_str
+                            published_date = "Unknown date"
+                    else:
+                        published_at_iso = datetime.now().isoformat()
                         published_date = "Unknown date"
-                else:
-                    published_at_iso = datetime.now().isoformat()
-                    published_date = "Unknown date"
-                
-                formatted_results.append(SearchResult(
-                    episode_id=result["episode_id"],
-                    podcast_name=result.get("podcast_name", "Unknown"),
-                    episode_title=result.get("episode_title", "Unknown Episode"),
-                    published_at=published_at_iso,
-                    published_date=published_date,
-                    similarity_score=float(result.get("score", 0.0)) if result.get("score") is not None else 0.0,
-                    excerpt=expanded_text,  # Use expanded text instead of single chunk
-                    word_count=len(expanded_text.split()),
-                    duration_seconds=result.get("duration_seconds", 0),
-                    topics=result.get("topics", []),
-                    s3_audio_path=result.get("s3_audio_path"),
-                    timestamp={
-                        "start_time": result.get("start_time", 0),  # Keep original timestamp for audio sync
-                        "end_time": result.get("end_time", 0)
-                    }
-                ))
+                    
+                    formatted_results.append(SearchResult(
+                        episode_id=result.get("episode_id", "unknown"),
+                        podcast_name=result.get("podcast_name", "Unknown"),
+                        episode_title=result.get("episode_title", "Unknown Episode"),
+                        published_at=published_at_iso,
+                        published_date=published_date,
+                        similarity_score=float(result.get("score", 0.0)) if result.get("score") is not None else 0.0,
+                        excerpt=expanded_text,  # Use expanded text instead of single chunk
+                        word_count=len(expanded_text.split()),
+                        duration_seconds=result.get("duration_seconds", 0),
+                        topics=result.get("topics", []),
+                        s3_audio_path=result.get("s3_audio_path"),
+                        timestamp={
+                            "start_time": result.get("start_time", 0),  # Keep original timestamp for audio sync
+                            "end_time": result.get("end_time", 0)
+                        }
+                    ))
+                except Exception as e:
+                    logger.error(f"Failed to format result: {e} - skipping this result")
+                    logger.error(f"Result data: {result}")
+                    continue  # Skip this result but process others
             
             # Audio paths and durations are now included in vector search results
             # from the fixed mongodb_vector_search.py enrichment
