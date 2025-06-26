@@ -1,8 +1,0 @@
-{
-  "fields": [{
-    "type": "vector",
-    "path": "embedding_768d",
-    "numDimensions": 768,
-    "similarity": "cosine"
-  }]
-}

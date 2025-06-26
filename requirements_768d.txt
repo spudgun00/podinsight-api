@@ -1,4 +1,0 @@
-# Additional requirements for 768D embeddings upgrade
-sentence-transformers==2.7.0
-InstructorEmbedding==1.0.1
-torch>=2.0.0
