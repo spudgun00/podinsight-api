@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodInsight Search Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #6d28d9;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .results {
+            /* Results container - spacing handled by individual items */
+        }
+        .result-item {
+            border: 1px solid #e5e5e5;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        .podcast-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .score {
+            color: #666;
+            font-size: 14px;
+        }
+        .date {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .excerpt {
+            color: #444;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .topics {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .topic-tag {
+            background: #e9d5ff;
+            color: #6b21a8;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .stats {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PodInsight Search Test</h1>
+
+        <div class="search-box">
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search for AI agents, venture capital, B2B SaaS..."
+                value="AI agents"
+            >
+            <button id="searchButton" onclick="performSearch()">Search</button>
+        </div>
+
+        <div id="stats" class="stats" style="display: none;"></div>
+        <div id="loading" class="loading" style="display: none;">Searching...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            const button = document.getElementById('searchButton');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const results = document.getElementById('results');
+            const stats = document.getElementById('stats');
+
+            if (!query.trim()) return;
+
+            // Reset UI
+            button.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            results.innerHTML = '';
+            stats.style.display = 'none';
+
+            try {
+                const startTime = Date.now();
+
+                const response = await fetch('https://podinsight-api.vercel.app/api/search', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query, limit: 10})
+                });
+
+                const data = await response.json();
+                const endTime = Date.now();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Search failed');
+                }
+
+                // Show stats
+                stats.innerHTML = `
+                    Found ${data.total_results} results in ${endTime - startTime}ms
+                    ${data.cache_hit ? '(cached)' : '(fresh search)'}
+                `;
+                stats.style.display = 'block';
+
+                // Display results
+                if (data.results.length === 0) {
+                    results.innerHTML = '<p style="text-align: center; color: #666;">No results found</p>';
+                } else {
+                    results.innerHTML = data.results.map(result => `
+                        <div class="result-item">
+                            <div class="result-header">
+                                <div class="podcast-name">${result.podcast_name}</div>
+                                <div class="score">${(result.similarity_score * 100).toFixed(1)}% match</div>
+                            </div>
+                            <div class="date">${new Date(result.published_at).toLocaleDateString()}</div>
+                            <div class="excerpt">${result.excerpt}</div>
+                            ${result.topics.length > 0 ? `
+                                <div class="topics">
+                                    ${result.topics.map(topic =>
+                                        `<span class="topic-tag">${topic}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                }
+
+                // Log to console for debugging
+                console.log('Search results:', data);
+
+            } catch (err) {
+                error.textContent = err.message;
+                error.style.display = 'block';
+                console.error('Search error:', err);
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // Search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        // Perform initial search
+        window.addEventListener('load', () => {
+            performSearch();
+        });
+    </script>
+</body>
+</html>

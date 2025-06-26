@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodInsight API Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+        }
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .test-button {
+            padding: 8px 16px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background: #6d28d9;
+        }
+        .test-button.secondary {
+            background: #6b7280;
+        }
+        .test-button.secondary:hover {
+            background: #4b5563;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #6d28d9;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #efe;
+            color: #060;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .result-item {
+            border: 1px solid #e5e5e5;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        .podcast-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .score {
+            color: #666;
+            font-size: 14px;
+        }
+        .date {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .excerpt {
+            color: #444;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .topics {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .topic-tag {
+            background: #e9d5ff;
+            color: #6b21a8;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .stats {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .json-output {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PodInsight API Test Suite</h1>
+
+        <!-- Search Test Section -->
+        <div class="test-section">
+            <h2>🔍 Search API Tests</h2>
+
+            <div class="test-buttons">
+                <button class="test-button" onclick="quickSearch('AI agents')">Search "AI agents"</button>
+                <button class="test-button" onclick="quickSearch('venture capital trends')">Search "venture capital"</button>
+                <button class="test-button" onclick="quickSearch('B2B SaaS metrics')">Search "B2B SaaS"</button>
+                <button class="test-button" onclick="quickSearch('DePIN infrastructure')">Search "DePIN"</button>
+                <button class="test-button" onclick="quickSearch('crypto web3')">Search "crypto web3"</button>
+                <button class="test-button secondary" onclick="testCachePerformance()">Test Cache Performance</button>
+                <button class="test-button secondary" onclick="testEmptySearch()">Test Empty Query</button>
+            </div>
+
+            <div class="search-box">
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Custom search query..."
+                    value=""
+                >
+                <button id="searchButton" onclick="performSearch()">Search</button>
+            </div>
+
+            <div id="searchStats" class="stats" style="display: none;"></div>
+            <div id="searchLoading" class="loading" style="display: none;">Searching...</div>
+            <div id="searchError" class="error" style="display: none;"></div>
+            <div id="searchResults" class="results"></div>
+        </div>
+
+        <!-- Other API Tests -->
+        <div class="test-section">
+            <h2>🚀 Other API Endpoints</h2>
+
+            <div class="test-buttons">
+                <button class="test-button" onclick="testHealth()">Test Health Check</button>
+                <button class="test-button" onclick="testTopicVelocity()">Test Topic Velocity</button>
+                <button class="test-button" onclick="testTopicVelocityCustom()">Topic Velocity (4 weeks)</button>
+                <button class="test-button" onclick="testPoolStats()">Test Pool Stats</button>
+                <button class="test-button" onclick="testAllEndpoints()">Test All Endpoints</button>
+            </div>
+
+            <div id="apiResults" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Raw Output -->
+        <div class="test-section">
+            <h2>📋 Raw API Output</h2>
+            <div id="rawOutput" class="json-output">Click any test button to see raw API response here...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://podinsight-api.vercel.app';
+
+        // Quick search with preset queries
+        async function quickSearch(query) {
+            document.getElementById('searchInput').value = query;
+            await performSearch();
+        }
+
+        // Main search function
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            const button = document.getElementById('searchButton');
+            const loading = document.getElementById('searchLoading');
+            const error = document.getElementById('searchError');
+            const results = document.getElementById('searchResults');
+            const stats = document.getElementById('searchStats');
+
+            if (!query.trim()) {
+                error.textContent = 'Please enter a search query';
+                error.style.display = 'block';
+                return;
+            }
+
+            // Reset UI
+            button.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            results.innerHTML = '';
+            stats.style.display = 'none';
+
+            try {
+                const startTime = Date.now();
+
+                const response = await fetch(`${API_BASE}/api/search`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query, limit: 10})
+                });
+
+                const data = await response.json();
+                const endTime = Date.now();
+
+                // Update raw output
+                updateRawOutput(data);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Search failed');
+                }
+
+                // Show stats
+                stats.innerHTML = `
+                    <strong>Query:</strong> "${query}"<br>
+                    <strong>Results:</strong> ${data.total_results} found<br>
+                    <strong>Response Time:</strong> ${endTime - startTime}ms ${data.cache_hit ? '(cached)' : '(fresh search)'}<br>
+                    <strong>Search ID:</strong> ${data.search_id}
+                `;
+                stats.style.display = 'block';
+
+                // Display results
+                if (data.results.length === 0) {
+                    results.innerHTML = '<p style="text-align: center; color: #666;">No results found</p>';
+                } else {
+                    // Show similarity score distribution
+                    const scores = data.results.map(r => r.similarity_score * 100);
+                    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+                    const maxScore = Math.max(...scores);
+
+                    results.innerHTML = `
+                        <div style="margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                            <strong>Score Analysis:</strong>
+                            Avg: ${avgScore.toFixed(1)}% |
+                            Max: ${maxScore.toFixed(1)}% |
+                            ${scores.filter(s => s < 50).length} results below 50%
+                        </div>
+                    ` + data.results.map(result => `
+                        <div class="result-item">
+                            <div class="result-header">
+                                <div class="podcast-name">${result.podcast_name}</div>
+                                <div class="score" style="color: ${result.similarity_score > 0.5 ? 'green' : 'orange'}">
+                                    ${(result.similarity_score * 100).toFixed(1)}% match
+                                </div>
+                            </div>
+                            <div class="date">${new Date(result.published_at).toLocaleDateString()}</div>
+                            <div class="excerpt">${result.excerpt}</div>
+                            ${result.topics.length > 0 ? `
+                                <div class="topics">
+                                    ${result.topics.map(topic =>
+                                        `<span class="topic-tag">${topic}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                                Episode ID: ${result.episode_id}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                console.log('Search results:', data);
+
+            } catch (err) {
+                error.textContent = `Error: ${err.message}`;
+                error.style.display = 'block';
+                console.error('Search error:', err);
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // Test cache performance
+        async function testCachePerformance() {
+            const query = 'AI agents performance test';
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing cache performance...</div>';
+
+            try {
+                // First search (should be fresh)
+                const start1 = Date.now();
+                const response1 = await fetch(`${API_BASE}/api/search`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query, limit: 5})
+                });
+                const data1 = await response1.json();
+                const time1 = Date.now() - start1;
+
+                // Second search (should be cached)
+                const start2 = Date.now();
+                const response2 = await fetch(`${API_BASE}/api/search`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query, limit: 5})
+                });
+                const data2 = await response2.json();
+                const time2 = Date.now() - start2;
+
+                results.innerHTML = `
+                    <div class="success">
+                        <h3>Cache Performance Test</h3>
+                        <p><strong>First search:</strong> ${time1}ms (cache: ${data1.cache_hit})</p>
+                        <p><strong>Second search:</strong> ${time2}ms (cache: ${data2.cache_hit})</p>
+                        <p><strong>Speed improvement:</strong> ${((time1 - time2) / time1 * 100).toFixed(1)}%</p>
+                    </div>
+                `;
+
+                updateRawOutput({first: data1, second: data2});
+
+            } catch (err) {
+                results.innerHTML = `<div class="error">Cache test failed: ${err.message}</div>`;
+            }
+        }
+
+        // Test empty search
+        async function testEmptySearch() {
+            document.getElementById('searchInput').value = '';
+            await performSearch();
+        }
+
+        // Test health endpoint
+        async function testHealth() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing health endpoint...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/health`);
+                const data = await response.json();
+
+                results.innerHTML = `
+                    <div class="success">
+                        <h3>Health Check</h3>
+                        <p><strong>Status:</strong> ${data.status}</p>
+                        <p><strong>HuggingFace API:</strong> ${data.checks.huggingface_api_key}</p>
+                        <p><strong>Database:</strong> ${data.checks.database}</p>
+                        <p><strong>Version:</strong> ${data.version}</p>
+                    </div>
+                `;
+
+                updateRawOutput(data);
+            } catch (err) {
+                results.innerHTML = `<div class="error">Health check failed: ${err.message}</div>`;
+            }
+        }
+
+        // Test topic velocity
+        async function testTopicVelocity() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing topic velocity...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/topic-velocity`);
+                const data = await response.json();
+
+                const topics = Object.keys(data.data);
+                const totalDataPoints = topics.reduce((sum, topic) => sum + data.data[topic].length, 0);
+
+                results.innerHTML = `
+                    <div class="success">
+                        <h3>Topic Velocity</h3>
+                        <p><strong>Topics:</strong> ${topics.join(', ')}</p>
+                        <p><strong>Total episodes:</strong> ${data.metadata.total_episodes}</p>
+                        <p><strong>Date range:</strong> ${data.metadata.date_range}</p>
+                        <p><strong>Data points:</strong> ${totalDataPoints}</p>
+                    </div>
+                `;
+
+                updateRawOutput(data);
+            } catch (err) {
+                results.innerHTML = `<div class="error">Topic velocity test failed: ${err.message}</div>`;
+            }
+        }
+
+        // Test topic velocity with custom params
+        async function testTopicVelocityCustom() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing topic velocity (4 weeks)...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/topic-velocity?weeks=4&topics=AI%20Agents,DePIN`);
+                const data = await response.json();
+
+                const topics = Object.keys(data.data);
+
+                results.innerHTML = `
+                    <div class="success">
+                        <h3>Topic Velocity (Custom)</h3>
+                        <p><strong>Parameters:</strong> 4 weeks, topics: AI Agents, DePIN</p>
+                        <p><strong>Topics returned:</strong> ${topics.join(', ')}</p>
+                        <p><strong>Weeks per topic:</strong> ${data.data[topics[0]]?.length || 0}</p>
+                    </div>
+                `;
+
+                updateRawOutput(data);
+            } catch (err) {
+                results.innerHTML = `<div class="error">Custom topic velocity test failed: ${err.message}</div>`;
+            }
+        }
+
+        // Test pool stats
+        async function testPoolStats() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing pool stats...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/pool-stats`);
+                const data = await response.json();
+
+                results.innerHTML = `
+                    <div class="success">
+                        <h3>Connection Pool Stats</h3>
+                        <p><strong>Active connections:</strong> ${data.stats.active_connections}</p>
+                        <p><strong>Max connections:</strong> ${data.stats.max_connections}</p>
+                        <p><strong>Utilization:</strong> ${data.stats.utilization_percent}%</p>
+                        <p><strong>Total requests:</strong> ${data.stats.total_requests}</p>
+                    </div>
+                `;
+
+                updateRawOutput(data);
+            } catch (err) {
+                results.innerHTML = `<div class="error">Pool stats test failed: ${err.message}</div>`;
+            }
+        }
+
+        // Test all endpoints
+        async function testAllEndpoints() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="loading">Testing all endpoints...</div>';
+
+            const tests = [
+                { name: 'Health', url: '/api/health', method: 'GET' },
+                { name: 'Search', url: '/api/search', method: 'POST', body: {query: 'test', limit: 1} },
+                { name: 'Topic Velocity', url: '/api/topic-velocity', method: 'GET' },
+                { name: 'Pool Stats', url: '/api/pool-stats', method: 'GET' }
+            ];
+
+            const testResults = [];
+
+            for (const test of tests) {
+                try {
+                    const start = Date.now();
+                    const options = {
+                        method: test.method,
+                        headers: {'Content-Type': 'application/json'}
+                    };
+                    if (test.body) {
+                        options.body = JSON.stringify(test.body);
+                    }
+
+                    const response = await fetch(`${API_BASE}${test.url}`, options);
+                    const time = Date.now() - start;
+
+                    testResults.push({
+                        name: test.name,
+                        status: response.status,
+                        time: time,
+                        success: response.ok
+                    });
+                } catch (err) {
+                    testResults.push({
+                        name: test.name,
+                        status: 'ERROR',
+                        time: 0,
+                        success: false,
+                        error: err.message
+                    });
+                }
+            }
+
+            results.innerHTML = `
+                <div class="${testResults.every(r => r.success) ? 'success' : 'error'}">
+                    <h3>All Endpoints Test</h3>
+                    ${testResults.map(r => `
+                        <p>
+                            <strong>${r.name}:</strong>
+                            ${r.success ? '✅' : '❌'}
+                            Status ${r.status}
+                            (${r.time}ms)
+                            ${r.error ? ` - ${r.error}` : ''}
+                        </p>
+                    `).join('')}
+                </div>
+            `;
+
+            updateRawOutput(testResults);
+        }
+
+        // Update raw output display
+        function updateRawOutput(data) {
+            document.getElementById('rawOutput').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Search on Enter key
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') performSearch();
+            });
+        });
+    </script>
+</body>
+</html>

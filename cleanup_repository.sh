@@ -19,92 +19,100 @@ echo ""
 
 # Create archive directory structure
 echo "📁 Creating archive structure..."
-mkdir -p archive/2025-06-development/{scripts,docs,logs,temp-files}
-mkdir -p archive/legacy-documentation
-mkdir -p archive/testing-archive
+mkdir -p archive/2025-06-development/scripts
+mkdir -p archive/2025-06-development/docs
 mkdir -p archive/development-notes
+mkdir -p archive/testing-archive
 
 echo "📦 Archiving scripts (keeping production essentials)..."
 
 # Production scripts to keep
-PRODUCTION_SCRIPTS=(
-    "modal_web_endpoint_simple.py"
-    "test_e2e_production.py"
-    "quick_vc_test.py"
-)
+echo "  ✅ Keeping production scripts:"
+echo "    - modal_web_endpoint_simple.py"
+echo "    - test_e2e_production.py"
+echo "    - quick_vc_test.py"
 
-# Count scripts before archiving
-TOTAL_SCRIPTS=$(find scripts -name "*.py" 2>/dev/null | wc -l)
-echo "  Found $TOTAL_SCRIPTS Python scripts in /scripts"
-
-# Archive non-production scripts
+# Count and archive scripts
 ARCHIVED_SCRIPTS=0
-cd scripts 2>/dev/null || { echo "  No scripts directory found, skipping..."; cd .; }
+cd scripts
 
-if [ "$(pwd | grep scripts)" ]; then
-    for script in *.py 2>/dev/null; do
-        if [ -f "$script" ]; then
-            if [[ ! " ${PRODUCTION_SCRIPTS[@]} " =~ " ${script} " ]]; then
-                echo "    Archiving: scripts/$script"
-                mv "$script" "../archive/2025-06-development/scripts/"
-                ((ARCHIVED_SCRIPTS++))
-            else
-                echo "    ✅ Keeping: scripts/$script (production essential)"
-            fi
+# Archive all scripts except production ones
+for script in *.py; do
+    if [ -f "$script" ]; then
+        if [ "$script" != "modal_web_endpoint_simple.py" ] && \
+           [ "$script" != "test_e2e_production.py" ] && \
+           [ "$script" != "quick_vc_test.py" ]; then
+            echo "    📦 Archiving: scripts/$script"
+            mv "$script" "../archive/2025-06-development/scripts/"
+            ARCHIVED_SCRIPTS=$((ARCHIVED_SCRIPTS + 1))
         fi
-    done
-    cd ..
-fi
+    fi
+done
 
-echo "  📊 Archived $ARCHIVED_SCRIPTS scripts, kept ${#PRODUCTION_SCRIPTS[@]} production scripts"
+cd ..
+
+echo "  📊 Archived $ARCHIVED_SCRIPTS scripts"
 echo ""
 
 echo "📦 Archiving documentation..."
 
-# Documentation files to archive
-DOCS_TO_ARCHIVE=(
-    "SPRINT_LOG_VECTOR_SEARCH_DEBUG.md"
-    "advisor_fixes/COMPLETE_CONTEXT_DOCUMENTATION.md"
-    "advisor_fixes/FULL_SESSION_CONTEXT_E2E_COMPLETE.md"
-)
+# Archive specific documentation files
+if [ -f "SPRINT_LOG_VECTOR_SEARCH_DEBUG.md" ]; then
+    echo "    📦 Archiving: SPRINT_LOG_VECTOR_SEARCH_DEBUG.md"
+    mv "SPRINT_LOG_VECTOR_SEARCH_DEBUG.md" "archive/development-notes/"
+fi
 
-ARCHIVED_DOCS=0
-for doc in "${DOCS_TO_ARCHIVE[@]}"; do
-    if [ -f "$doc" ]; then
-        echo "    Archiving: $doc"
-        mv "$doc" "archive/development-notes/"
-        ((ARCHIVED_DOCS++))
-    fi
+if [ -f "advisor_fixes/COMPLETE_CONTEXT_DOCUMENTATION.md" ]; then
+    echo "    📦 Archiving: advisor_fixes/COMPLETE_CONTEXT_DOCUMENTATION.md"
+    mv "advisor_fixes/COMPLETE_CONTEXT_DOCUMENTATION.md" "archive/development-notes/"
+fi
+
+if [ -f "advisor_fixes/FULL_SESSION_CONTEXT_E2E_COMPLETE.md" ]; then
+    echo "    📦 Archiving: advisor_fixes/FULL_SESSION_CONTEXT_E2E_COMPLETE.md"
+    mv "advisor_fixes/FULL_SESSION_CONTEXT_E2E_COMPLETE.md" "archive/development-notes/"
+fi
+
+# Archive debug and analysis files
+for pattern in "*DEBUG*" "*ANALYSIS*" "*COMPLETE_*" "*PLAYBOOK*" "SPRINT_LOG*"; do
+    for file in $pattern; do
+        if [ -f "$file" ]; then
+            echo "    📦 Archiving: $file"
+            mv "$file" "archive/development-notes/"
+        fi
+    done
 done
 
-# Archive any other debug/analysis files in root
-find . -maxdepth 1 -name "*DEBUG*" -o -name "*ANALYSIS*" -o -name "*COMPLETE_*" -o -name "*PLAYBOOK*" | while read file; do
-    if [ -f "$file" ] && [[ "$file" != "./advisor_fixes/"* ]]; then
-        echo "    Archiving: $file"
-        mv "$file" "archive/development-notes/"
-        ((ARCHIVED_DOCS++))
-    fi
-done
-
-echo "  📊 Archived documentation files"
+echo "  📊 Archived development documentation"
 echo ""
 
 echo "📦 Archiving test files..."
 
-# Test files to archive (keep main test interface)
-TEST_FILES_TO_ARCHIVE=(
-    "test-search-browser.html"
-    "test-podinsight-combined.html"
-)
-
 ARCHIVED_TESTS=0
-for test_file in "${TEST_FILES_TO_ARCHIVE[@]}"; do
-    if [ -f "$test_file" ]; then
-        echo "    Archiving: $test_file"
-        mv "$test_file" "archive/testing-archive/"
-        ((ARCHIVED_TESTS++))
-    fi
-done
+
+# Archive old test interfaces (keep the main one)
+if [ -f "test-search-browser.html" ]; then
+    echo "    📦 Archiving: test-search-browser.html"
+    mv "test-search-browser.html" "archive/testing-archive/"
+    ARCHIVED_TESTS=$((ARCHIVED_TESTS + 1))
+fi
+
+if [ -f "test-podinsight-combined.html" ]; then
+    echo "    📦 Archiving: test-podinsight-combined.html"
+    mv "test-podinsight-combined.html" "archive/testing-archive/"
+    ARCHIVED_TESTS=$((ARCHIVED_TESTS + 1))
+fi
+
+if [ -f "test-search-browser-enhanced.html" ]; then
+    echo "    📦 Archiving: test-search-browser-enhanced.html"
+    mv "test-search-browser-enhanced.html" "archive/testing-archive/"
+    ARCHIVED_TESTS=$((ARCHIVED_TESTS + 1))
+fi
+
+if [ -f "test-entities-browser.html" ]; then
+    echo "    📦 Archiving: test-entities-browser.html"
+    mv "test-entities-browser.html" "archive/testing-archive/"
+    ARCHIVED_TESTS=$((ARCHIVED_TESTS + 1))
+fi
 
 echo "  📊 Archived $ARCHIVED_TESTS test files"
 echo "  ✅ Keeping: test-podinsight-advanced.html (primary test interface)"
@@ -131,10 +139,10 @@ cat > archive/ARCHIVE_INDEX.md << EOF
 
 ---
 
-## 📁 Archive Structure
+## 📁 Archive Contents
 
 ### archive/2025-06-development/scripts/
-Development and test scripts from June 2025 cleanup:
+Development and test scripts:
 $(find archive/2025-06-development/scripts -name "*.py" 2>/dev/null | sed 's|archive/2025-06-development/scripts/|- |' || echo "- (No files)")
 
 ### archive/development-notes/
@@ -210,7 +218,7 @@ echo "  📦 Archived $ARCHIVED_SCRIPTS development/test scripts"
 echo "  📄 Archived development documentation"
 echo "  🌐 Archived $ARCHIVED_TESTS old test files"
 echo "  ✅ Kept 3 production scripts"
-echo "  ✅ Kept 3 essential documentation files"
+echo "  ✅ Kept essential documentation files"
 echo "  ✅ Kept 1 primary test interface"
 echo ""
 echo "📁 Archive location: ./archive/"
