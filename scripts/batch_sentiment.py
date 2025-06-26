@@ -37,6 +37,7 @@ class BatchSentimentProcessor:
         self.client = MongoClient(mongodb_uri)
         self.db = self.client['podinsight']
         self.chunks_collection = self.db['transcript_chunks_768d']
+        self.episodes_collection = self.db['episode_metadata']
         self.results_collection = self.db['sentiment_results']
 
         # Ensure unique index on topic + week + year
@@ -207,17 +208,32 @@ class BatchSentimentProcessor:
 
         topic_pattern = re.compile(search_pattern, re.IGNORECASE)
 
-        # Query chunks in this date range that mention the topic
-        query = {
-            "text": {"$regex": search_pattern, "$options": "i"},
-            "created_at": {
-                "$gte": week_info['start_date'],
-                "$lt": week_info['end_date']
-            }
-        }
+        # First, find episodes in this date range
+        start_date_iso = week_info['start_date'].strftime("%Y-%m-%d")
+        end_date_iso = week_info['end_date'].strftime("%Y-%m-%d")
 
-        # Count total chunks
-        chunk_count = self.chunks_collection.count_documents(query)
+        episode_ids = []
+        episodes = self.episodes_collection.find({
+            "raw_entry_original_feed.published_date_iso": {
+                "$gte": start_date_iso,
+                "$lt": end_date_iso
+            }
+        }, {"guid": 1})
+
+        episode_ids = [ep['guid'] for ep in episodes]
+
+        if not episode_ids:
+            logger.info(f"No episodes found in date range {start_date_iso} to {end_date_iso}")
+            chunk_count = 0
+        else:
+            # Query chunks from these episodes that mention the topic
+            query = {
+                "text": {"$regex": search_pattern, "$options": "i"},
+                "episode_id": {"$in": episode_ids}
+            }
+
+            # Count total chunks
+            chunk_count = self.chunks_collection.count_documents(query)
 
         if chunk_count == 0:
             logger.info(f"No chunks found for {topic} in {week_info['week_label']}")
