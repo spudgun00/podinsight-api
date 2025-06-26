@@ -264,20 +264,30 @@ class BatchSentimentProcessor:
     def store_result(self, result: Dict[str, Any]) -> bool:
         """Store result in MongoDB, handling duplicates"""
         try:
-            self.results_collection.insert_one(result)
-            return True
-        except DuplicateKeyError:
-            # Update existing record
+            # Use upsert to insert or update
             filter_query = {
                 'topic': result['topic'],
                 'week': result['week'],
                 'year': result['year']
             }
-            self.results_collection.replace_one(filter_query, result)
-            logger.info(f"Updated existing result for {result['topic']} {result['week']} {result['year']}")
+
+            # Remove _id if it exists to avoid update errors
+            update_doc = {k: v for k, v in result.items() if k != '_id'}
+
+            update_result = self.results_collection.update_one(
+                filter_query,
+                {'$set': update_doc},
+                upsert=True
+            )
+
+            if update_result.upserted_id:
+                logger.debug(f"Inserted new result for {result['topic']} {result['week']} {result['year']}")
+            else:
+                logger.info(f"Updated existing result for {result['topic']} {result['week']} {result['year']}")
+
             return True
         except Exception as e:
-            logger.error(f"Failed to store result: {e}")
+            logger.error(f"Failed to store result: {e}, full error: {e.args[0] if e.args else 'No details'}")
             return False
 
     def run_batch_process(self, weeks: int = 12) -> Dict[str, Any]:
