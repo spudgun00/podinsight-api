@@ -18,18 +18,27 @@ _handler_instance = None
 
 
 class MongoVectorSearchHandler:
+    # Class-level client to share across instances
+    _client = None
+    
     def __init__(self):
+        self.cache = OrderedDict()
+        self.max_cache_size = 100
+        self.cache_ttl = 300  # 5 minutes
+    
+    def _get_collection(self):
+        """Always return a collection bound to *this* event loop."""
         uri = os.getenv("MONGODB_URI")
         db_name = os.getenv("MONGODB_DATABASE", "podinsight")
         
         if not uri:
             logger.warning("MONGODB_URI not set, vector search disabled")
-            self._client = None
-            self._db_name = None
-            self.db = None  # Compatibility property
-        else:
-            # One Motor client that survives across requests
-            self._client = AsyncIOMotorClient(
+            return None
+            
+        # Create client once at class level
+        if MongoVectorSearchHandler._client is None:
+            logger.info("Creating MongoDB client (class-level)")
+            MongoVectorSearchHandler._client = AsyncIOMotorClient(
                 uri,
                 serverSelectionTimeoutMS=10000,
                 connectTimeoutMS=10000,
@@ -37,21 +46,10 @@ class MongoVectorSearchHandler:
                 maxPoolSize=10,
                 retryWrites=True
             )
-            self._db_name = db_name
-            self.db = self._client[db_name]  # Compatibility property
         
-        self.cache = OrderedDict()
-        self.max_cache_size = 100
-        self.cache_ttl = 300  # 5 minutes
-    
-    def _db(self):
-        """Return DB object (cheap property lookup)."""
-        return self._client[self._db_name] if self._client else None
-    
-    def _collection(self):
-        """Return a fresh Collection bound to *this* event-loop."""
-        db = self._db()
-        return db["transcript_chunks_768d"] if db is not None else None
+        # Always get fresh collection reference for current event loop
+        db = MongoVectorSearchHandler._client[db_name]
+        return db["transcript_chunks_768d"]
     
     async def vector_search(self, 
                           embedding: List[float], 
@@ -60,17 +58,18 @@ class MongoVectorSearchHandler:
         """
         Perform vector search using MongoDB Atlas Vector Search
         """
-        logger.info(
-            "[VECTOR_SEARCH_ENTER] db=%s col=%s dim=%d",
-            self._db_name if self._db_name else "None",
-            "transcript_chunks_768d",
-            len(embedding)
-        )
-        
-        collection = self._collection()
+        # Get fresh collection for this request
+        collection = self._get_collection()
         if collection is None:
             logger.warning("MongoDB not connected for vector search")
             return []
+            
+        logger.info(
+            "[VECTOR_SEARCH_ENTER] db=%s col=%s dim=%d",
+            os.getenv("MONGODB_DATABASE", "podinsight"),
+            "transcript_chunks_768d",
+            len(embedding)
+        )
         
         try:
             
@@ -152,8 +151,9 @@ class MongoVectorSearchHandler:
     
     async def close(self):
         """Close MongoDB connection"""
-        if self._client:
-            self._client.close()
+        if MongoVectorSearchHandler._client:
+            MongoVectorSearchHandler._client.close()
+            MongoVectorSearchHandler._client = None
 
 # Use global instance for connection pooling
 async def get_vector_search_handler() -> MongoVectorSearchHandler:

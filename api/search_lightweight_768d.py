@@ -289,97 +289,97 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             # Get MongoDB vector search handler
             vector_handler = await get_vector_search_handler()
             
-            if vector_handler.db is not None:
-                logger.info(f"Using MongoDB 768D vector search: {clean_query}")
-                
-                # Perform vector search - fetch enough results for pagination
-                num_to_fetch = request.limit + request.offset
-                logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
-                logger.warning(
-                    "[VECTOR_HANDLER] about to call %s from module %s",
-                    vector_handler.__class__.__qualname__,
-                    vector_handler.__class__.__module__,
+            # Always try vector search if we have an embedding
+            logger.info(f"Using MongoDB 768D vector search: {clean_query}")
+            
+            # Perform vector search - fetch enough results for pagination
+            num_to_fetch = request.limit + request.offset
+            logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
+            logger.warning(
+                "[VECTOR_HANDLER] about to call %s from module %s",
+                vector_handler.__class__.__qualname__,
+                vector_handler.__class__.__module__,
+            )
+            try:
+                start = time.time()
+                vector_results = await vector_handler.vector_search(
+                    embedding_768d,
+                    limit=num_to_fetch,
+                    min_score=0.0  # Lowered threshold to debug - was 0.7
                 )
-                try:
-                    start = time.time()
-                    vector_results = await vector_handler.vector_search(
-                        embedding_768d,
-                        limit=num_to_fetch,
-                        min_score=0.0  # Lowered threshold to debug - was 0.7
-                    )
-                    logger.info("[VECTOR_LATENCY] %.1f ms", (time.time()-start)*1000)
-                except Exception as ve:
-                    logger.error(f"[VECTOR_SEARCH_ERROR] Exception during vector search: {str(ve)}")
-                    logger.error(f"[VECTOR_SEARCH_ERROR] Type: {type(ve).__name__}")
-                    import traceback
-                    logger.error(f"[VECTOR_SEARCH_ERROR] Traceback: {traceback.format_exc()}")
-                    vector_results = []
-                logger.info(f"Vector search returned {len(vector_results)} results")
-                
-                # ALWAYS log first result for debugging
+                logger.info("[VECTOR_LATENCY] %.1f ms", (time.time()-start)*1000)
+            except Exception as ve:
+                logger.error(f"[VECTOR_SEARCH_ERROR] Exception during vector search: {str(ve)}")
+                logger.error(f"[VECTOR_SEARCH_ERROR] Type: {type(ve).__name__}")
+                import traceback
+                logger.error(f"[VECTOR_SEARCH_ERROR] Traceback: {traceback.format_exc()}")
+                vector_results = []
+            logger.info(f"Vector search returned {len(vector_results)} results")
+            
+            # ALWAYS log first result for debugging
+            if vector_results:
+                first_result = vector_results[0]
+                logger.info(f"[ALWAYS_LOG] First result score: {first_result.get('score', 'NO_SCORE')}")
+                logger.info(f"[ALWAYS_LOG] First result keys: {list(first_result.keys())[:10]}")
+            else:
+                logger.info(f"[ALWAYS_LOG] Vector search returned EMPTY results for '{clean_query}'")
+            
+            if DEBUG_MODE:
+                logger.info(f"[DEBUG] search_id: {search_id}")
+                logger.info(f"[DEBUG] clean_query: {clean_query}")
+                logger.info(f"[DEBUG] vector_results_raw_count: {len(vector_results)}")
                 if vector_results:
-                    first_result = vector_results[0]
-                    logger.info(f"[ALWAYS_LOG] First result score: {first_result.get('score', 'NO_SCORE')}")
-                    logger.info(f"[ALWAYS_LOG] First result keys: {list(first_result.keys())[:10]}")
+                    logger.info(f"[DEBUG] vector_results_top_score: {vector_results[0].get('score', 0):.4f}")
+                    # Add raw dump of first 3 results
+                    logger.info(f"[DEBUG] raw vector hits: {json.dumps(vector_results[:3], default=str)[:500]}")
                 else:
-                    logger.info(f"[ALWAYS_LOG] Vector search returned EMPTY results for '{clean_query}'")
+                    logger.info(f"[DEBUG] vector_results_top_score: N/A (no results)")
+            
+            # Apply offset - slice from offset to end, not offset+limit
+            paginated_results = vector_results[request.offset:]
+            if len(paginated_results) > request.limit:
+                paginated_results = paginated_results[:request.limit]
+            logger.info(f"After pagination: {len(paginated_results)} results (offset={request.offset}, limit={request.limit})")
+            
+            # Convert to API format with expanded context
+            formatted_results = []
+            for result in paginated_results:
+                # Expand context for better readability
+                expanded_text = await expand_chunk_context(result, context_seconds=20.0)
                 
-                if DEBUG_MODE:
-                    logger.info(f"[DEBUG] search_id: {search_id}")
-                    logger.info(f"[DEBUG] clean_query: {clean_query}")
-                    logger.info(f"[DEBUG] vector_results_raw_count: {len(vector_results)}")
-                    if vector_results:
-                        logger.info(f"[DEBUG] vector_results_top_score: {vector_results[0].get('score', 0):.4f}")
-                        # Add raw dump of first 3 results
-                        logger.info(f"[DEBUG] raw vector hits: {json.dumps(vector_results[:3], default=str)[:500]}")
-                    else:
-                        logger.info(f"[DEBUG] vector_results_top_score: N/A (no results)")
-                
-                # Apply offset - slice from offset to end, not offset+limit
-                paginated_results = vector_results[request.offset:]
-                if len(paginated_results) > request.limit:
-                    paginated_results = paginated_results[:request.limit]
-                logger.info(f"After pagination: {len(paginated_results)} results (offset={request.offset}, limit={request.limit})")
-                
-                # Convert to API format with expanded context
-                formatted_results = []
-                for result in paginated_results:
-                    # Expand context for better readability
-                    expanded_text = await expand_chunk_context(result, context_seconds=20.0)
-                    
-                    # Vector search provides chunks with timestamps
-                    # Handle published_at - it comes as string from Supabase
-                    published_at_str = result.get("published_at")
-                    if published_at_str:
-                        try:
-                            from dateutil import parser
-                            published_dt = parser.parse(published_at_str)
-                            published_at_iso = published_dt.isoformat()
-                            published_date = published_dt.strftime('%B %d, %Y')
-                        except:
-                            published_at_iso = published_at_str
-                            published_date = "Unknown date"
-                    else:
-                        published_at_iso = datetime.now().isoformat()
+                # Vector search provides chunks with timestamps
+                # Handle published_at - it comes as string from Supabase
+                published_at_str = result.get("published_at")
+                if published_at_str:
+                    try:
+                        from dateutil import parser
+                        published_dt = parser.parse(published_at_str)
+                        published_at_iso = published_dt.isoformat()
+                        published_date = published_dt.strftime('%B %d, %Y')
+                    except:
+                        published_at_iso = published_at_str
                         published_date = "Unknown date"
-                    
-                    formatted_results.append(SearchResult(
-                        episode_id=result["episode_id"],
-                        podcast_name=result["podcast_name"],
-                        episode_title=result["episode_title"],
-                        published_at=published_at_iso,
-                        published_date=published_date,
-                        similarity_score=float(result.get("score", 0.0)) if result.get("score") is not None else 0.0,
-                        excerpt=expanded_text,  # Use expanded text instead of single chunk
-                        word_count=len(expanded_text.split()),
-                        duration_seconds=result.get("duration_seconds", 0),
-                        topics=result.get("topics", []),
-                        s3_audio_path=result.get("s3_audio_path"),
-                        timestamp={
-                            "start_time": result.get("start_time", 0),  # Keep original timestamp for audio sync
-                            "end_time": result.get("end_time", 0)
-                        }
-                    ))
+                else:
+                    published_at_iso = datetime.now().isoformat()
+                    published_date = "Unknown date"
+                
+                formatted_results.append(SearchResult(
+                    episode_id=result["episode_id"],
+                    podcast_name=result.get("podcast_name", "Unknown"),
+                    episode_title=result.get("episode_title", "Unknown Episode"),
+                    published_at=published_at_iso,
+                    published_date=published_date,
+                    similarity_score=float(result.get("score", 0.0)) if result.get("score") is not None else 0.0,
+                    excerpt=expanded_text,  # Use expanded text instead of single chunk
+                    word_count=len(expanded_text.split()),
+                    duration_seconds=result.get("duration_seconds", 0),
+                    topics=result.get("topics", []),
+                    s3_audio_path=result.get("s3_audio_path"),
+                    timestamp={
+                        "start_time": result.get("start_time", 0),  # Keep original timestamp for audio sync
+                        "end_time": result.get("end_time", 0)
+                    }
+                ))
                 
                 # Audio paths and durations are now included in vector search results
                 # from the fixed mongodb_vector_search.py enrichment
