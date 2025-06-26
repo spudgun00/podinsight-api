@@ -18,7 +18,7 @@
             overflow: hidden;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
+
         /* Tab Navigation */
         .tab-nav {
             display: flex;
@@ -45,7 +45,7 @@
             background: #e9ecef;
             color: #333;
         }
-        
+
         /* Tab Content */
         .tab-content {
             display: none;
@@ -54,7 +54,7 @@
         .tab-content.active {
             display: block;
         }
-        
+
         /* Console/Log Section */
         .console-section {
             position: fixed;
@@ -121,12 +121,12 @@
         .log-type.warning { background: #cc6600; color: #fff; }
         .log-type.error { background: #a31515; color: #fff; }
         .log-type.debug { background: #6a1b9a; color: #fff; }
-        
+
         /* Main content adjustment for console */
         body.console-open {
             padding-bottom: 320px;
         }
-        
+
         h1 {
             color: #333;
             margin-bottom: 10px;
@@ -135,7 +135,7 @@
             color: #666;
             margin-bottom: 30px;
         }
-        
+
         /* Search Section Styles */
         .search-section {
             margin-bottom: 40px;
@@ -175,7 +175,7 @@
         button:active {
             transform: translateY(1px);
         }
-        
+
         /* Quick Test Buttons */
         .quick-tests {
             margin-top: 20px;
@@ -213,7 +213,7 @@
             background: #1565c0;
             color: white;
         }
-        
+
         /* Results Styles */
         .results {
             margin-top: 20px;
@@ -235,7 +235,7 @@
             border-radius: 20px;
             color: #1565c0;
         }
-        
+
         /* Search Results */
         .search-result {
             border: 1px solid #e0e0e0;
@@ -275,7 +275,7 @@
             font-size: 14px;
             color: #666;
         }
-        
+
         /* Entity Results */
         .entity-card {
             border: 1px solid #e0e0e0;
@@ -307,7 +307,7 @@
         .type-ORG { background: #f3e5f5; color: #6a1b9a; }
         .type-GPE { background: #e8f5e9; color: #2e7d32; }
         .type-MONEY { background: #fff3e0; color: #e65100; }
-        
+
         /* Stats Section */
         .stats-dashboard {
             display: grid;
@@ -332,7 +332,7 @@
             color: #666;
             text-transform: uppercase;
         }
-        
+
         /* Loading and Error States */
         .loading {
             text-align: center;
@@ -359,7 +359,7 @@
             border-radius: 4px;
             margin-top: 20px;
         }
-        
+
         /* Edge Case Testing Section */
         .edge-tests {
             margin-top: 30px;
@@ -382,12 +382,12 @@
             <button class="tab-button" onclick="switchTab('entities')">👥 Entity Search</button>
             <button class="tab-button" onclick="switchTab('diagnostics')">🔧 Diagnostics</button>
         </div>
-        
+
         <!-- Search Tab Content -->
         <div id="search-tab" class="tab-content active">
             <h1>Advanced Transcript Search Testing</h1>
             <p class="subtitle">Test semantic search with comprehensive logging and edge cases</p>
-            
+
             <div class="search-section">
                 <h3>🔍 Search Configuration</h3>
                 <div class="search-controls">
@@ -396,10 +396,10 @@
                     <button onclick="performSearch()">Search</button>
                     <button onclick="clearSearch()" style="background: #6c757d;">Clear</button>
                 </div>
-                
+
                 <div class="quick-tests">
                     <h4>Quick Test Scenarios</h4>
-                    
+
                     <div class="test-category">
                         <h5>🤖 AI/ML Topics</h5>
                         <div class="test-buttons">
@@ -410,7 +410,7 @@
                             <button class="test-btn" onclick="runQuickTest('AI infrastructure costs', 5)">AI costs</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>💰 Investment & Funding</h5>
                         <div class="test-buttons">
@@ -421,7 +421,7 @@
                             <button class="test-btn" onclick="runQuickTest('SAFE notes YC terms', 5)">SAFE notes</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>🚀 Startup Strategy</h5>
                         <div class="test-buttons">
@@ -432,7 +432,7 @@
                             <button class="test-btn" onclick="runQuickTest('startup growth hacking', 5)">Growth hacking</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>🔗 Crypto & Web3</h5>
                         <div class="test-buttons">
@@ -443,7 +443,7 @@
                             <button class="test-btn" onclick="runQuickTest('Web3 infrastructure plays', 5)">Web3 infra</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>🧪 Edge Cases & Special Characters</h5>
                         <div class="test-buttons">
@@ -460,12 +460,12 @@
 
             <div id="searchResults" class="results"></div>
         </div>
-        
+
         <!-- Entities Tab Content -->
         <div id="entities-tab" class="tab-content">
             <h1>Advanced Entity Search Testing</h1>
             <p class="subtitle">Test entity extraction and tracking with comprehensive filters</p>
-            
+
             <div class="search-section">
                 <h3>🔍 Entity Search Configuration</h3>
                 <div class="search-controls">
@@ -487,10 +487,10 @@
                     <button onclick="searchEntities()">Search</button>
                     <button onclick="clearEntitySearch()" style="background: #6c757d;">Clear</button>
                 </div>
-                
+
                 <div class="quick-tests">
                     <h4>Quick Entity Tests</h4>
-                    
+
                     <div class="test-category">
                         <h5>🏢 Companies</h5>
                         <div class="test-buttons">
@@ -501,7 +501,7 @@
                             <button class="test-btn" onclick="runEntityTest('Y Combinator', 'ORG')">Y Combinator</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>👤 People</h5>
                         <div class="test-buttons">
@@ -512,7 +512,7 @@
                             <button class="test-btn" onclick="runEntityTest('', 'PERSON', 10)">Top 10 People</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>📍 Locations</h5>
                         <div class="test-buttons">
@@ -522,7 +522,7 @@
                             <button class="test-btn" onclick="runEntityTest('', 'GPE', 10)">Top 10 Places</button>
                         </div>
                     </div>
-                    
+
                     <div class="test-category">
                         <h5>💵 Money & Valuations</h5>
                         <div class="test-buttons">
@@ -536,12 +536,12 @@
 
             <div id="entityResults" class="results"></div>
         </div>
-        
+
         <!-- Diagnostics Tab -->
         <div id="diagnostics-tab" class="tab-content">
             <h1>System Diagnostics & Health</h1>
             <p class="subtitle">Monitor API health, performance metrics, and system status</p>
-            
+
             <div class="stats-dashboard" id="statsContainer">
                 <div class="stat-card">
                     <div class="stat-value" id="totalRequests">0</div>
@@ -560,7 +560,7 @@
                     <div class="stat-label">Last Error</div>
                 </div>
             </div>
-            
+
             <div class="search-section">
                 <h3>🏥 Health Checks</h3>
                 <div class="test-buttons">
@@ -571,7 +571,7 @@
                     <button class="test-btn" onclick="testTimeout()">Test Timeout (1s)</button>
                 </div>
             </div>
-            
+
             <div id="diagnosticsResults" class="results"></div>
         </div>
     </div>
@@ -593,7 +593,7 @@
         // Configuration
         const API_BASE = 'https://podinsight-api.vercel.app';
         const MODAL_ENDPOINT = 'https://podinsighthq--podinsight-embeddings-simple-generate-embedding.modal.run';
-        
+
         // State management
         let requestStats = {
             total: 0,
@@ -602,17 +602,17 @@
             responseTimes: [],
             lastError: null
         };
-        
+
         // Auto-save logs
         let allLogs = [];
         let sessionId = new Date().toISOString().replace(/[:.]/g, '-');
-        
+
         // Console logging with auto-save
         function log(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const fullTimestamp = new Date().toISOString();
             const consoleContent = document.getElementById('consoleContent');
-            
+
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `
@@ -620,10 +620,10 @@
                 <span class="log-type ${type}">${type.toUpperCase()}</span>
                 <span>${message}</span>
             `;
-            
+
             consoleContent.appendChild(logEntry);
             consoleContent.scrollTop = consoleContent.scrollHeight;
-            
+
             // Store log entry
             const logData = {
                 timestamp: fullTimestamp,
@@ -631,14 +631,14 @@
                 message: message
             };
             allLogs.push(logData);
-            
+
             // Also log to browser console
             console.log(`[${type.toUpperCase()}] ${message}`);
-            
+
             // Auto-save logs to localStorage
             saveLogsToStorage();
         }
-        
+
         function saveLogsToStorage() {
             try {
                 localStorage.setItem(`podinsight-logs-${sessionId}`, JSON.stringify({
@@ -652,12 +652,12 @@
                 console.error('Failed to save logs to localStorage:', e);
             }
         }
-        
+
         function clearConsole() {
             document.getElementById('consoleContent').innerHTML = '';
             log('Console cleared', 'info');
         }
-        
+
         function toggleConsole() {
             const consoleEl = document.getElementById('console');
             if (consoleEl.style.display === 'none') {
@@ -668,19 +668,19 @@
                 document.body.classList.remove('console-open');
             }
         }
-        
+
         function downloadLogs() {
             // Create comprehensive log report
             const report = {
                 sessionId: sessionId,
                 testDate: new Date().toISOString(),
-                duration: allLogs.length > 0 ? 
+                duration: allLogs.length > 0 ?
                     new Date() - new Date(allLogs[0].timestamp) : 0,
                 summary: {
                     totalRequests: requestStats.total,
                     successful: requestStats.successful,
                     failed: requestStats.failed,
-                    successRate: requestStats.total > 0 ? 
+                    successRate: requestStats.total > 0 ?
                         ((requestStats.successful / requestStats.total) * 100).toFixed(2) + '%' : '0%',
                     averageResponseTime: requestStats.responseTimes.length > 0 ?
                         (requestStats.responseTimes.reduce((a, b) => a + b, 0) / requestStats.responseTimes.length).toFixed(2) + 'ms' : 'N/A',
@@ -690,7 +690,7 @@
                 logs: allLogs,
                 rawConsoleText: document.getElementById('consoleContent').innerText
             };
-            
+
             // Create formatted text version
             let textReport = `PodInsight Test Report
 ====================================
@@ -715,11 +715,11 @@ RAW CONSOLE OUTPUT
 ------------------
 ${report.rawConsoleText}
 `;
-            
+
             // Save both JSON and text versions
             const jsonBlob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
             const textBlob = new Blob([textReport], { type: 'text/plain' });
-            
+
             // Download JSON
             const jsonUrl = window.URL.createObjectURL(jsonBlob);
             const jsonLink = document.createElement('a');
@@ -727,7 +727,7 @@ ${report.rawConsoleText}
             jsonLink.download = `podinsight-test-report-${sessionId}.json`;
             jsonLink.click();
             window.URL.revokeObjectURL(jsonUrl);
-            
+
             // Download text
             setTimeout(() => {
                 const textUrl = window.URL.createObjectURL(textBlob);
@@ -737,45 +737,45 @@ ${report.rawConsoleText}
                 textLink.click();
                 window.URL.revokeObjectURL(textUrl);
             }, 100);
-            
+
             log('Test report downloaded (JSON + TXT formats)', 'success');
         }
-        
+
         // Tab switching
         function switchTab(tabName) {
             log(`Switching to ${tabName} tab`, 'info');
-            
+
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
-            
+
             document.querySelectorAll('.tab-button').forEach(button => {
                 button.classList.remove('active');
             });
-            
+
             document.getElementById(tabName + '-tab').classList.add('active');
             event.target.classList.add('active');
         }
-        
+
         // Helper functions
         function generateLongText() {
             return 'venture capital funding ' + 'startup ecosystem innovation '.repeat(100);
         }
-        
+
         function updateStats() {
             document.getElementById('totalRequests').textContent = requestStats.total;
-            document.getElementById('successRate').textContent = 
-                requestStats.total > 0 ? 
+            document.getElementById('successRate').textContent =
+                requestStats.total > 0 ?
                 Math.round((requestStats.successful / requestStats.total) * 100) + '%' : '0%';
-            
+
             if (requestStats.responseTimes.length > 0) {
                 const avgTime = requestStats.responseTimes.reduce((a, b) => a + b, 0) / requestStats.responseTimes.length;
                 document.getElementById('avgResponseTime').textContent = Math.round(avgTime) + 'ms';
             }
-            
+
             document.getElementById('lastError').textContent = requestStats.lastError || 'None';
         }
-        
+
         // Search functionality
         function runQuickTest(query, limit = 5) {
             log(`Running quick test: "${query}" (limit: ${limit})`, 'info');
@@ -783,28 +783,28 @@ ${report.rawConsoleText}
             document.getElementById('searchLimit').value = limit;
             performSearch();
         }
-        
+
         async function performSearch() {
             const query = document.getElementById('searchQuery').value;
             const limit = document.getElementById('searchLimit').value || 5;
-            
+
             log(`Performing search: query="${query}", limit=${limit}`, 'info');
-            
+
             if (!query && query !== '') {
                 log('Search cancelled: No query provided', 'warning');
                 alert('Please enter a search query');
                 return;
             }
-            
+
             const resultsDiv = document.getElementById('searchResults');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching transcripts...</div>';
-            
+
             const startTime = performance.now();
             requestStats.total++;
-            
+
             try {
                 log(`Sending POST request to ${API_BASE}/api/search`, 'debug');
-                
+
                 const response = await fetch(`${API_BASE}/api/search`, {
                     method: 'POST',
                     headers: {
@@ -816,43 +816,43 @@ ${report.rawConsoleText}
                         offset: 0
                     })
                 });
-                
+
                 const endTime = performance.now();
                 const responseTime = Math.round(endTime - startTime);
                 requestStats.responseTimes.push(responseTime);
-                
-                log(`Response received: status=${response.status}, time=${responseTime}ms`, 
+
+                log(`Response received: status=${response.status}, time=${responseTime}ms`,
                     response.ok ? 'success' : 'error');
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || `HTTP ${response.status}: Search failed`);
                 }
-                
+
                 requestStats.successful++;
                 log(`Search successful: ${data.total_results} results found`, 'success');
                 displaySearchResults(data, responseTime);
-                
+
             } catch (error) {
                 requestStats.failed++;
                 requestStats.lastError = error.message;
                 log(`Search failed: ${error.message}`, 'error');
                 resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
-            
+
             updateStats();
         }
-        
+
         function displaySearchResults(data, responseTime) {
             const resultsDiv = document.getElementById('searchResults');
-            
+
             if (!data.results || data.results.length === 0) {
                 resultsDiv.innerHTML = '<div class="error">No results found</div>';
                 log('No results found for query', 'warning');
                 return;
             }
-            
+
             let html = `
                 <div class="results-header">
                     <h3>Search Results</h3>
@@ -863,19 +863,22 @@ ${report.rawConsoleText}
                     </div>
                 </div>
             `;
-            
+
             html += data.results.map((result, index) => {
                 log(`Result ${index + 1}: ${result.episode_title} (${Math.round(result.similarity_score * 100)}% relevant)`, 'debug');
-                
+
                 return `
                     <div class="search-result">
                         <div class="result-header">
-                            <div class="episode-title">${result.episode_title || 'Unknown Episode'}</div>
+                            <div>
+                                <div class="podcast-name" style="font-size: 14px; color: #666; margin-bottom: 4px;">${result.podcast_name || 'Unknown Podcast'}</div>
+                                <div class="episode-title">${result.episode_title || 'Unknown Episode'}</div>
+                            </div>
                             <div class="relevance-score">${Math.round(result.similarity_score * 100)}% relevant</div>
                         </div>
-                        
+
                         <div class="excerpt">${result.excerpt}</div>
-                        
+
                         <div class="metadata">
                             <span><strong>Published:</strong> ${result.published_at ? new Date(result.published_at).toLocaleDateString() : 'Unknown'}</span>
                             <span><strong>Episode ID:</strong> ${result.episode_id || 'N/A'}</span>
@@ -884,16 +887,16 @@ ${report.rawConsoleText}
                     </div>
                 `;
             }).join('');
-            
+
             resultsDiv.innerHTML = html;
         }
-        
+
         function clearSearch() {
             document.getElementById('searchQuery').value = '';
             document.getElementById('searchResults').innerHTML = '';
             log('Search cleared', 'info');
         }
-        
+
         // Entity search functionality
         function runEntityTest(search, type, limit = 10) {
             log(`Running entity test: search="${search}", type=${type}, limit=${limit}`, 'info');
@@ -902,68 +905,68 @@ ${report.rawConsoleText}
             document.getElementById('entityLimit').value = limit;
             searchEntities();
         }
-        
+
         async function searchEntities() {
             const search = document.getElementById('entitySearch').value;
             const type = document.getElementById('entityType').value;
             const timeframe = document.getElementById('timeframe').value;
             const limit = document.getElementById('entityLimit').value || 10;
-            
+
             log(`Searching entities: search="${search}", type=${type}, timeframe=${timeframe}, limit=${limit}`, 'info');
-            
+
             const resultsDiv = document.getElementById('entityResults');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching entities...</div>';
-            
+
             const startTime = performance.now();
             requestStats.total++;
-            
+
             try {
                 const params = new URLSearchParams();
                 if (search) params.append('search', search);
                 if (type) params.append('type', type);
                 if (timeframe) params.append('timeframe', timeframe);
                 params.append('limit', limit);
-                
+
                 const url = `${API_BASE}/api/entities?${params}`;
                 log(`Sending GET request to ${url}`, 'debug');
-                
+
                 const response = await fetch(url);
                 const endTime = performance.now();
                 const responseTime = Math.round(endTime - startTime);
                 requestStats.responseTimes.push(responseTime);
-                
-                log(`Response received: status=${response.status}, time=${responseTime}ms`, 
+
+                log(`Response received: status=${response.status}, time=${responseTime}ms`,
                     response.ok ? 'success' : 'error');
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || `HTTP ${response.status}: Entity search failed`);
                 }
-                
+
                 requestStats.successful++;
                 log(`Entity search successful: ${data.total_entities} entities found`, 'success');
                 displayEntityResults(data, responseTime);
-                
+
             } catch (error) {
                 requestStats.failed++;
                 requestStats.lastError = error.message;
                 log(`Entity search failed: ${error.message}`, 'error');
                 resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
-            
+
             updateStats();
         }
-        
+
         function displayEntityResults(data, responseTime) {
             const resultsDiv = document.getElementById('entityResults');
-            
+
             if (!data.entities || data.entities.length === 0) {
                 resultsDiv.innerHTML = '<div class="error">No entities found</div>';
                 log('No entities found', 'warning');
                 return;
             }
-            
+
             let html = `
                 <div class="results-header">
                     <h3>Entity Results</h3>
@@ -974,10 +977,10 @@ ${report.rawConsoleText}
                     </div>
                 </div>
             `;
-            
+
             html += data.entities.map((entity, index) => {
                 log(`Entity ${index + 1}: ${entity.name} (${entity.type}) - ${entity.mention_count} mentions`, 'debug');
-                
+
                 return `
                     <div class="entity-card">
                         <div class="entity-header">
@@ -986,11 +989,11 @@ ${report.rawConsoleText}
                                 <span class="entity-type type-${entity.type}">${entity.type}</span>
                             </div>
                             <span class="trend trend-${entity.trend}">
-                                ${entity.trend === 'up' ? '↑' : entity.trend === 'down' ? '↓' : '→'} 
+                                ${entity.trend === 'up' ? '↑' : entity.trend === 'down' ? '↓' : '→'}
                                 ${entity.trend}
                             </span>
                         </div>
-                        
+
                         <div class="entity-stats">
                             <div class="stat">
                                 <div class="stat-value">${entity.mention_count}</div>
@@ -1004,26 +1007,26 @@ ${report.rawConsoleText}
                     </div>
                 `;
             }).join('');
-            
+
             resultsDiv.innerHTML = html;
         }
-        
+
         function clearEntitySearch() {
             document.getElementById('entitySearch').value = '';
             document.getElementById('entityType').value = '';
             document.getElementById('entityResults').innerHTML = '';
             log('Entity search cleared', 'info');
         }
-        
+
         // Diagnostics functionality
         async function checkAPIHealth() {
             log('Checking API health...', 'info');
             const resultsDiv = document.getElementById('diagnosticsResults');
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/health`);
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     log('API health check passed', 'success');
                     resultsDiv.innerHTML = `
@@ -1040,15 +1043,15 @@ ${report.rawConsoleText}
                 resultsDiv.innerHTML = `<div class="error">API Health Check Failed: ${error.message}</div>`;
             }
         }
-        
+
         async function checkModalHealth() {
             log('Checking Modal endpoint health...', 'info');
             const resultsDiv = document.getElementById('diagnosticsResults');
-            
+
             try {
                 const response = await fetch(`${MODAL_ENDPOINT.replace('generate-embedding', 'health-check')}`);
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     log('Modal health check passed', 'success');
                     resultsDiv.innerHTML = `
@@ -1065,15 +1068,15 @@ ${report.rawConsoleText}
                 resultsDiv.innerHTML = `<div class="error">Modal Health Check Failed: ${error.message}</div>`;
             }
         }
-        
+
         async function runStressTest(count) {
             log(`Starting stress test with ${count} concurrent requests...`, 'warning');
             const resultsDiv = document.getElementById('diagnosticsResults');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Running stress test...</div>';
-            
+
             const promises = [];
             const startTime = performance.now();
-            
+
             for (let i = 0; i < count; i++) {
                 promises.push(
                     fetch(`${API_BASE}/api/search`, {
@@ -1086,18 +1089,18 @@ ${report.rawConsoleText}
                     })
                 );
             }
-            
+
             try {
                 const results = await Promise.allSettled(promises);
                 const endTime = performance.now();
                 const totalTime = Math.round(endTime - startTime);
-                
+
                 const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
                 const failed = count - successful;
-                
-                log(`Stress test complete: ${successful}/${count} successful in ${totalTime}ms`, 
+
+                log(`Stress test complete: ${successful}/${count} successful in ${totalTime}ms`,
                     failed > 0 ? 'warning' : 'success');
-                
+
                 resultsDiv.innerHTML = `
                     <div class="search-result">
                         <h4>Stress Test Results</h4>
@@ -1113,14 +1116,14 @@ ${report.rawConsoleText}
                 resultsDiv.innerHTML = `<div class="error">Stress test failed: ${error.message}</div>`;
             }
         }
-        
+
         async function testTimeout() {
             log('Testing timeout behavior (1s limit)...', 'info');
             const resultsDiv = document.getElementById('diagnosticsResults');
-            
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 1000);
-            
+
             try {
                 const startTime = performance.now();
                 const response = await fetch(`${MODAL_ENDPOINT}`, {
@@ -1129,10 +1132,10 @@ ${report.rawConsoleText}
                     body: JSON.stringify({ text: 'timeout test' }),
                     signal: controller.signal
                 });
-                
+
                 clearTimeout(timeoutId);
                 const endTime = performance.now();
-                
+
                 log(`Request completed in ${Math.round(endTime - startTime)}ms`, 'success');
                 resultsDiv.innerHTML = `
                     <div class="search-result">
@@ -1155,7 +1158,7 @@ ${report.rawConsoleText}
                 }
             }
         }
-        
+
         // Session recovery functions
         function loadPreviousSessions() {
             const sessions = [];
@@ -1172,21 +1175,21 @@ ${report.rawConsoleText}
             }
             return sessions.sort((a, b) => new Date(b.lastUpdate) - new Date(a.lastUpdate));
         }
-        
+
         function showSessionHistory() {
             const sessions = loadPreviousSessions();
             if (sessions.length === 0) {
                 log('No previous test sessions found', 'info');
                 return;
             }
-            
+
             log(`Found ${sessions.length} previous test sessions:`, 'info');
             sessions.slice(0, 5).forEach((session, index) => {
                 const duration = new Date(session.lastUpdate) - new Date(session.startTime);
                 log(`Session ${index + 1}: ${new Date(session.startTime).toLocaleString()} - ${session.logs.length} logs, ${session.stats.total} requests`, 'debug');
             });
         }
-        
+
         // Auto-save test results on page unload
         window.addEventListener('beforeunload', () => {
             if (allLogs.length > 0) {
@@ -1195,17 +1198,17 @@ ${report.rawConsoleText}
                 sessionStorage.setItem('podinsight-last-session', sessionId);
             }
         });
-        
+
         // Initialize on load
         window.onload = () => {
             log('PodInsight Advanced Testing Suite initialized', 'success');
             log(`Session ID: ${sessionId}`, 'info');
             log(`API endpoint: ${API_BASE}`, 'info');
             log(`Modal endpoint: ${MODAL_ENDPOINT}`, 'info');
-            
+
             // Show session history
             showSessionHistory();
-            
+
             // Add auto-save indicator
             const consoleHeader = document.querySelector('.console-header');
             const autoSaveIndicator = document.createElement('span');
@@ -1214,13 +1217,13 @@ ${report.rawConsoleText}
             autoSaveIndicator.style.marginLeft = '10px';
             autoSaveIndicator.innerHTML = '✓ Auto-saving enabled';
             consoleHeader.querySelector('.console-title').appendChild(autoSaveIndicator);
-            
+
             updateStats();
-            
+
             // Log keyboard shortcuts
             log('Keyboard shortcuts: Ctrl+Enter to search, Ctrl+L to clear console, Ctrl+S to download logs', 'info');
         };
-        
+
         // Add keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             // Ctrl+Enter to search
@@ -1232,13 +1235,13 @@ ${report.rawConsoleText}
                     searchEntities();
                 }
             }
-            
+
             // Ctrl+L to clear console
             if (e.ctrlKey && e.key === 'l') {
                 e.preventDefault();
                 clearConsole();
             }
-            
+
             // Ctrl+S to save logs
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
