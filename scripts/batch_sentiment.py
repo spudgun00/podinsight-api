@@ -187,20 +187,20 @@ class BatchSentimentProcessor:
         words = topic.lower().split()
 
         if topic == "AI Agents":
-            # Search for "AI" AND "agent" (or variations)
-            search_pattern = "(?=.*\\b(ai|artificial intelligence)\\b)(?=.*\\b(agent|agents)\\b)"
+            # MongoDB doesn't support lookahead, so search for "AI" or "agent" keywords
+            search_pattern = "\\b(ai|artificial intelligence|ai agent|ai-agent|agents|agentic)\\b"
         elif topic == "Capital Efficiency":
-            # Search for "capital" OR "efficiency" in business context
-            search_pattern = "\\b(capital efficiency|capital.{0,20}efficien|efficien.{0,20}capital|capital allocation|burn rate)\\b"
+            # Search for capital or efficiency terms
+            search_pattern = "\\b(capital efficiency|capital|efficiency|burn rate|runway|unit economics)\\b"
         elif topic == "DePIN":
             # DePIN or decentralized physical infrastructure
-            search_pattern = "\\b(depin|decentralized physical|physical infrastructure network)\\b"
+            search_pattern = "\\b(depin|decentralized physical|physical infrastructure)\\b"
         elif topic == "B2B SaaS":
             # B2B or SaaS
-            search_pattern = "\\b(b2b|business.to.business|saas|software.as.a.service)\\b"
+            search_pattern = "\\b(b2b|business to business|saas|software as a service|enterprise software)\\b"
         elif topic == "Crypto/Web3":
             # Crypto or Web3 or blockchain
-            search_pattern = "\\b(crypto|web3|web 3|blockchain|defi|nft|token|ethereum|bitcoin)\\b"
+            search_pattern = "\\b(crypto|web3|web 3|blockchain|defi|nft|token|ethereum|bitcoin|cryptocurrency)\\b"
         else:
             # Default: escape the topic as-is
             search_pattern = re.escape(topic)
