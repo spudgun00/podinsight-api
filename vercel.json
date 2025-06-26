@@ -16,6 +16,10 @@
       "destination": "/api/diag"
     },
     {
+      "source": "/api/sentiment_analysis_v2",
+      "destination": "/api/sentiment_analysis_v2"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     }
