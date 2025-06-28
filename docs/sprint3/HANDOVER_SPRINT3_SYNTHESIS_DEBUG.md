@@ -99,7 +99,7 @@ models = client.models.list()
 
 ### What's Fixed
 ✅ ObjectId serialization error resolved (commit: a434796)
-✅ Synthesis is working successfully  
+✅ Synthesis is working successfully
 ✅ Response size is reasonable (12.3 KB for 10 results)
 ✅ DEBUG_MODE confirmed disabled
 
@@ -138,22 +138,68 @@ if "_id" in clean_chunk:
 4. Error handling and retry attempts: ~28 seconds ⏱️
 5. Final timeout: 30 seconds ❌
 
-## UPDATE: Still Investigating
+## SOLUTION FOUND! 🎯
 
-Initially thought DEBUG_MODE was the issue, but timeout persists even after disabling it.
+### Root Cause: N+1 Query Problem in expand_chunk_context
 
-### What We've Tried
-1. ✅ Added serialization timing logs (caused 500 errors)
-2. ✅ Fixed return type issue (removed FastAPI Response)
-3. ✅ Disabled DEBUG_MODE in Vercel
-4. ✅ Simplified logging to avoid serialization test (commit: 1c0b787)
-5. ⏳ Still getting 30-second timeouts
+With help from Gemini ("Dr. Watson"), we identified the performance bottleneck:
 
-### Remaining Suspects
-1. The response is still too large even without raw_chunks
-2. There's a hanging async operation somewhere
-3. MongoDB connection issues
-4. Something else in the response path
+**The Problem:**
+- `expand_chunk_context` is called for EACH search result (line 367)
+- Each call creates a new MongoDB connection via `get_vector_search_handler()`
+- Each call executes a separate MongoDB query
+- For 10 results: 10 × ~2 seconds = 20 seconds of delay
+
+**The Evidence:**
+```python
+# In search_lightweight_768d.py line 367:
+for result in paginated_results:
+    expanded_text = await expand_chunk_context(result, context_seconds=20.0)
+
+# In expand_chunk_context line 214:
+vector_handler = await get_vector_search_handler()  # New connection!
+```
+
+### Immediate Fix (Commit: a4546ac)
+Temporarily disabled context expansion to restore acceptable performance:
+- Commented out the expand_chunk_context call
+- Using original chunk text instead
+- Added timing logs to confirm the bottleneck
+- Expected improvement: 21s → ~3s response time
+
+### Permanent Solution (To Implement)
+Replace N+1 queries with batch fetching:
+
+```python
+# Instead of calling expand_chunk_context for each result:
+# 1. Collect all episode_ids and time windows
+time_windows = []
+for result in paginated_results:
+    time_windows.append({
+        "episode_id": result["episode_id"],
+        "start": result["start_time"] - 20,
+        "end": result["end_time"] + 20
+    })
+
+# 2. Single batch query using $or operator
+expanded_chunks = await collection.find({
+    "$or": [
+        {
+            "episode_id": tw["episode_id"],
+            "start_time": {"$gte": tw["start"], "$lte": tw["end"]}
+        }
+        for tw in time_windows
+    ]
+}).to_list(None)
+
+# 3. Group by episode_id and merge texts
+# 4. Map back to original results
+```
+
+### Additional Optimizations
+1. **Connection Pooling**: Reuse MongoDB connections instead of creating new ones
+2. **Caching**: Cache expanded contexts for frequently accessed chunks
+3. **Async Batching**: Process expansions concurrently if needed
 
 ## SOLUTION FOUND!
 
@@ -162,7 +208,7 @@ The issue is almost certainly that **DEBUG_MODE is enabled in production Vercel*
 ### Immediate Fix
 Remove DEBUG_MODE=true from Vercel environment variables. This will:
 - Stop including raw_chunks in responses
-- Reduce payload size by 90%+  
+- Reduce payload size by 90%+
 - Fix the timeout issue
 
 ### How to Fix
