@@ -6,6 +6,7 @@ Tertiary: Supabase pgvector (384D)
 """
 import os
 import logging
+from bson import ObjectId
 logging.basicConfig(level="INFO")
 logging.info("[BOOT-FILE] %s  commit=%s",
              __file__,
@@ -449,7 +450,16 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 synthesis_start = time.time()
                 try:
                     # Use the first 10 raw vector results for synthesis (before pagination)
-                    chunks_for_synthesis = vector_results[:num_for_synthesis]
+                    # Clean ObjectIds from chunks to avoid serialization issues
+                    chunks_for_synthesis = []
+                    for chunk in vector_results[:num_for_synthesis]:
+                        # Make a copy to avoid modifying original
+                        clean_chunk = chunk.copy()
+                        # Convert ObjectId to string if present
+                        if "_id" in clean_chunk:
+                            clean_chunk["_id"] = str(clean_chunk["_id"])
+                        chunks_for_synthesis.append(clean_chunk)
+                    
                     logger.info(f"Synthesizing answer from {len(chunks_for_synthesis)} chunks")
 
                     synthesis_result = await synthesize_with_retry(chunks_for_synthesis, request.query)
