@@ -432,6 +432,15 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             if len(formatted_results) > 0:
                 logger.info(f"Returning {len(formatted_results)} formatted results")
 
+                # --- SAFE DIAGNOSTIC LOGGING ---
+                logger.info("--- PRE-SYNTHESIS ENVIRONMENT CHECK ---")
+                synthesis_enabled_env = os.getenv("ANSWER_SYNTHESIS_ENABLED", "not_set")
+                openai_key_env = os.getenv("OPENAI_API_KEY")
+
+                logger.info(f"ENV CHECK: Reading ANSWER_SYNTHESIS_ENABLED: '{synthesis_enabled_env}'")
+                logger.info(f"ENV CHECK: OPENAI_API_KEY is set: {openai_key_env is not None and len(openai_key_env) > 0}")
+                # --- END SAFE DIAGNOSTIC LOGGING ---
+
                 # Try to synthesize an answer from the top chunks
                 answer_object = None
                 synthesis_start = time.time()
