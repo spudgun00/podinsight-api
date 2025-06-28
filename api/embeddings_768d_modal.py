@@ -72,7 +72,7 @@ class ModalInstructorXLEmbedder:
                     embed_url,
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=20)  # Reduced to 20s to leave room for other operations
+                    timeout=aiohttp.ClientTimeout(total=25)  # 25s to give cold starts more room (Vercel limit is 30s)
                 ) as response:
                     elapsed = time.time() - start_time
                     logger.info(f"Modal API responded in {elapsed:.2f}s with status {response.status}")
