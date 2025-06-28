@@ -256,6 +256,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     Enhanced search handler with 768D vector search
     Fallback chain: 768D Vector → Text Search → 384D Vector
     """
+    # Log at the very beginning
+    logger.info(f"=== SEARCH HANDLER CALLED === Query: '{request.query}', Limit: {request.limit}")
+    
     # Normalize query for consistent processing
     clean_query = request.query.strip().lower()
 

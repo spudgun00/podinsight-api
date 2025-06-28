@@ -95,6 +95,23 @@ models = client.models.list()
 
 ---
 
+## UPDATE: Still Investigating
+
+Initially thought DEBUG_MODE was the issue, but timeout persists even after disabling it.
+
+### What We've Tried
+1. ✅ Added serialization timing logs (caused 500 errors)
+2. ✅ Fixed return type issue (removed FastAPI Response)
+3. ✅ Disabled DEBUG_MODE in Vercel
+4. ✅ Simplified logging to avoid serialization test (commit: 1c0b787)
+5. ⏳ Still getting 30-second timeouts
+
+### Remaining Suspects
+1. The response is still too large even without raw_chunks
+2. There's a hanging async operation somewhere
+3. MongoDB connection issues
+4. Something else in the response path
+
 ## SOLUTION FOUND!
 
 The issue is almost certainly that **DEBUG_MODE is enabled in production Vercel**, causing `raw_chunks` to be included in the response (line 485).
