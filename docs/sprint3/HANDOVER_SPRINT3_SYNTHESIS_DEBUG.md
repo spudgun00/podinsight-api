@@ -95,6 +95,49 @@ models = client.models.list()
 
 ---
 
+## PARTIAL SUCCESS! 🎯
+
+### What's Fixed
+✅ ObjectId serialization error resolved (commit: a434796)
+✅ Synthesis is working successfully  
+✅ Response size is reasonable (12.3 KB for 10 results)
+✅ DEBUG_MODE confirmed disabled
+
+### What's Still Happening - NOT PRODUCTION READY
+⚠️ Response times are still slow (21+ seconds) - UNACCEPTABLE
+⚠️ Some requests still timeout intermittently
+⚠️ Simple queries sometimes timeout while complex ones work
+
+### Performance Breakdown (from logs)
+- MongoDB vector search: ~150ms ✅
+- OpenAI synthesis: ~2.1s ✅
+- **Missing: ~19 seconds somewhere else** ❌
+
+### The ObjectId Fix
+
+The issue was MongoDB ObjectId objects in the response that couldn't be serialized to JSON.
+
+### Root Cause
+```
+ERROR: Unable to serialize unknown type: <class 'bson.objectid.ObjectId'>
+```
+
+When DEBUG_MODE was enabled, `raw_chunks` included MongoDB documents with `_id` fields containing ObjectId objects. Pydantic/FastAPI couldn't serialize these to JSON, causing the timeout.
+
+### The Fix (commit: a434796)
+Convert ObjectIds to strings before including chunks in the response:
+```python
+if "_id" in clean_chunk:
+    clean_chunk["_id"] = str(clean_chunk["_id"])
+```
+
+### Timeline
+1. OpenAI synthesis: 1.64 seconds ✅
+2. Response object creation: instant ✅
+3. Serialization attempt: FAILED due to ObjectId
+4. Error handling and retry attempts: ~28 seconds ⏱️
+5. Final timeout: 30 seconds ❌
+
 ## UPDATE: Still Investigating
 
 Initially thought DEBUG_MODE was the issue, but timeout persists even after disabling it.
@@ -219,6 +262,34 @@ Large response object causing memory pressure
 
 ---
 
+## Next Session Priority - Fix 21+ Second Response Time
+
+### Suspects for the Remaining Slowness
+1. **Cold starts** - Vercel function initialization
+2. **MongoDB connection pooling** - Maybe recreating connections
+3. **Import time** - Heavy imports at module level
+4. **Metadata lookups** - Episode/podcast metadata joins
+5. **Chunk expansion** - The expand_chunk_context function
+
+### What to Investigate Next
+1. Add timing logs around MongoDB connection initialization
+2. Check if connection pooling is working properly
+3. Time the metadata lookups and joins
+4. Profile the entire request path
+5. Consider caching strategies
+
+### Quick Test to Run
+```bash
+# Test if it's consistent or just cold starts
+for i in {1..5}; do
+    time curl -X POST https://podinsight-api.vercel.app/api/search \
+        -H "Content-Type: application/json" \
+        -d '{"query": "AI", "limit": 1}' \
+        -w "\nTime: %{time_total}s\n"
+    sleep 2
+done
+```
+
 ## Context for Next Session
 
 Use this prompt to continue:
@@ -227,23 +298,29 @@ I'm debugging the synthesis timeout issue for PodInsightHQ Sprint 3.
 
 CONTEXT:
 @docs/sprint3/HANDOVER_SPRINT3_SYNTHESIS_DEBUG.md - This handover
-@api/synthesis.py - Check lines 183-199 for timing logs
-@api/search_lightweight_768d.py - Check synthesis integration around line 452
-@docs/sprint3/test_execution_report.md - See latest test results
+@api/synthesis.py - Synthesis takes 2.1s (working fine)
+@api/search_lightweight_768d.py - Main search handler
+@scripts/test_synthesis_debug.py - Test script showing 21+ second responses
 
-CURRENT STATUS:
-- Synthesis works in 1.64 seconds (confirmed in logs)
-- But Vercel times out at 30 seconds
-- 28+ seconds are unaccounted for
-- Need to find what happens AFTER synthesis
+CURRENT STATUS - December 29, 2024:
+- ✅ Fixed ObjectId serialization error (was causing timeouts)
+- ✅ Synthesis now works successfully
+- ❌ Response times are 21+ seconds (NOT PRODUCTION READY)
+- ❌ Missing ~19 seconds somewhere in the request path
+
+PERFORMANCE BREAKDOWN:
+- MongoDB search: ~150ms ✅
+- OpenAI synthesis: ~2.1s ✅
+- Unknown delay: ~19s ❌
 
 IMMEDIATE TASKS:
-1. Add more timing logs after synthesis
-2. Check response serialization time
-3. Test with minimal response
-4. Consider implementing streaming
+1. Add timing logs around MongoDB connection init
+2. Check if connection pooling is working
+3. Time metadata lookups and joins
+4. Profile cold start vs warm requests
+5. Find where the 19 seconds are going
 
-The synthesis feature works but something after it causes timeout.
+The synthesis feature works but is way too slow for production use.
 ```
 
 ---

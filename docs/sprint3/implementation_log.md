@@ -530,3 +530,59 @@ ERROR: FUNCTION_INVOCATION_TIMEOUT after 30s
 - Error handling implemented
 - Feature flag available for rollback
 - Documentation complete
+
+---
+
+## December 29, 2024 - Synthesis Timeout Debugging
+
+### Session Summary
+Investigated mysterious 30-second timeouts despite synthesis completing in 1.64 seconds.
+
+### Key Discoveries
+1. **Root Cause Found**: MongoDB ObjectId objects couldn't be serialized to JSON
+   - Error: `Unable to serialize unknown type: <class 'bson.objectid.ObjectId'>`
+   - This was causing serialization to fail and timeout
+
+2. **Solution Implemented**: Convert ObjectIds to strings before serialization
+   ```python
+   if "_id" in clean_chunk:
+       clean_chunk["_id"] = str(clean_chunk["_id"])
+   ```
+
+3. **Current Status**: 
+   - ✅ Synthesis works successfully
+   - ❌ Response times still 21+ seconds (NOT PRODUCTION READY)
+
+### Performance Analysis
+- MongoDB vector search: ~150ms ✅
+- OpenAI synthesis: ~2.1s ✅  
+- **Unknown delay: ~19s ❌**
+
+### Commits
+- `1364659`: Add serialization timing logs
+- `a0ad64c`: Fix return type issue
+- `1c0b787`: Simplify logging
+- `32c0634`: Add entry point logging
+- `a434796`: Fix ObjectId serialization (MAIN FIX)
+
+### Next Priority - Fix 19-Second Delay
+Find where the remaining 19 seconds are being spent. Suspects:
+1. Cold starts on Vercel
+2. MongoDB connection pooling issues
+3. Heavy imports at module level
+4. Metadata lookups and joins
+5. Chunk expansion function
+
+### Test Results
+```bash
+# Working but slow
+curl -X POST https://podinsight-api.vercel.app/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "AI valuations", "limit": 10}'
+# Response: 200 OK in 21.66 seconds
+```
+
+### Handover Document
+- Updated: `HANDOVER_SPRINT3_SYNTHESIS_DEBUG.md`
+- Ready for next session to fix the 19-second delay
+- Synthesis works but is too slow for production
