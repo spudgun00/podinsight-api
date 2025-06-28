@@ -257,8 +257,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     Enhanced search handler with 768D vector search
     Fallback chain: 768D Vector → Text Search → 384D Vector
     """
-    # Log at the very beginning
-    logger.info(f"=== SEARCH HANDLER CALLED === Query: '{request.query}', Limit: {request.limit}")
+    handler_start = time.time()
+
+    # Log at the very beginning with timestamp
+    logger.info(f"=== SEARCH HANDLER START === Query: '{request.query}', Limit: {request.limit}, Time: {handler_start:.3f}")
 
     # Normalize query for consistent processing
     clean_query = request.query.strip().lower()
@@ -284,11 +286,12 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
 
         if not embedding_768d:
             # Generate new 768D embedding
-            logger.info(f"Generating 768D embedding for: {clean_query}")
+            pre_embed = time.time()
+            logger.info(f"[TIMING] Pre-embedding: {pre_embed - handler_start:.3f}s elapsed. Generating 768D embedding for: {clean_query}")
             embed_start = time.time()
             embedding_768d = await generate_embedding_768d_local(clean_query)
             embed_time = time.time() - embed_start
-            logger.info(f"Embedding generation took {embed_time:.2f}s")
+            logger.info(f"[TIMING] Embedding generation took {embed_time:.2f}s, total elapsed: {time.time() - handler_start:.3f}s")
 
             if DEBUG_MODE and embedding_768d:
                 logger.info(f"[DEBUG] Embedding length: {len(embedding_768d)}")
@@ -305,7 +308,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
 
         if embedding_768d:
             # Get MongoDB vector search handler
+            pre_vector = time.time()
+            logger.info(f"[TIMING] Pre-vector handler: {pre_vector - handler_start:.3f}s elapsed")
             vector_handler = await get_vector_search_handler()
+            logger.info(f"[TIMING] Vector handler created: {time.time() - handler_start:.3f}s elapsed")
 
             # Always try vector search if we have an embedding
             logger.info(f"Using MongoDB 768D vector search: {clean_query}")
@@ -528,6 +534,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 logger.info(f"Response has {len(formatted_results)} results")
                 if answer_object:
                     logger.info(f"Answer synthesis included with {len(answer_object.citations)} citations")
+
+                # Final timing
+                logger.info(f"[TIMING] SEARCH HANDLER END - Total time: {time.time() - handler_start:.3f}s")
 
                 # Return the response object (let FastAPI serialize it)
                 return response
