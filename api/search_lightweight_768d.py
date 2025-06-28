@@ -23,6 +23,7 @@ import json
 import asyncio
 import aiohttp
 import time
+import traceback
 from pydantic import BaseModel, Field, validator
 from .database import get_pool
 from .mongodb_search import get_search_handler
@@ -435,6 +436,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Try to synthesize an answer from the top chunks
                 answer_object = None
                 synthesis_start = time.time()
+                logger.info("SYNTHESIS: Starting synthesis attempt")
                 try:
                     # Use the first 10 raw vector results for synthesis (before pagination)
                     chunks_for_synthesis = vector_results[:num_for_synthesis]
@@ -450,7 +452,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     else:
                         logger.warning("Synthesis returned None")
                 except Exception as e:
-                    logger.error(f"Synthesis failed: {str(e)}")
+                    # Log the full traceback for debugging
+                    error_trace = traceback.format_exc()
+                    logger.error(f"Synthesis failed: {str(e)}\nTRACEBACK:\n{error_trace}")
                     # Continue without answer - graceful degradation
 
                 synthesis_time = int((time.time() - synthesis_start) * 1000)

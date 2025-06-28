@@ -14,11 +14,19 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Add diagnostic logging for Vercel debugging
+print("--- Loading synthesis.py module ---")
+ANSWER_SYNTHESIS_ENABLED_VAL = os.getenv("ANSWER_SYNTHESIS_ENABLED", "true")
+OPENAI_API_KEY_VAL = os.getenv("OPENAI_API_KEY")
+print(f"VERCEL_ENV: Reading ANSWER_SYNTHESIS_ENABLED: '{ANSWER_SYNTHESIS_ENABLED_VAL}'")
+print(f"VERCEL_ENV: Reading OPENAI_API_KEY: Present? {OPENAI_API_KEY_VAL is not None and len(OPENAI_API_KEY_VAL) > 0}")
+
 # Feature flag for answer synthesis (can be disabled if needed)
-ANSWER_SYNTHESIS_ENABLED = os.getenv("ANSWER_SYNTHESIS_ENABLED", "true").lower() == "true"
+ANSWER_SYNTHESIS_ENABLED = ANSWER_SYNTHESIS_ENABLED_VAL.lower() == "true"
 
 # Initialize OpenAI client
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncOpenAI(api_key=OPENAI_API_KEY_VAL)
+print("--- Synthesis.py module loaded ---")
 
 # Superscript mapping for citations
 SUPERSCRIPT_MAP = {
