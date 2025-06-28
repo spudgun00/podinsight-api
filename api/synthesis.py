@@ -144,7 +144,7 @@ def parse_citations(text: str) -> Tuple[str, List[int]]:
 async def synthesize_answer(
     chunks: List[Dict[str, Any]],
     query: str,
-    model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4o-mini",
     temperature: float = 0.0,
     max_tokens: int = 80
 ) -> Optional[SynthesizedAnswer]:
