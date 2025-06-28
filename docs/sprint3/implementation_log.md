@@ -48,6 +48,60 @@ Track daily progress, decisions, and implementation details for Sprint 3.
 - **Files Created**:
   1. `lambda_functions/audio_clip_generator/handler.py` - Main Lambda handler
   2. `lambda_functions/audio_clip_generator/requirements.txt` - Dependencies
+
+---
+
+## December 28, 2024 - Evening Session
+
+### Phase 1B Testing and Debugging
+- **Time**: 6:00 PM - 8:00 PM
+- **Focus**: Debugging synthesis feature on Vercel
+
+#### Issues Discovered and Fixed
+1. **OpenAI Client Initialization** (FIXED)
+   - Issue: `AsyncOpenAI(api_key=None)` at module level caused Vercel timeouts
+   - Fix: Implemented lazy initialization pattern
+   - Result: No more instant timeouts
+
+2. **Model Access Error** (FIXED)
+   - Issue: API key doesn't have access to `gpt-3.5-turbo` or `gpt-3.5-turbo-0125`
+   - Discovery: Only has access to gpt-4o models
+   - Fix: Changed to `gpt-4o-mini` model
+   - Available models: `gpt-4o`, `gpt-4o-2024-05-13`, `gpt-4o-mini`
+
+3. **Retry Logic Timeout** (MITIGATED)
+   - Issue: 3 retry attempts could cause 3x delay
+   - Fix: Reduced max_retries from 2 to 0
+   - Added timing logs around OpenAI calls
+
+#### Current Status
+- ✅ Environment variables correctly set and read
+- ✅ OpenAI synthesis works (1.64 seconds)
+- ✅ Answer generated with proper citations
+- ❌ Vercel still times out at 30 seconds
+
+#### Key Findings from Logs
+```
+INFO: OpenAI API call completed in 1.64 seconds
+INFO: Synthesis successful: 1 citations
+INFO: [DEBUG] total_time_ms: 1845
+ERROR: FUNCTION_INVOCATION_TIMEOUT after 30s
+```
+
+**Mystery**: 28+ seconds unaccounted for between synthesis completion and timeout
+
+#### Commits Made
+1. `ef93ffa` - Create Phase 1B testing handover with debugging context
+2. `2c7f39a` - Fix: Use lazy initialization for OpenAI client
+3. `a226ba9` - Fix: Update OpenAI model to gpt-3.5-turbo
+4. `f343084` - Fix: Switch to gpt-4o-mini model
+5. `11857ab` - Fix: Add timing logs and disable retries
+
+#### Next Steps
+1. Add more granular timing logs after synthesis
+2. Check response serialization time
+3. Test with minimal response to isolate issue
+4. Consider implementing streaming as suggested by Gemini
   3. `lambda_functions/deployment/template.yaml` - SAM deployment template
   4. `lambda_functions/deployment/deploy.sh` - Deployment script
 

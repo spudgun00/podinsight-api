@@ -22,12 +22,14 @@ Sprint 3 focuses on implementing an AI-powered command bar that provides instant
 
 ### Phase 1B - Answer Synthesis
 - `HANDOVER_SPRINT3_PHASE1B_READY.md` - Phase 1B preparation
+- `HANDOVER_SPRINT3_PHASE1B_TESTING.md` - First debugging session
+- `HANDOVER_SPRINT3_SYNTHESIS_DEBUG.md` - Latest debugging handover
 - Implementation in `api/synthesis.py`
 - Tests in `tests/test_synthesis.py`
 
 ### Testing & Issues
 - `test_results.md` - Running log of test executions
-- `test_execution_report.md` - Comprehensive test report
+- `test_execution_report.md` - Comprehensive test report with latest findings
 - `issues_and_fixes.md` - Problems encountered and solutions
 - `architecture_updates.md` - System design changes
 
@@ -47,12 +49,13 @@ Sprint 3 focuses on implementing an AI-powered command bar that provides instant
 - Performance: Cache hit <200ms, Cache miss 1128ms
 - Cost: ~$5/month for 500 clips
 
-### ✅ Phase 1B: Answer Synthesis (COMPLETE)
-- OpenAI GPT-3.5 integration implemented
+### ⚠️ Phase 1B: Answer Synthesis (PARTIALLY WORKING)
+- OpenAI GPT-4o-mini integration implemented (changed from GPT-3.5)
 - 2-sentence summaries with superscript citations
-- Response time < 2s (p95) achieved
-- Graceful fallback on OpenAI failures
-- Feature flag for safe rollout
+- Synthesis completes in 1.64 seconds
+- **Issue**: Vercel timeout at 30s despite fast synthesis
+- Environment variables correctly configured
+- See `HANDOVER_SPRINT3_SYNTHESIS_DEBUG.md` for debugging details
 
 ### 🔲 Phase 1A.2: API Integration (PENDING)
 - Need to add endpoint to main podinsight-api that calls Lambda
@@ -67,11 +70,11 @@ Sprint 3 focuses on implementing an AI-powered command bar that provides instant
 ## Key Features Implemented
 
 ### Answer Synthesis
-- **Model**: GPT-3.5-turbo-0125
+- **Model**: GPT-4o-mini (updated from GPT-3.5-turbo)
 - **Format**: 2 sentences, max 60 words
 - **Citations**: Superscript format (¹²³)
 - **Deduplication**: Max 2 chunks per episode
-- **Performance**: ~400-600ms added latency
+- **Performance**: ~1.64s for synthesis (but Vercel timeout issue)
 
 ### MongoDB Enhancements
 - `numCandidates`: 100 (improved from 20)

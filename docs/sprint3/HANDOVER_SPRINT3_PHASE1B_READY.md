@@ -1,4 +1,70 @@
-# Sprint 3 Phase 1B Handover Document
+Jun 28 20:06:14.01
+POST
+500
+podinsight-api.vercel.app
+/api/search
+54
+INFO:api.search_lightweight_768d:[DEBUG] total_time_ms: 1845
+No more logs to show within selected timeline
+
+Logs
+54 Total
+52 Error
+
+INFO:root:[BOOT-FILE] /var/task/api/topic_velocity.py  commit=11857ab5348db6dda883d311c1e08b052a033e23
+[BOOT-TOP] sha=11857ab5348db6dda883d311c1e08b052a033e23 py=3.12.11  ts=1751137575
+INFO:root:[BOOT-FILE] /var/task/api/search_lightweight_768d.py  commit=11857ab5348db6dda883d311c1e08b052a033e23
+WARNING:api.search_lightweight_768d:[BOOT] commit=11857ab5348db6dda883d311c1e08b052a033e23  python=3.12
+INFO:api.search_lightweight_768d:[DEBUG] Original query: 'AI valuations'
+INFO:api.search_lightweight_768d:[DEBUG] Clean query: 'ai valuations'
+INFO:api.search_lightweight_768d:[DEBUG] Offset: 0, Limit: 6
+INFO:api.search_lightweight_768d:Generating 768D embedding for: ai valuations
+INFO:api.embedding_utils:Embedding query: 'ai valuations'
+INFO:api.embeddings_768d_modal:Generated 768D embedding via Modal for: ai valuations... (dim: 768)
+INFO:api.search_lightweight_768d:[DEBUG] Embedding length: 768
+INFO:api.search_lightweight_768d:[DEBUG] First 5 values: [-0.0015055586118251085, 0.021498650312423706, 0.048086535185575485, -0.04458747059106827, -0.06382356584072113]
+INFO:api.search_lightweight_768d:[DEBUG] Embedding norm: 1.0000 (should be ~1.0 if normalized)
+INFO:api.search_lightweight_768d:Using MongoDB 768D vector search: ai valuations
+INFO:api.search_lightweight_768d:Calling vector search with limit=10, min_score=0.0
+WARNING:api.search_lightweight_768d:[VECTOR_HANDLER] about to call MongoVectorSearchHandler from module api.mongodb_vector_search
+INFO:api.mongodb_vector_search:Creating MongoDB client for event loop 139860268685152
+INFO:api.mongodb_vector_search:[VECTOR_SEARCH_ENTER] db=podinsight col=transcript_chunks_768d dim=768
+INFO:pymongo.serverSelection:{"message": "Waiting for suitable server to become available", "selector": "Primary()", "operation": "aggregate", "topologyDescription": "<TopologyDescription id: 68603d42b6fe35c2f840e816, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('podinsight-cluster-shard-00-00.bgknvz.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('podinsight-cluster-shard-00-01.bgknvz.mongodb.net', 27017) server_type: Unknown, rtt: None>, <ServerDescription ('podinsight-cluster-shard-00-02.bgknvz.mongodb.net', 27017) server_type: Unknown, rtt: None>]>", "clientId": {"$oid": "68603d42b6fe35c2f840e816"}, "remainingTimeMS": 9}  # pragma: allowlist secret
+INFO:api.mongodb_vector_search:[VECTOR_SEARCH] got 10 hits
+INFO:api.mongodb_vector_search:Vector search took 0.11s
+INFO:api.search_lightweight_768d:[VECTOR_LATENCY] 158.1 ms
+INFO:api.search_lightweight_768d:Vector search returned 10 results
+INFO:api.search_lightweight_768d:[ALWAYS_LOG] First result score: 0.9810160994529724
+INFO:api.search_lightweight_768d:[ALWAYS_LOG] First result keys: ['_id', 'episode_id', 'end_time', 'feed_slug', 'speaker', 'start_time', 'text', 'score', 'podcast_title', 'episode_title']
+INFO:api.search_lightweight_768d:[DEBUG] search_id: search_4a0a4868_1751137578.898014
+INFO:api.search_lightweight_768d:[DEBUG] clean_query: ai valuations
+INFO:api.search_lightweight_768d:[DEBUG] vector_results_raw_count: 10
+INFO:api.search_lightweight_768d:[DEBUG] vector_results_top_score: 0.9810
+INFO:api.search_lightweight_768d:[DEBUG] raw vector hits: [{"_id": "68585d958741b0b51e916d2b", "episode_id": "substack:post:156609115", "end_time": 863.724, "feed_slug": "latent-space-the-ai-engineer-podcast", "speaker": null, "start_time": 863.524, "text": "AI.", "score": 0.9810160994529724, "podcast_title": "Latent Space: The AI Engineer Podcast", "episode_title": "Agent Engineering with Pydantic + Graphs \u2014 with Samuel Colvin", "episode_number": null, "published": "2025-02-06T22:58:14"}, {"_id": "68585d968741b0b51e916e52", "episode_id": "substac
+INFO:api.search_lightweight_768d:After pagination: 6 results (offset=0, limit=6)
+INFO:api.search_lightweight_768d:Expanded chunk from 3 to 786 chars
+INFO:api.search_lightweight_768d:Expanded chunk from 3 to 754 chars
+INFO:api.search_lightweight_768d:Expanded chunk from 3 to 783 chars
+INFO:api.search_lightweight_768d:Expanded chunk from 3 to 906 chars
+INFO:api.search_lightweight_768d:Expanded chunk from 3 to 506 chars
+INFO:api.search_lightweight_768d:Expanded chunk from 4 to 538 chars
+INFO:api.search_lightweight_768d:Returning 6 formatted results
+INFO:api.search_lightweight_768d:--- PRE-SYNTHESIS ENVIRONMENT CHECK ---
+INFO:api.search_lightweight_768d:ENV CHECK: Reading ANSWER_SYNTHESIS_ENABLED: 'true'
+INFO:api.search_lightweight_768d:ENV CHECK: OPENAI_API_KEY is set: True
+INFO:api.search_lightweight_768d:Synthesizing answer from 10 chunks
+INFO:api.synthesis:Client not initialized. Creating new AsyncOpenAI client.
+INFO:api.synthesis:AsyncOpenAI client created successfully.
+INFO:api.synthesis:Deduplicated from 10 to 9 chunks
+INFO:api.synthesis:Calling OpenAI gpt-4o-mini for synthesis
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:api.synthesis:OpenAI API call completed in 1.64 seconds
+INFO:api.synthesis:Raw answer from OpenAI: AI valuations are heavily influenced by the rapid advancements in technology and the competitive landscape, with VCs emphasizing the need for startups to demonstrate clear value propositions. As noted in discussions, "AI-first startups" are increasingly attracting significant investment, reflecting a shift in market dynamics and expectations from investors [9].
+INFO:api.search_lightweight_768d:Synthesis successful: 1 citations
+INFO:api.search_lightweight_768d:[DEBUG] fallback_used: vector_768d
+INFO:api.search_lightweight_768d:[DEBUG] synthesis_time_ms: 1654
+INFO:api.search_lightweight_768d:[DEBUG] total_time_ms: 1845
+127.0.0.1 - - [28/Jun/2025 19:06:44] "POST /api/search HTTP/1.1" 500 -# Sprint 3 Phase 1B Handover Document
 
 ## Session Summary - December 28, 2024
 
