@@ -100,6 +100,24 @@ After (Smart):
                           summary]                 audio clip]
 ```
 
+### How AWS Lambda Creates Audio Clips
+
+When a user clicks the play button:
+
+1. **Check Cache** (instant)
+   - Is this clip already made? → Return it immediately
+
+2. **Generate New Clip** (2-3 seconds)
+   - Fetch the full podcast episode (already stored)
+   - Find the exact timestamp mentioned in the answer
+   - Extract 30 seconds (15 before, 15 after)
+   - Save for future use
+
+3. **Smart Caching**
+   - Popular clips stay ready (instant playback)
+   - Unpopular clips never waste storage
+   - Like Spotify - streams on demand, caches favorites
+
 ## Why This Matters
 
 ### For Users:
@@ -114,11 +132,35 @@ After (Smart):
 
 ## Cost Breakdown
 
-| What | Old Way | New Way | Savings |
-|------|---------|---------|---------|
-| Storage | $833/mo | $26/mo | 97% |
-| Processing | Upfront | On-demand | 85% |
-| Annual | $10,000 | $312 | $9,688 |
+### What the $26/month Covers (New Features Only)
+
+| Service | Monthly Usage | Cost | Purpose |
+|---------|---------------|------|---------|
+| **AI Answers** | 1,000 questions | $18 | OpenAI creates 2-sentence summaries |
+| **Audio Processing** | 500 clips generated | $5 | AWS Lambda extracts 30-second clips |
+| **Clip Storage** | 10GB of NEW clips | $2 | Store only clips users actually play |
+| **Operations** | 10,000 requests | $1 | Reading/writing clip files |
+| **Total** | | **$26/month** | Complete feature cost |
+
+### What's Already Paid For (NOT in $26/month)
+- ✓ Full podcast episodes (existing S3 storage)
+- ✓ 823,000 transcript chunks (existing MongoDB)
+- ✓ Search infrastructure (existing Modal.com)
+- ✓ API hosting (existing Vercel)
+
+### The Smart Economics
+
+| Approach | What You Store | Monthly Cost | Annual Cost |
+|----------|----------------|--------------|-------------|
+| **Old Way** | 823,000 clips upfront | $833 | $10,000 |
+| **Our Way** | ~500 popular clips | $26 | $312 |
+| **You Save** | | **$807/month** | **$9,688/year** |
+
+Why such massive savings?
+- Users only play 2-3 clips per search
+- We only create clips when clicked
+- Popular clips get cached, unpopular ones never made
+- No waste on the 80% that would never be played
 
 ## Success Metrics
 

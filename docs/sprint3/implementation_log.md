@@ -213,3 +213,27 @@ Track daily progress, decisions, and implementation details for Sprint 3.
 - Cost reduction: $833/month → $26/month (97% savings)
 - Why on-demand is better than pre-generated
 - Success metrics and next steps
+
+### Architecture Clarification Update
+- **Time**: Continued
+- **Focus**: Adding detailed cost breakdown and process flow
+
+#### Completed
+1. Updated `SPRINT3_ARCHITECTURE_COMPLETE.md` with:
+   - Detailed cost breakdown table explaining what $26/month covers
+   - Clear note that existing MP3s are NOT included in this cost
+   - Complete process flow from user query to audio playback
+   - Lambda function execution details and cost drivers
+   - Service roles and cost models table
+
+2. Updated `SPRINT3_BUSINESS_OVERVIEW.md` with:
+   - Clearer cost breakdown for non-technical readers
+   - "What's Already Paid For" section
+   - AWS Lambda process explanation in simple terms
+   - Spotify/YouTube analogies for caching concept
+
+#### Key Clarifications Made
+- $26/month is ONLY for new Sprint 3 features (not existing storage)
+- Existing MP3s in pod-insights-raw are already paid for
+- Lambda creates clips on-demand, not from pre-generated storage
+- Cost savings come from avoiding 823,000 pre-generated clips

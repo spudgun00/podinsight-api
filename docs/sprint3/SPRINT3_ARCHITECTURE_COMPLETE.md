@@ -165,7 +165,51 @@ Response 200:
 }
 ```
 
-### 5. Infrastructure Details
+### 5. Complete Process Flow
+
+#### User Query to Answer Journey
+
+```
+1. USER INTERACTION
+   └─> User types: "What are VCs saying about AI valuations?"
+
+2. QUERY PROCESSING (podinsight-api)
+   ├─> Embed query using Modal.com (existing endpoint)
+   └─> Returns 768-dimensional vector
+
+3. SEARCH PHASE (MongoDB Atlas)
+   ├─> Vector search on 823,000+ chunks
+   ├─> Find 100 candidates, select top 20
+   ├─> Apply diversity filter (max 2 per episode)
+   └─> Return top 10 chunks (~1000 tokens)
+
+4. ANSWER SYNTHESIS (OpenAI - Phase 1B)
+   ├─> Send chunks + metadata to GPT-3.5
+   ├─> Generate 2-sentence summary (60 words max)
+   ├─> Extract citations with superscripts
+   └─> Return formatted answer
+
+5. AUDIO GENERATION (AWS Lambda - Phase 1A)
+   When user clicks play:
+   ├─> Check S3 cache for existing clip
+   ├─> If miss: Fetch full MP3 from pod-insights-raw
+   ├─> Extract 30s using FFmpeg (center on timestamp)
+   ├─> Store in pod-insights-clips bucket
+   └─> Return pre-signed URL (24hr expiry)
+```
+
+#### Key Services and Their Roles
+
+| Service | Role | Cost Model |
+|---------|------|------------|
+| **Modal.com** | Query embedding (768D) | Already built, no additional cost |
+| **MongoDB Atlas** | Vector search + metadata | $500 credits (existing) |
+| **OpenAI API** | Answer synthesis | Pay-per-token ($0.0015/1K tokens) |
+| **AWS Lambda** | Audio clip generation | Pay-per-invocation + duration |
+| **S3 Storage** | Store generated clips | Pay only for stored clips |
+| **FFmpeg Layer** | Audio processing | One-time setup, no runtime cost |
+
+### 6. Infrastructure Details
 
 #### AWS Lambda Function (Phase 1A)
 - **Name**: `audio-clip-generator`
@@ -260,13 +304,42 @@ The command bar will make sequential API calls:
 
 ### 8. Cost Analysis
 
-| Component | Usage/Month | Cost | Notes |
-|-----------|-------------|------|-------|
-| OpenAI GPT-3.5 | 1,000 queries | $18 | ~1000 tokens per query |
-| Lambda Execution | 500 clips | $5 | Includes cold starts |
-| S3 Storage | 10GB growing | $2 | Only popular clips stored |
-| S3 Requests | 10,000 | $1 | GET/PUT operations |
-| **Total** | | **$26/month** | vs $833/month pre-generated |
+#### Detailed Monthly Cost Breakdown ($26/month)
+
+| Component | Usage/Month | Cost | What This Covers |
+|-----------|-------------|------|------------------|
+| **OpenAI GPT-3.5** | 1,000 queries | $18 | Answer synthesis for user questions (Phase 1B) |
+| **Lambda Execution** | 500 clips | $5 | Audio clip generation compute time |
+| **S3 Storage (NEW clips)** | 10GB growing | $2 | Storage for generated 30-second clips only |
+| **S3 Requests** | 10,000 | $1 | GET/PUT operations for clip generation |
+| **Total Operational** | | **$26/month** | Running costs for new features |
+
+#### What's NOT Included in $26/month:
+- **Existing MP3s**: Full podcast episodes already stored in `pod-insights-raw` bucket
+- **MongoDB Atlas**: Covered by existing $500 credits
+- **Modal.com**: Query embeddings use existing endpoint
+- **API hosting**: Vercel free tier / existing infrastructure
+
+#### Cost Comparison:
+| Approach | Monthly Cost | Annual Cost | What You Pay For |
+|----------|--------------|-------------|------------------|
+| **Pre-generate all clips** | $833 | $10,000 | 823,000 clips (80% never played) |
+| **On-demand generation** | $26 | $312 | Only clips users actually play |
+| **Savings** | **$807/month** | **$9,688/year** | 97% cost reduction |
+
+#### Lambda Function Details:
+- **Function**: `audio-clip-generator`
+- **Process**:
+  1. Receives request with episode_id and timestamp
+  2. Checks if clip already exists in S3 cache
+  3. If not, fetches full MP3 from existing storage
+  4. Uses FFmpeg to extract 30-second segment
+  5. Stores new clip in `pod-insights-clips` bucket
+  6. Returns pre-signed URL valid for 24 hours
+- **Cost drivers**:
+  - Invocations: ~500/month @ $0.20 per 1M requests
+  - Duration: ~1 second per clip @ $0.0000166667 per GB-second
+  - Total: ~$5/month for typical usage
 
 ### 9. Security & Access
 
