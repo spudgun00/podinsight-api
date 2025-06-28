@@ -485,29 +485,13 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     raw_chunks=chunks_for_synthesis if DEBUG_MODE else None
                 )
 
-                # Log right before serialization
-                logger.info("Response object created, starting serialization test...")
-
-                try:
-                    # Manual serialization to track timing (but don't return it)
-                    serialization_start = time.time()
-                    # For Pydantic v2
-                    response_json = response.model_dump_json()
-                    serialization_time = time.time() - serialization_start
-
-                    logger.info(f"Manual serialization successful in {serialization_time:.2f} seconds")
-                    logger.info(f"Serialized response size: {len(response_json)} bytes ({len(response_json)/1024:.1f} KB)")
-
-                    # Check for unusually large payloads
-                    if len(response_json) > 4 * 1024 * 1024:  # ~4MB
-                        logger.warning(f"Response payload is very large ({len(response_json)/1024/1024:.1f} MB), this could be the issue")
-
-                    logger.info("Handing response object to framework for automatic serialization...")
-
-                except Exception as e:
-                    logger.error(f"CRITICAL: Serialization test failed: {e}", exc_info=True)
-
-                # Return the original response object (let FastAPI serialize it)
+                # Simple logging before return
+                logger.info("Response object created, about to return to FastAPI...")
+                logger.info(f"Response has {len(formatted_results)} results")
+                if answer_object:
+                    logger.info(f"Answer synthesis included with {len(answer_object.citations)} citations")
+                
+                # Return the response object (let FastAPI serialize it)
                 return response
             else:
                 logger.warning(f"Vector search returned 0 results, falling back to text search")

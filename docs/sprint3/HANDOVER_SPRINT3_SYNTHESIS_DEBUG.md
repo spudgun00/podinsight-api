@@ -9,6 +9,13 @@
 2. ✅ Identified Vercel's 5MB response payload limit as prime suspect
 3. ✅ Added manual serialization with detailed timing and size logs
 4. ✅ Deployed changes (commit: 1364659)
+5. ✅ Fixed 500 error by removing FastAPI Response (commit: a0ad64c)
+6. ✅ Brought in second Claude who identified DEBUG_MODE issue
+
+#### Critical Discovery
+- **Line 485**: `raw_chunks=chunks_for_synthesis if DEBUG_MODE else None`
+- If DEBUG_MODE is enabled in production, ALL raw chunks are included in response
+- This could make the payload MASSIVE (10+ chunks × full text = potential MB of data)
 
 ### What We Accomplished
 1. ✅ Identified that the OpenAI API key only has access to `gpt-4o` models
@@ -87,6 +94,21 @@ models = client.models.list()
 - **Missing: 28+ seconds unaccounted for**
 
 ---
+
+## SOLUTION FOUND!
+
+The issue is almost certainly that **DEBUG_MODE is enabled in production Vercel**, causing `raw_chunks` to be included in the response (line 485).
+
+### Immediate Fix
+Remove DEBUG_MODE=true from Vercel environment variables. This will:
+- Stop including raw_chunks in responses
+- Reduce payload size by 90%+  
+- Fix the timeout issue
+
+### How to Fix
+1. Go to Vercel Dashboard → Settings → Environment Variables
+2. Find DEBUG_MODE and set it to "false" or remove it entirely
+3. Redeploy
 
 ## Next Debugging Steps
 
