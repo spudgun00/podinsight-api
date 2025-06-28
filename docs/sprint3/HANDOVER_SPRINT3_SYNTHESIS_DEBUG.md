@@ -2,6 +2,14 @@
 
 ## Session Summary - December 28, 2024 (Evening - Part 2)
 
+### Latest Update - December 29, 2024 (Debugging with Gemini)
+
+#### What We Did
+1. ✅ Brought in Gemini as "Watson" to help investigate the mysterious 28-second gap
+2. ✅ Identified Vercel's 5MB response payload limit as prime suspect
+3. ✅ Added manual serialization with detailed timing and size logs
+4. ✅ Deployed changes (commit: 1364659)
+
 ### What We Accomplished
 1. ✅ Identified that the OpenAI API key only has access to `gpt-4o` models
 2. ✅ Fixed the model access error by switching to `gpt-4o-mini`

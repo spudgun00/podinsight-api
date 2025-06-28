@@ -12,7 +12,6 @@ logging.info("[BOOT-FILE] %s  commit=%s",
              os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
 
 from fastapi import HTTPException
-from fastapi.responses import Response
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 logging.getLogger(__name__).warning(
@@ -487,10 +486,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 )
 
                 # Log right before serialization
-                logger.info("Response object created, starting serialization...")
+                logger.info("Response object created, starting serialization test...")
 
                 try:
-                    # Manual serialization to track timing
+                    # Manual serialization to track timing (but don't return it)
                     serialization_start = time.time()
                     # For Pydantic v2
                     response_json = response.model_dump_json()
@@ -503,12 +502,13 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     if len(response_json) > 4 * 1024 * 1024:  # ~4MB
                         logger.warning(f"Response payload is very large ({len(response_json)/1024/1024:.1f} MB), this could be the issue")
 
-                    logger.info("Handing response to framework for return...")
-                    return Response(content=response_json, media_type="application/json")
+                    logger.info("Handing response object to framework for automatic serialization...")
 
                 except Exception as e:
-                    logger.error(f"CRITICAL: Serialization failed: {e}", exc_info=True)
-                    return Response(content='{"error": "Failed to serialize response"}', status_code=500, media_type="application/json")
+                    logger.error(f"CRITICAL: Serialization test failed: {e}", exc_info=True)
+
+                # Return the original response object (let FastAPI serialize it)
+                return response
             else:
                 logger.warning(f"Vector search returned 0 results, falling back to text search")
                 if DEBUG_MODE:
