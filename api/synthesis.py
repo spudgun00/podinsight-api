@@ -14,11 +14,31 @@ import time
 
 logger = logging.getLogger(__name__)
 
-# Feature flag for answer synthesis (can be disabled if needed)
-ANSWER_SYNTHESIS_ENABLED = os.getenv("ANSWER_SYNTHESIS_ENABLED", "true").lower() == "true"
+# --- LAZY INITIALIZATION FOR OPENAI CLIENT ---
+# Global variable for the client, initialized to None
+_openai_client = None
 
-# Initialize OpenAI client
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+def get_openai_client():
+    """
+    Lazily initializes and returns a singleton AsyncOpenAI client.
+    This prevents blocking operations during function cold start.
+    """
+    global _openai_client
+
+    # Only initialize if it hasn't been for this function instance
+    if _openai_client is None:
+        logger.info("Client not initialized. Creating new AsyncOpenAI client.")
+        api_key = os.getenv("OPENAI_API_KEY")
+
+        # Fail fast with a clear error if the key is missing
+        if not api_key:
+            logger.error("CRITICAL: OPENAI_API_KEY environment variable not set or empty.")
+            raise ValueError("OPENAI_API_KEY is not configured.")
+
+        _openai_client = AsyncOpenAI(api_key=api_key)
+        logger.info("AsyncOpenAI client created successfully.")
+
+    return _openai_client
 
 # Superscript mapping for citations
 SUPERSCRIPT_MAP = {
@@ -131,14 +151,16 @@ async def synthesize_answer(
     """
     Main synthesis function that calls OpenAI and formats the response
     """
-    # Check feature flag
-    if not ANSWER_SYNTHESIS_ENABLED:
+    # Check feature flag at runtime
+    if os.getenv("ANSWER_SYNTHESIS_ENABLED", "true").lower() != "true":
         logger.info("Answer synthesis is disabled via feature flag")
         return None
 
     start_time = time.time()
 
     try:
+        # Get the OpenAI client using lazy initialization
+        client = get_openai_client()
         # First, deduplicate chunks
         deduplicated_chunks = deduplicate_chunks(chunks, max_per_episode=2)
         logger.info(f"Deduplicated from {len(chunks)} to {len(deduplicated_chunks)} chunks")
