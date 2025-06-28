@@ -12,6 +12,7 @@ logging.info("[BOOT-FILE] %s  commit=%s",
              os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
 
 from fastapi import HTTPException
+from fastapi.responses import Response
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 logging.getLogger(__name__).warning(
@@ -470,7 +471,8 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     logger.info(f"[DEBUG] synthesis_time_ms: {synthesis_time}")
                     logger.info(f"[DEBUG] total_time_ms: {total_time}")
 
-                return SearchResponse(
+                # Create the response object
+                response = SearchResponse(
                     answer=answer_object,
                     results=formatted_results,
                     total_results=len(vector_results),
@@ -483,6 +485,30 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     processing_time_ms=total_time,
                     raw_chunks=chunks_for_synthesis if DEBUG_MODE else None
                 )
+
+                # Log right before serialization
+                logger.info("Response object created, starting serialization...")
+
+                try:
+                    # Manual serialization to track timing
+                    serialization_start = time.time()
+                    # For Pydantic v2
+                    response_json = response.model_dump_json()
+                    serialization_time = time.time() - serialization_start
+
+                    logger.info(f"Manual serialization successful in {serialization_time:.2f} seconds")
+                    logger.info(f"Serialized response size: {len(response_json)} bytes ({len(response_json)/1024:.1f} KB)")
+
+                    # Check for unusually large payloads
+                    if len(response_json) > 4 * 1024 * 1024:  # ~4MB
+                        logger.warning(f"Response payload is very large ({len(response_json)/1024/1024:.1f} MB), this could be the issue")
+
+                    logger.info("Handing response to framework for return...")
+                    return Response(content=response_json, media_type="application/json")
+
+                except Exception as e:
+                    logger.error(f"CRITICAL: Serialization failed: {e}", exc_info=True)
+                    return Response(content='{"error": "Failed to serialize response"}', status_code=500, media_type="application/json")
             else:
                 logger.warning(f"Vector search returned 0 results, falling back to text search")
                 if DEBUG_MODE:

@@ -58,3 +58,6 @@ temp/.env.production
 
 # Zen MCP Server (local tool)
 zen-mcp-server/
+
+# Lambda deployment artifacts
+lambda_functions/
