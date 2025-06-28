@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-06-28T18:17:21.852265",
+  "base_url": "http://localhost:8000",
+  "results": [
+    {
+      "query": "AI agent valuations",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 41
+    },
+    {
+      "query": "seed stage pricing",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 4
+    },
+    {
+      "query": "founder market fit",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 2
+    },
+    {
+      "query": "B2B SaaS metrics",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 4
+    },
+    {
+      "query": "venture capital trends",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 3
+    },
+    {
+      "query": "crypto and web3 investments",
+      "success": false,
+      "error": "Server disconnected",
+      "response_time_ms": 3
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "successful": 0,
+    "with_answers": 0,
+    "avg_processing_ms": null,
+    "max_processing_ms": null
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "timestamp": "2025-06-28T18:17:49.236873",
+  "base_url": "https://podinsight-api.vercel.app",
+  "results": [
+    {
+      "query": "AI agent valuations",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 734,
+      "response_time_ms": 734,
+      "search_method": "vector_768d"
+    },
+    {
+      "query": "seed stage pricing",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 2330,
+      "response_time_ms": 2330,
+      "search_method": "vector_768d"
+    },
+    {
+      "query": "founder market fit",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 3865,
+      "response_time_ms": 3865,
+      "search_method": "vector_768d"
+    },
+    {
+      "query": "B2B SaaS metrics",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 3664,
+      "response_time_ms": 3664,
+      "search_method": "vector_768d"
+    },
+    {
+      "query": "venture capital trends",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 1875,
+      "response_time_ms": 1875,
+      "search_method": "vector_768d"
+    },
+    {
+      "query": "crypto and web3 investments",
+      "success": true,
+      "has_answer": false,
+      "answer_text": "No answer generated",
+      "citations_count": 0,
+      "results_count": 6,
+      "has_superscripts": false,
+      "processing_time_ms": 3549,
+      "response_time_ms": 3549,
+      "search_method": "vector_768d"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "successful": 6,
+    "with_answers": 0,
+    "avg_processing_ms": null,
+    "max_processing_ms": null
+  }
+}

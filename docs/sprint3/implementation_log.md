@@ -318,6 +318,59 @@ Track daily progress, decisions, and implementation details for Sprint 3.
 
 ---
 
+## December 28, 2024 - Phase 1B Testing Session (Evening)
+
+### Synthesis Testing and Debugging
+- **Time**: Evening session (continued)
+- **Phase**: 1B - Testing and Debugging
+- **Focus**: Getting synthesis working on Vercel
+
+#### Major Issue Discovered
+1. **Problem**: API returning 504 timeouts after adding synthesis
+   - No logs appearing in Vercel
+   - Function timing out after 30+ seconds
+   - Complete failure, not just missing synthesis
+
+2. **Root Cause**: Module-level OpenAI client initialization
+   ```python
+   # This was hanging during cold start:
+   client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+   ```
+
+3. **Failed Debug Attempt**:
+   - Added `print()` statements at module level
+   - This made the problem worse (no logs at all)
+   - Had to revert changes
+
+4. **Solution**: Lazy initialization pattern
+   - Moved client creation to runtime
+   - Only initialize when synthesis is called
+   - Proper error handling for missing API key
+
+#### Code Changes
+- Implemented `get_openai_client()` function
+- Client created on first use, not import
+- Feature flag checked at runtime
+- Added diagnostic logging inside handler
+
+#### Collaboration with Zen Gemini
+- Gemini correctly diagnosed the module initialization issue
+- Provided the lazy initialization pattern
+- Explained why serverless functions need this approach
+- Helped avoid common pitfalls with diagnostics
+
+#### Current Status
+- **Commit**: 2c7f39a (lazy initialization fix)
+- **Deployed**: To Vercel, awaiting verification
+- **Expected**: No more timeouts, should see logs
+
+#### Handover Created
+- File: `HANDOVER_SPRINT3_PHASE1B_TESTING.md`
+- Contains full context for next session
+- Ready to verify if synthesis works
+
+---
+
 ## December 28, 2024 - Phase 1B Implementation (New Session)
 
 ### Answer Synthesis Enhancement
