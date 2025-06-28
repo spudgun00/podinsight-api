@@ -156,7 +156,7 @@ class TestSynthesisFunction:
             # Check OpenAI was called correctly
             mock_create.assert_called_once()
             call_args = mock_create.call_args
-            assert call_args[1]["model"] == "gpt-3.5-turbo-0125"
+            assert call_args[1]["model"] == "gpt-3.5-turbo"
             assert call_args[1]["temperature"] == 0.0
             assert call_args[1]["max_tokens"] == 80
 
