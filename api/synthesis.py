@@ -181,6 +181,7 @@ async def synthesize_answer(
         )
 
         logger.info(f"Calling OpenAI {model} for synthesis")
+        openai_start = time.time()
 
         # Call OpenAI
         response = await client.chat.completions.create(
@@ -193,6 +194,9 @@ async def synthesize_answer(
             max_tokens=max_tokens,
             n=1
         )
+
+        openai_end = time.time()
+        logger.info(f"OpenAI API call completed in {openai_end - openai_start:.2f} seconds")
 
         # Extract the answer
         raw_answer = response.choices[0].message.content.strip()
@@ -236,7 +240,7 @@ async def synthesize_answer(
 async def synthesize_with_retry(
     chunks: List[Dict[str, Any]],
     query: str,
-    max_retries: int = 2
+    max_retries: int = 0  # Reduced from 2 to avoid timeout issues
 ) -> Optional[SynthesizedAnswer]:
     """
     Wrapper function with retry logic for resilience
