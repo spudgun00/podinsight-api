@@ -259,7 +259,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     """
     # Log at the very beginning
     logger.info(f"=== SEARCH HANDLER CALLED === Query: '{request.query}', Limit: {request.limit}")
-    
+
     # Normalize query for consistent processing
     clean_query = request.query.strip().lower()
 
@@ -360,14 +360,30 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
 
             # Convert to API format with expanded context
             formatted_results = []
-            for result in paginated_results:
+            expansion_start = time.time()
+            logger.info(f"Starting context expansion for {len(paginated_results)} results")
+
+            for idx, result in enumerate(paginated_results):
                 try:
+                    # TEMPORARY: Skip expansion to fix performance issue
+                    # TODO: Implement batch expansion after confirming this is the bottleneck
+
+                    # Log timing for each expansion
+                    chunk_start = time.time()
+
                     # Expand context for better readability
                     try:
-                        expanded_text = await expand_chunk_context(result, context_seconds=20.0)
+                        # COMMENTED OUT: This is causing N+1 query problem
+                        # expanded_text = await expand_chunk_context(result, context_seconds=20.0)
+                        expanded_text = result.get("text", "")  # Temporary: use original text
+                        logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} to fix N+1 query issue")
                     except Exception as e:
                         logger.warning(f"Context expansion failed: {e} - using original text")
                         expanded_text = result.get("text", "")
+
+                    chunk_time = time.time() - chunk_start
+                    if chunk_time > 0.5:  # Log if any single expansion takes > 500ms
+                        logger.warning(f"Chunk {idx+1} expansion took {chunk_time:.2f}s")
 
                     # Vector search provides chunks with timestamps
                     # Handle published_at - it comes as string from Supabase
@@ -426,6 +442,12 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     logger.error(f"Result data: {result}")
                     continue  # Skip this result but process others
 
+            # Log total expansion time
+            expansion_time = time.time() - expansion_start
+            logger.info(f"Context expansion completed in {expansion_time:.2f}s for {len(paginated_results)} results")
+            if expansion_time > 5.0:
+                logger.warning(f"PERFORMANCE WARNING: Context expansion took {expansion_time:.2f}s!")
+
             # Audio paths and durations are now included in vector search results
             # from the fixed mongodb_vector_search.py enrichment
             for result, vector_result in zip(formatted_results, paginated_results):
@@ -459,7 +481,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                         if "_id" in clean_chunk:
                             clean_chunk["_id"] = str(clean_chunk["_id"])
                         chunks_for_synthesis.append(clean_chunk)
-                    
+
                     logger.info(f"Synthesizing answer from {len(chunks_for_synthesis)} chunks")
 
                     synthesis_result = await synthesize_with_retry(chunks_for_synthesis, request.query)
@@ -503,7 +525,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 logger.info(f"Response has {len(formatted_results)} results")
                 if answer_object:
                     logger.info(f"Answer synthesis included with {len(answer_object.citations)} citations")
-                
+
                 # Return the response object (let FastAPI serialize it)
                 return response
             else:
