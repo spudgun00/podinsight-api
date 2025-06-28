@@ -285,7 +285,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
         if not embedding_768d:
             # Generate new 768D embedding
             logger.info(f"Generating 768D embedding for: {clean_query}")
+            embed_start = time.time()
             embedding_768d = await generate_embedding_768d_local(clean_query)
+            embed_time = time.time() - embed_start
+            logger.info(f"Embedding generation took {embed_time:.2f}s")
 
             if DEBUG_MODE and embedding_768d:
                 logger.info(f"[DEBUG] Embedding length: {len(embedding_768d)}")

@@ -52,6 +52,10 @@ class ModalInstructorXLEmbedder:
         Returns:
             List of 768 float values or None if error
         """
+        import time
+        start_time = time.time()
+        logger.info(f"Starting Modal embedding request for: '{query[:50]}...'")
+
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {
@@ -68,8 +72,11 @@ class ModalInstructorXLEmbedder:
                     embed_url,
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)  # Increased timeout for cold starts
+                    timeout=aiohttp.ClientTimeout(total=20)  # Reduced to 20s to leave room for other operations
                 ) as response:
+                    elapsed = time.time() - start_time
+                    logger.info(f"Modal API responded in {elapsed:.2f}s with status {response.status}")
+
                     if response.status == 200:
                         data = await response.json()
                         embedding = data.get("embedding", data)  # Handle different response formats
@@ -87,10 +94,12 @@ class ModalInstructorXLEmbedder:
                         return None
 
         except asyncio.TimeoutError:
-            logger.error("Modal API timeout - function may be cold starting (30s timeout)")
+            elapsed = time.time() - start_time
+            logger.error(f"Modal API timeout after {elapsed:.2f}s - function may be cold starting")
             return None
         except Exception as e:
-            logger.error(f"Modal embedding error: {e}")
+            elapsed = time.time() - start_time
+            logger.error(f"Modal embedding error after {elapsed:.2f}s: {e}")
             return None
 
     async def encode_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
