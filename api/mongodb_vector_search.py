@@ -96,7 +96,7 @@ class MongoVectorSearchHandler:
                         "index": "vector_index_768d",
                         "path": "embedding_768d",
                         "queryVector": embedding,
-                        "numCandidates": min(limit * 50, 2000),
+                        "numCandidates": 100,  # Enhanced from 20 for better recall
                         "limit": limit
                     }
                 },

@@ -29,6 +29,7 @@ from .mongodb_search import get_search_handler
 from .mongodb_vector_search import get_vector_search_handler
 from .embeddings_768d_modal import get_embedder
 from .embedding_utils import embed_query, validate_embedding
+from .synthesis import synthesize_with_retry, Citation
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -62,7 +63,13 @@ class SearchResult(BaseModel):
     s3_audio_path: Optional[str]
     timestamp: Optional[Dict[str, float]]  # start_time, end_time for playback
 
+class AnswerObject(BaseModel):
+    """Synthesized answer with citations"""
+    text: str
+    citations: List[Citation]
+
 class SearchResponse(BaseModel):
+    answer: Optional[AnswerObject] = None  # Optional synthesized answer
     results: List[SearchResult]
     total_results: int
     cache_hit: bool
@@ -71,6 +78,8 @@ class SearchResponse(BaseModel):
     limit: int
     offset: int
     search_method: str  # "vector_768d", "text", or "vector_384d"
+    processing_time_ms: Optional[int] = None
+    raw_chunks: Optional[List[Dict[str, Any]]] = None  # Original chunks for debugging
 
 
 async def generate_embedding_768d_local(text: str) -> List[float]:
@@ -294,8 +303,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             # Always try vector search if we have an embedding
             logger.info(f"Using MongoDB 768D vector search: {clean_query}")
 
-            # Perform vector search - fetch enough results for pagination
-            num_to_fetch = request.limit + request.offset
+            # Always fetch 10 chunks for synthesis, regardless of requested limit
+            # But also fetch enough for pagination
+            num_for_synthesis = 10
+            num_to_fetch = max(num_for_synthesis, request.limit + request.offset)
             logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
             logger.warning(
                 "[VECTOR_HANDLER] about to call %s from module %s",
@@ -420,9 +431,38 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             # Only return vector results if we actually got some
             if len(formatted_results) > 0:
                 logger.info(f"Returning {len(formatted_results)} formatted results")
+
+                # Try to synthesize an answer from the top chunks
+                answer_object = None
+                synthesis_start = time.time()
+                try:
+                    # Use the first 10 raw vector results for synthesis (before pagination)
+                    chunks_for_synthesis = vector_results[:num_for_synthesis]
+                    logger.info(f"Synthesizing answer from {len(chunks_for_synthesis)} chunks")
+
+                    synthesis_result = await synthesize_with_retry(chunks_for_synthesis, request.query)
+                    if synthesis_result:
+                        answer_object = AnswerObject(
+                            text=synthesis_result.text,
+                            citations=synthesis_result.citations
+                        )
+                        logger.info(f"Synthesis successful: {len(synthesis_result.citations)} citations")
+                    else:
+                        logger.warning("Synthesis returned None")
+                except Exception as e:
+                    logger.error(f"Synthesis failed: {str(e)}")
+                    # Continue without answer - graceful degradation
+
+                synthesis_time = int((time.time() - synthesis_start) * 1000)
+                total_time = int((time.time() - start) * 1000)
+
                 if DEBUG_MODE:
                     logger.info(f"[DEBUG] fallback_used: vector_768d")
+                    logger.info(f"[DEBUG] synthesis_time_ms: {synthesis_time}")
+                    logger.info(f"[DEBUG] total_time_ms: {total_time}")
+
                 return SearchResponse(
+                    answer=answer_object,
                     results=formatted_results,
                     total_results=len(vector_results),
                     cache_hit=cache_hit,
@@ -430,7 +470,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     query=request.query,
                     limit=request.limit,
                     offset=request.offset,
-                    search_method="vector_768d"
+                    search_method="vector_768d",
+                    processing_time_ms=total_time,
+                    raw_chunks=chunks_for_synthesis if DEBUG_MODE else None
                 )
             else:
                 logger.warning(f"Vector search returned 0 results, falling back to text search")
