@@ -6,6 +6,9 @@
       "maxDuration": 30
     }
   },
+  "env": {
+    "PYTHONPATH": "."
+  },
   "rewrites": [
     {
       "source": "/api/diag",
