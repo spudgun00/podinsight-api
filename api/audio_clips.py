@@ -35,6 +35,16 @@ class AudioClipResponse(BaseModel):
     duration_ms: int
     generation_time_ms: int
 
+@router.get("/health")
+async def health_check():
+    """Health check endpoint for audio service"""
+    return {
+        "status": "healthy",
+        "service": "audio_clips",
+        "lambda_configured": bool(LAMBDA_FUNCTION_URL),
+        "mongodb_configured": bool(MONGODB_URI)
+    }
+
 @router.get("/{episode_id}")
 async def get_audio_clip(
     episode_id: str,
@@ -55,26 +65,40 @@ async def get_audio_clip(
     start_time = time.time()
 
     try:
-        # Determine if episode_id is ObjectId or GUID format
-        is_object_id = False
-        is_guid = False
-
-        # Check for ObjectId format (24 hex characters)
-        try:
-            if len(episode_id) == 24:
-                ObjectId(episode_id)
-                is_object_id = True
-        except Exception:
-            pass
-
-        # Check for GUID format (8-4-4-4-12 with hyphens)
+        # Validate GUID format (8-4-4-4-12 with hyphens)
         import re
         guid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-        if re.match(guid_pattern, episode_id):
-            is_guid = True
+        if not re.match(guid_pattern, episode_id):
+            # For backward compatibility, check if it's an ObjectId and convert
+            if len(episode_id) == 24:
+                try:
+                    ObjectId(episode_id)
+                    # It's an ObjectId - need to look up the GUID
+                    if not MONGODB_URI:
+                        logger.error("MONGODB_URI not configured")
+                        raise HTTPException(status_code=503, detail="Database service not configured")
 
-        if not is_object_id and not is_guid:
-            raise HTTPException(status_code=400, detail="Invalid episode ID format - must be ObjectId or GUID")
+                    client = MongoClient(MONGODB_URI)
+                    db = client.podinsight
+
+                    episode = db.episode_metadata.find_one(
+                        {"_id": ObjectId(episode_id)},
+                        {"guid": 1}
+                    )
+
+                    if not episode or not episode.get("guid"):
+                        raise HTTPException(status_code=404, detail="Episode not found or missing GUID")
+
+                    # Use the GUID from here on
+                    guid = episode["guid"]
+                    logger.info(f"Converted ObjectId {episode_id} to GUID {guid}")
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID or ObjectId")
+            else:
+                raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID")
+        else:
+            # It's already a GUID
+            guid = episode_id
 
         # Validate parameters
         if start_time_ms < 0:
@@ -82,8 +106,8 @@ async def get_audio_clip(
         if duration_ms <= 0 or duration_ms > 60000:  # Max 60 seconds
             raise HTTPException(status_code=400, detail="Duration must be between 1 and 60000 milliseconds")
 
-        # Look up episode metadata from MongoDB
-        logger.info(f"Looking up episode {episode_id} (type: {'ObjectId' if is_object_id else 'GUID'}) in MongoDB")
+        # Look up feed_slug from MongoDB using GUID
+        logger.info(f"Looking up GUID {guid} in MongoDB")
 
         if not MONGODB_URI:
             logger.error("MONGODB_URI not configured")
@@ -92,60 +116,21 @@ async def get_audio_clip(
         client = MongoClient(MONGODB_URI)
         db = client.podinsight
 
-        # Different lookup paths based on ID type
-        if is_guid:
-            # Direct GUID path - search API sends GUIDs
-            guid = episode_id
-            logger.info(f"Using GUID directly: {guid}")
+        # Find feed_slug from transcript_chunks using GUID
+        chunk = db.transcript_chunks_768d.find_one(
+            {"episode_id": guid},
+            {"feed_slug": 1}
+        )
 
-            # Find feed_slug from transcript_chunks
-            chunk = db.transcript_chunks_768d.find_one(
-                {"episode_id": guid},
-                {"feed_slug": 1}
-            )
+        if not chunk:
+            logger.warning(f"GUID {guid} has no transcript data")
+            raise HTTPException(status_code=422, detail="Episode does not have transcript data available")
 
-            if not chunk:
-                logger.warning(f"GUID {guid} has no transcript data")
-                raise HTTPException(status_code=422, detail="Episode does not have transcript data available")
+        if not chunk.get("feed_slug"):
+            logger.error(f"Could not find feed_slug for GUID {guid}")
+            raise HTTPException(status_code=500, detail="Could not determine podcast feed")
 
-            if not chunk.get("feed_slug"):
-                logger.error(f"Could not find feed_slug for GUID {guid}")
-                raise HTTPException(status_code=500, detail="Could not determine podcast feed")
-
-            feed_slug = chunk["feed_slug"]
-
-        else:
-            # Original ObjectId path - for backward compatibility
-            episode = db.episode_metadata.find_one(
-                {"_id": ObjectId(episode_id)},
-                {"guid": 1, "podcast_title": 1, "episode_title": 1}
-            )
-
-            if not episode:
-                logger.warning(f"Episode {episode_id} not found in MongoDB")
-                raise HTTPException(status_code=404, detail="Episode not found")
-
-            guid = episode.get("guid")
-            if not guid:
-                logger.error(f"Episode {episode_id} has no GUID")
-                raise HTTPException(status_code=500, detail="Episode missing GUID")
-
-            # Map podcast_title to feed_slug (this mapping might need adjustment based on your data)
-            # For now, we'll try to find it from transcript_chunks
-            chunk = db.transcript_chunks_768d.find_one(
-                {"episode_id": guid},
-                {"feed_slug": 1}
-            )
-
-            if not chunk:
-                logger.warning(f"Episode {episode_id} has no transcript data")
-                raise HTTPException(status_code=422, detail="Episode does not have transcript data available")
-
-            if not chunk.get("feed_slug"):
-                logger.error(f"Could not find feed_slug for episode {episode_id}")
-                raise HTTPException(status_code=500, detail="Could not determine podcast feed")
-
-            feed_slug = chunk["feed_slug"]
+        feed_slug = chunk["feed_slug"]
 
         # Check if Lambda URL is configured
         if not LAMBDA_FUNCTION_URL:
@@ -206,13 +191,3 @@ async def get_audio_clip(
     except Exception as e:
         logger.error(f"Unexpected error in audio clip generation: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-@router.get("/health")
-async def health_check():
-    """Health check endpoint for audio service"""
-    return {
-        "status": "healthy",
-        "service": "audio_clips",
-        "lambda_configured": bool(LAMBDA_FUNCTION_URL),
-        "mongodb_configured": bool(MONGODB_URI)
-    }
