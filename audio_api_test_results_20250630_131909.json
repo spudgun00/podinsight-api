@@ -1,0 +1,161 @@
+{
+  "test_run_id": "2025-06-30T13:19:01.380425",
+  "tests": [
+    {
+      "name": "Standard 30-second Clip",
+      "status": "failed",
+      "duration": 0.22123384475708008,
+      "details": {
+        "success": false,
+        "error": "Expected 200, got 403",
+        "response_body": "{\"detail\":\"Audio generation failed: {\\\"Message\\\":\\\"Forbidden\\\"}\"}",
+        "request_time": 0.22109532356262207
+      }
+    },
+    {
+      "name": "Custom 15-second Clip",
+      "status": "failed",
+      "duration": 0.3069648742675781,
+      "details": {
+        "success": false,
+        "error": "Expected 200, got 403",
+        "response_body": "{\"detail\":\"Audio generation failed: {\\\"Message\\\":\\\"Forbidden\\\"}\"}"
+      }
+    },
+    {
+      "name": "Cache Hit Performance",
+      "status": "failed",
+      "duration": 1.4298641681671143,
+      "details": {
+        "success": false,
+        "error": "Expected cache hit on second request"
+      }
+    },
+    {
+      "name": "Invalid Episode ID Format",
+      "status": "passed",
+      "duration": 0.08292722702026367,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Invalid episode ID format"
+        }
+      }
+    },
+    {
+      "name": "Non-existent Episode",
+      "status": "passed",
+      "duration": 0.16519618034362793,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Episode not found"
+        }
+      }
+    },
+    {
+      "name": "Episode Without Transcript",
+      "status": "passed",
+      "duration": 0.1635150909423828,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Episode does not have transcript data available"
+        }
+      }
+    },
+    {
+      "name": "Invalid Parameters",
+      "status": "passed",
+      "duration": 0.4496138095855713,
+      "details": {
+        "success": true,
+        "results": [
+          {
+            "test": "negative_start_time",
+            "success": true,
+            "response": {
+              "detail": "Start time must be non-negative"
+            }
+          },
+          {
+            "test": "duration_too_long",
+            "success": true,
+            "response": {
+              "detail": "Duration must be between 1 and 60000 milliseconds"
+            }
+          },
+          {
+            "test": "zero_duration",
+            "success": true,
+            "response": {
+              "detail": "Duration must be between 1 and 60000 milliseconds"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Concurrent Performance Metrics",
+      "status": "failed",
+      "duration": 4.802409887313843,
+      "details": {
+        "success": false,
+        "error": "No successful requests",
+        "results": [
+          {
+            "params": {
+              "start_time_ms": 150000
+            },
+            "request_time": 0.1722259521484375,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 403
+          },
+          {
+            "params": {
+              "start_time_ms": 30000
+            },
+            "request_time": 0.30274200439453125,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 403
+          },
+          {
+            "params": {
+              "start_time_ms": 90000
+            },
+            "request_time": 4.367660045623779,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 403
+          },
+          {
+            "params": {
+              "start_time_ms": 120000
+            },
+            "request_time": 4.412323236465454,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 403
+          },
+          {
+            "params": {
+              "start_time_ms": 60000
+            },
+            "request_time": 4.800951957702637,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 403
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 4,
+    "failed": 4,
+    "performance_metrics": {}
+  }
+}

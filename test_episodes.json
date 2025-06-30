@@ -1,0 +1,14 @@
+{
+  "generated_at": "2025-06-30T11:25:23.352888",
+  "test_episodes": {
+    "valid_episodes": [],
+    "episode_without_transcript": null,
+    "invalid_episode_id": "ffffffffffffffffffffffff"
+  },
+  "api_endpoint": "https://podinsight-api.vercel.app/api/v1/audio_clips",
+  "test_parameters": {
+    "standard_start_time_ms": 30000,
+    "custom_duration_ms": 15000,
+    "long_duration_ms": 60000
+  }
+}

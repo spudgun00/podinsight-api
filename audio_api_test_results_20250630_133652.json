@@ -1,0 +1,204 @@
+{
+  "test_run_id": "2025-06-30T13:36:42.163112",
+  "tests": [
+    {
+      "name": "Standard 30-second Clip",
+      "status": "passed",
+      "duration": 0.9632968902587891,
+      "details": {
+        "success": true,
+        "request_time": 0.29018187522888184,
+        "generation_time": 205,
+        "cache_hit": true,
+        "audio_verification": {
+          "success": true,
+          "file_size": 1206560,
+          "duration": 30.014694,
+          "filepath": "test_audio_clips/standard_30s.mp3"
+        },
+        "response_data": {
+          "clip_url": "https://pod-insights-clips.s3.amazonaws.com/unchained/022f8502-14c3-11f0-9b7c-bf77561f0071/30000-60000.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIAYUYHMBUQNKYYW6GN%2F20250630%2Feu-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250630T123642Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEMX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCWV1LXdlc3QtMiJIMEYCIQDIFs7ZjRbI%2B7bMGfUWF4jY9td5dnAQlUBQg1UtQAhBYAIhAIvmwAGLna5YmZZQaJhfk%2F6x%2Fl2bsMt%2FQFyU3xCEWQM7KpoDCL7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQABoMNTk0MzMxNTY5NDQwIgyHF1PJcbDbc8%2BRcUUq7gKZzEXkkC6aNOMqGIzLDbm3NZ1byUaWu4D9Z%2FtnZlYyWaJXoRUDo5H6J0ek8WgqNfP2JrWY8IJOOnP2%2BZvfeChxG2zLwlKWn6%2F%2FkX6Exar3i04VMLrKNoGL7E09LhDyaUXxM1Wnnyq0Y2asYgNvKB%2F5iG%2Bx3%2FaFS2VgrVCIkbqxj8N%2FDjrPsaBQix0ng79FyOrCFYydTZUC7VkKDWUspnWaT40yQcKX6JZ8lyIoM2DMRxT6G2z7jBEh8YFjm%2BUQqIsXTIup2n3uLPKyj0d5w0isFfuiMWf27vZSQQNoDgYXCP8OKSLg9xxoVT4aMuoqF9QBgHuKTbTbV6vd5h%2BB9d9KYZoaELpOD%2FZkwBuHCZqbhv65LyPPRe28aDursf5VYZAgEoSKqNrujbNP%2FzDP0erTrgTcLU7azrceaM8JLslmMViU25A%2BbFUg5jGun%2BmtgBSF0IR3Jerl4TZCEdQk3l8yiCt%2BFuE2gdnNEe2G5Ccwu4mKwwY6nAGZvLQlvAJ8F%2F%2BdP3VHmdK%2BV8Y105zqTDsLZ31OHOwQ92415hwQzxZoWcs0E0NcltKWobs%2BIskTdSIf9gDpihGZM%2B%2FjxkY0sIpvvcrXppeE2iy56APLjVx6xoDvoVGpF3sYTvh8Xac5BfzYb0uENP4E1ztOd770uRHOd3ecLtitP4wxvVAOO4bru5v2Bl8ETeqHJtLEv5Z1DWocumM%3D&X-Amz-Signature=cf40e981f3be658aeb9cc4f2248e932662af95f345ff812eaddc3515411b6616",
+          "expires_at": "",
+          "cache_hit": true,
+          "episode_id": "685ba776e4f9ec2f0756267a",
+          "start_time_ms": 30000,
+          "duration_ms": 30000,
+          "generation_time_ms": 205
+        }
+      }
+    },
+    {
+      "name": "Custom 15-second Clip",
+      "status": "passed",
+      "duration": 0.7304518222808838,
+      "details": {
+        "success": true,
+        "request_time": 0.5648548603057861,
+        "audio_verification": {
+          "success": true,
+          "file_size": 607834,
+          "duration": 15.046531,
+          "filepath": "test_audio_clips/custom_15s.mp3"
+        },
+        "response_data": {
+          "clip_url": "https://pod-insights-clips.s3.amazonaws.com/unchained/022f8502-14c3-11f0-9b7c-bf77561f0071/60000-75000.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIAYUYHMBUQNKYYW6GN%2F20250630%2Feu-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250630T123643Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEMX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCWV1LXdlc3QtMiJIMEYCIQDIFs7ZjRbI%2B7bMGfUWF4jY9td5dnAQlUBQg1UtQAhBYAIhAIvmwAGLna5YmZZQaJhfk%2F6x%2Fl2bsMt%2FQFyU3xCEWQM7KpoDCL7%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQABoMNTk0MzMxNTY5NDQwIgyHF1PJcbDbc8%2BRcUUq7gKZzEXkkC6aNOMqGIzLDbm3NZ1byUaWu4D9Z%2FtnZlYyWaJXoRUDo5H6J0ek8WgqNfP2JrWY8IJOOnP2%2BZvfeChxG2zLwlKWn6%2F%2FkX6Exar3i04VMLrKNoGL7E09LhDyaUXxM1Wnnyq0Y2asYgNvKB%2F5iG%2Bx3%2FaFS2VgrVCIkbqxj8N%2FDjrPsaBQix0ng79FyOrCFYydTZUC7VkKDWUspnWaT40yQcKX6JZ8lyIoM2DMRxT6G2z7jBEh8YFjm%2BUQqIsXTIup2n3uLPKyj0d5w0isFfuiMWf27vZSQQNoDgYXCP8OKSLg9xxoVT4aMuoqF9QBgHuKTbTbV6vd5h%2BB9d9KYZoaELpOD%2FZkwBuHCZqbhv65LyPPRe28aDursf5VYZAgEoSKqNrujbNP%2FzDP0erTrgTcLU7azrceaM8JLslmMViU25A%2BbFUg5jGun%2BmtgBSF0IR3Jerl4TZCEdQk3l8yiCt%2BFuE2gdnNEe2G5Ccwu4mKwwY6nAGZvLQlvAJ8F%2F%2BdP3VHmdK%2BV8Y105zqTDsLZ31OHOwQ92415hwQzxZoWcs0E0NcltKWobs%2BIskTdSIf9gDpihGZM%2B%2FjxkY0sIpvvcrXppeE2iy56APLjVx6xoDvoVGpF3sYTvh8Xac5BfzYb0uENP4E1ztOd770uRHOd3ecLtitP4wxvVAOO4bru5v2Bl8ETeqHJtLEv5Z1DWocumM%3D&X-Amz-Signature=b6386dd464967d457a36ed030f2675d97d9f8c703374a7576a24abc099edd507",
+          "expires_at": "",
+          "cache_hit": false,
+          "episode_id": "685ba776e4f9ec2f0756267a",
+          "start_time_ms": 60000,
+          "duration_ms": 15000,
+          "generation_time_ms": 501
+        }
+      }
+    },
+    {
+      "name": "Cache Hit Performance",
+      "status": "passed",
+      "duration": 1.4743359088897705,
+      "details": {
+        "success": true,
+        "first_request": {
+          "time": 0.2401561737060547,
+          "generation_time": 178,
+          "cache_hit": true
+        },
+        "second_request": {
+          "time": 0.23249101638793945,
+          "generation_time": 156,
+          "cache_hit": true
+        }
+      }
+    },
+    {
+      "name": "Invalid Episode ID Format",
+      "status": "passed",
+      "duration": 0.06862998008728027,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Invalid episode ID format"
+        }
+      }
+    },
+    {
+      "name": "Non-existent Episode",
+      "status": "passed",
+      "duration": 0.1642289161682129,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Episode not found"
+        }
+      }
+    },
+    {
+      "name": "Episode Without Transcript",
+      "status": "passed",
+      "duration": 0.16846418380737305,
+      "details": {
+        "success": true,
+        "response": {
+          "detail": "Episode does not have transcript data available"
+        }
+      }
+    },
+    {
+      "name": "Invalid Parameters",
+      "status": "passed",
+      "duration": 0.17649626731872559,
+      "details": {
+        "success": true,
+        "results": [
+          {
+            "test": "negative_start_time",
+            "success": true,
+            "response": {
+              "detail": "Start time must be non-negative"
+            }
+          },
+          {
+            "test": "duration_too_long",
+            "success": true,
+            "response": {
+              "detail": "Duration must be between 1 and 60000 milliseconds"
+            }
+          },
+          {
+            "test": "zero_duration",
+            "success": true,
+            "response": {
+              "detail": "Duration must be between 1 and 60000 milliseconds"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Concurrent Performance Metrics",
+      "status": "passed",
+      "duration": 6.5349743366241455,
+      "details": {
+        "success": true,
+        "metrics": {
+          "total_requests": 5,
+          "successful_requests": 5,
+          "average_request_time": 4.436900424957275,
+          "cache_hit_rate": 20.0,
+          "results": [
+            {
+              "params": {
+                "start_time_ms": 150000
+              },
+              "request_time": 0.5818490982055664,
+              "generation_time": 522,
+              "cache_hit": false,
+              "status_code": 200
+            },
+            {
+              "params": {
+                "start_time_ms": 60000
+              },
+              "request_time": 4.573146104812622,
+              "generation_time": 535,
+              "cache_hit": false,
+              "status_code": 200
+            },
+            {
+              "params": {
+                "start_time_ms": 30000
+              },
+              "request_time": 5.207607984542847,
+              "generation_time": 1046,
+              "cache_hit": true,
+              "status_code": 200
+            },
+            {
+              "params": {
+                "start_time_ms": 90000
+              },
+              "request_time": 5.2909510135650635,
+              "generation_time": 542,
+              "cache_hit": false,
+              "status_code": 200
+            },
+            {
+              "params": {
+                "start_time_ms": 120000
+              },
+              "request_time": 6.530947923660278,
+              "generation_time": 1464,
+              "cache_hit": false,
+              "status_code": 200
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "performance_metrics": {}
+  }
+}

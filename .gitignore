@@ -61,3 +61,5 @@ zen-mcp-server/
 
 # Lambda deployment artifacts
 lambda_functions/
+.env.vercel
+test_episodes_v2.json

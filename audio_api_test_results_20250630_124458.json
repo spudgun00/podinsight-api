@@ -1,0 +1,152 @@
+{
+  "test_run_id": "2025-06-30T12:44:22.508711",
+  "tests": [
+    {
+      "name": "Standard 30-second Clip",
+      "status": "failed",
+      "duration": 2.8989639282226562,
+      "details": {
+        "success": false,
+        "error": "Expected 200, got 500",
+        "response_body": "{\"error\": {\"code\": \"500\", \"message\": \"A server error has occurred\"}}",
+        "request_time": 2.898622989654541
+      }
+    },
+    {
+      "name": "Custom 15-second Clip",
+      "status": "failed",
+      "duration": 2.7123751640319824,
+      "details": {
+        "success": false,
+        "error": "Expected 200, got 500",
+        "response_body": "{\"error\": {\"code\": \"500\", \"message\": \"A server error has occurred\"}}"
+      }
+    },
+    {
+      "name": "Cache Hit Performance",
+      "status": "failed",
+      "duration": 6.6638548374176025,
+      "details": {
+        "success": false,
+        "error": "Expected cache hit on second request"
+      }
+    },
+    {
+      "name": "Invalid Episode ID Format",
+      "status": "failed",
+      "duration": 2.6673598289489746,
+      "details": {
+        "success": false,
+        "error": "Expected 400, got 500",
+        "response_body": "{\"error\": {\"code\": \"500\", \"message\": \"A server error has occurred\"}}"
+      }
+    },
+    {
+      "name": "Non-existent Episode",
+      "status": "failed",
+      "duration": 2.690429925918579,
+      "details": {
+        "success": false,
+        "error": "Expected 404, got 500",
+        "response_body": "{\"error\": {\"code\": \"500\", \"message\": \"A server error has occurred\"}}"
+      }
+    },
+    {
+      "name": "Episode Without Transcript",
+      "status": "failed",
+      "duration": 2.7035739421844482,
+      "details": {
+        "success": false,
+        "error": "Expected 422, got 500",
+        "response_body": "{\"error\": {\"code\": \"500\", \"message\": \"A server error has occurred\"}}"
+      }
+    },
+    {
+      "name": "Invalid Parameters",
+      "status": "failed",
+      "duration": 8.296413898468018,
+      "details": {
+        "success": false,
+        "results": [
+          {
+            "test": "negative_start_time",
+            "success": false,
+            "error": "Expected 400, got 500"
+          },
+          {
+            "test": "duration_too_long",
+            "success": false,
+            "error": "Expected 400, got 500"
+          },
+          {
+            "test": "zero_duration",
+            "success": false,
+            "error": "Expected 400, got 500"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Concurrent Performance Metrics",
+      "status": "failed",
+      "duration": 7.267530918121338,
+      "details": {
+        "success": false,
+        "error": "No successful requests",
+        "results": [
+          {
+            "params": {
+              "start_time_ms": 90000
+            },
+            "request_time": 2.622117280960083,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 500
+          },
+          {
+            "params": {
+              "start_time_ms": 60000
+            },
+            "request_time": 5.812319993972778,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 500
+          },
+          {
+            "params": {
+              "start_time_ms": 150000
+            },
+            "request_time": 6.134104013442993,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 500
+          },
+          {
+            "params": {
+              "start_time_ms": 120000
+            },
+            "request_time": 6.801162958145142,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 500
+          },
+          {
+            "params": {
+              "start_time_ms": 30000
+            },
+            "request_time": 7.26642918586731,
+            "generation_time": null,
+            "cache_hit": null,
+            "status_code": 500
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 0,
+    "failed": 8,
+    "performance_metrics": {}
+  }
+}
