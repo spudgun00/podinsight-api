@@ -28,8 +28,8 @@ from pydantic import BaseModel, Field, validator
 from .database import get_pool
 from .mongodb_search import get_search_handler
 from .mongodb_vector_search import get_vector_search_handler
-# Import from local lib directory
-from .lib.embedding_utils import embed_query, validate_embedding
+# Import from root lib directory
+from lib.embedding_utils import embed_query, validate_embedding
 from .synthesis import synthesize_with_retry, Citation
 
 # Configure logging
