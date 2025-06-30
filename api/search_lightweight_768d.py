@@ -28,8 +28,16 @@ from pydantic import BaseModel, Field, validator
 from .database import get_pool
 from .mongodb_search import get_search_handler
 from .mongodb_vector_search import get_vector_search_handler
-from lib.embeddings_768d_modal import get_embedder
-from lib.embedding_utils import embed_query, validate_embedding
+try:
+    # Try importing from parent directory (for Vercel)
+    import sys
+    sys.path.insert(0, '/var/task')
+    from lib.embeddings_768d_modal import get_embedder
+    from lib.embedding_utils import embed_query, validate_embedding
+except ImportError:
+    # Fallback for local development
+    from lib.embeddings_768d_modal import get_embedder
+    from lib.embedding_utils import embed_query, validate_embedding
 from .synthesis import synthesize_with_retry, Citation
 
 # Configure logging
