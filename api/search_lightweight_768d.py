@@ -28,7 +28,14 @@ from pydantic import BaseModel, Field, validator
 from .database import get_pool
 from .mongodb_search import get_search_handler
 from .mongodb_vector_search import get_vector_search_handler
-# Import from lib directory (PYTHONPATH is set in vercel.json)
+# Add project root to Python path for lib imports
+import sys
+import os
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Import from lib directory
 from lib.embedding_utils import embed_query, validate_embedding
 from .synthesis import synthesize_with_retry, Citation
 

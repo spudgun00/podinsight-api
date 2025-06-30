@@ -808,3 +808,53 @@ Found **critical route ordering bug** in audio_clips.py:
 - GUID support: ✅ WORKING
 - Deployment: ⏳ VERCEL UPDATING (~6 min)
 - Dashboard: ⏳ AWAITING VERIFICATION
+
+---
+
+## June 30, 2025 - Module Import Fix
+
+### Session 4: Fixing Vercel Deployment Error
+- **Focus**: Resolving ModuleNotFoundError for lib imports
+- **Duration**: ~30 minutes
+
+#### Issue Discovered
+Dashboard still showing errors after audio fix:
+```
+ModuleNotFoundError: No module named 'lib'
+```
+
+The error occurred in `api/search_lightweight_768d.py` when trying to import from `lib.embeddings_768d_modal`.
+
+#### Root Cause
+- Vercel's Python runtime couldn't find the `lib` directory at project root
+- The hardcoded `/var/task` path in sys.path.insert wasn't working
+- Complex try/except import blocks were fragile
+
+#### Solution Applied
+With Gemini's deep analysis, implemented the clean approach:
+
+1. **Added PYTHONPATH to vercel.json**:
+   ```json
+   "env": {
+     "PYTHONPATH": "."
+   }
+   ```
+
+2. **Simplified imports**:
+   - Removed complex try/except blocks
+   - Now using direct imports: `from lib.embedding_utils import embed_query, validate_embedding`
+   - Removed unused `get_embedder` import
+
+3. **Verified safety**:
+   - Only one API file uses lib imports
+   - Test scripts manage their own paths
+   - Change is isolated and safe
+
+#### Key Learning
+**Use platform configuration over code workarounds!** Setting PYTHONPATH in vercel.json is cleaner than runtime sys.path manipulation. This follows Vercel best practices and keeps code maintainable.
+
+#### Current Status
+- Import fix: ✅ DEPLOYED
+- Commit: d37971b
+- Deployment: ⏳ IN PROGRESS (~6 min)
+- Dashboard: ⏳ AWAITING TEST
