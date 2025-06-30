@@ -22,14 +22,18 @@ router = APIRouter(prefix="/api/v1/audio_clips", tags=["audio"])
 
 # Environment variables
 LAMBDA_FUNCTION_URL = os.environ.get("AUDIO_LAMBDA_URL")
+LAMBDA_API_KEY = os.environ.get("AUDIO_LAMBDA_API_KEY")
 MONGODB_URI = os.environ.get("MONGODB_URI")
 
 # Response models
 class AudioClipResponse(BaseModel):
     clip_url: str
+    expires_at: str
     cache_hit: bool
+    episode_id: str
+    start_time_ms: int
+    duration_ms: int
     generation_time_ms: int
-    episode_info: dict
 
 @router.get("/{episode_id}")
 async def get_audio_clip(
@@ -90,7 +94,11 @@ async def get_audio_clip(
             {"feed_slug": 1}
         )
 
-        if not chunk or not chunk.get("feed_slug"):
+        if not chunk:
+            logger.warning(f"Episode {episode_id} has no transcript data")
+            raise HTTPException(status_code=422, detail="Episode does not have transcript data available")
+
+        if not chunk.get("feed_slug"):
             logger.error(f"Could not find feed_slug for episode {episode_id}")
             raise HTTPException(status_code=500, detail="Could not determine podcast feed")
 
@@ -111,11 +119,16 @@ async def get_audio_clip(
 
         logger.info(f"Invoking Lambda for {feed_slug}/{guid} at {start_time_ms}ms")
 
-        # Call Lambda function
+        # Call Lambda function with API key authentication
+        headers = {}
+        if LAMBDA_API_KEY:
+            headers["x-api-key"] = LAMBDA_API_KEY
+
         async with httpx.AsyncClient(timeout=25.0) as client:
             response = await client.post(
                 LAMBDA_FUNCTION_URL,
-                json=lambda_payload
+                json=lambda_payload,
+                headers=headers
             )
 
         if response.status_code != 200:
@@ -131,18 +144,15 @@ async def get_audio_clip(
         # Calculate generation time
         generation_time_ms = int((time.time() - start_time) * 1000)
 
-        # Return response
+        # Return response matching the expected format
         return AudioClipResponse(
             clip_url=lambda_result.get("clip_url"),
+            expires_at=lambda_result.get("expires_at", ""),
             cache_hit=lambda_result.get("cache_hit", False),
-            generation_time_ms=generation_time_ms,
-            episode_info={
-                "episode_id": episode_id,
-                "guid": guid,
-                "feed_slug": feed_slug,
-                "episode_title": episode.get("episode_title", ""),
-                "podcast_title": episode.get("podcast_title", "")
-            }
+            episode_id=episode_id,
+            start_time_ms=start_time_ms,
+            duration_ms=duration_ms,
+            generation_time_ms=generation_time_ms
         )
 
     except HTTPException:
