@@ -36,3 +36,9 @@ README.md
 # Ignore OS files
 .DS_Store
 Thumbs.db
+
+# Ignore Lambda functions (deployed separately to AWS)
+lambda_functions/
+
+# Ignore large zip files
+*.zip
