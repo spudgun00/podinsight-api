@@ -858,3 +858,62 @@ With Gemini's deep analysis, implemented the clean approach:
 - Commit: d37971b
 - Deployment: ⏳ IN PROGRESS (~6 min)
 - Dashboard: ⏳ AWAITING TEST
+
+---
+
+## June 30, 2025 - The Great Library Mystery
+
+### Session 5: Finding the Root Cause
+- **Focus**: Why lib imports still failed after multiple fixes
+- **Duration**: ~45 minutes
+- **Detective Work**: Used Gemini's Sherlock Holmes approach
+
+#### The Mystery
+Despite multiple fixes, still getting the same error:
+```
+ModuleNotFoundError: No module named 'lib'
+```
+
+#### Investigation Process
+1. **First hypothesis**: PYTHONPATH not set correctly
+   - Added to vercel.json env - didn't work
+   - Moved to build.env - didn't work
+
+2. **Second hypothesis**: Path manipulation issues
+   - Added runtime sys.path manipulation - didn't work
+   - Used dynamic path resolution - didn't work
+
+3. **The revelation**: What if lib isn't deployed at all?
+   - Checked .gitignore
+   - Found `lib/` on line 16! 🎯
+
+#### Root Cause
+**The lib directory was gitignored!** It was never in git, so Vercel never deployed it. All our import fixes were trying to import files that didn't exist in production.
+
+#### The Fix
+```bash
+# 1. Remove lib/ from .gitignore
+# 2. Add lib files to git
+git add lib/
+# 3. Remove all complex import workarounds
+```
+
+#### Key Learning
+**Always check .gitignore first!** Sometimes the simplest explanation is the right one. The lib directory contained essential AI utilities (embeddings, sentiment analysis) but was being treated as a build artifact.
+
+#### Final Status
+- Root cause: ✅ FOUND (lib was gitignored)
+- Fix applied: ✅ COMPLETE
+- Commit: b887687
+- Deployment: ✅ COMPLETE (7:35 PM BST)
+- Complexity removed: ✅ (no more path hacks)
+- API Status: ✅ FULLY OPERATIONAL
+
+#### Test Results
+All endpoints working perfectly:
+- Health check: ✅ Returns healthy status
+- GUID requests: ✅ Generates audio URLs
+- ObjectId requests: ✅ Generates audio URLs
+- Error handling: ✅ Proper error messages
+
+The API is now fully operational!

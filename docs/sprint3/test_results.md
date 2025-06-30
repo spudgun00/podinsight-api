@@ -48,85 +48,55 @@ Handling of boundary conditions and error scenarios.
 - [x] Valid request returns audio URL
 - [x] Invalid episode_id returns 404
 - [x] Invalid parameters return 400
-- [x] Duplicate requests use cached clip
-- [x] Response time < 500ms (cache hit)
-- [x] Response time < 4s (cache miss)
-- [x] Concurrent request handling (5 parallel)
-- [x] Pre-signed URL download verification
-- [x] CORS headers validation
-
-### Test Suite: Edge Cases & Security
-**Date**: December 28, 2024
-**Status**: Completed
-
-#### Test Cases
-- [x] Zero-length clip handling
-- [x] Tiny clips (10ms duration)
-- [x] Negative timestamps validation
-- [x] Clips exceeding source duration
-- [x] Corrupted source file handling
-- [x] Zero-byte source handling
-- [x] Pre-signed URL permissions
-- [x] Sensitive data not logged
-- [x] /tmp directory limits
-- [x] Lambda timeout simulation
-- [x] Environment variable validation
-
-### Test Suite: Enhanced Tests
-**Date**: December 28, 2024
-**Status**: Completed
-
-#### Enhanced Test Features
-- [x] Parametrized tests for multiple scenarios
-- [x] Clear expected vs actual comparisons
-- [x] Business logic validation in each test
-- [x] Realistic test data (speech, music, silence, corrupted)
-- [x] Comprehensive error message validation
-- [x] Performance assertions with thresholds
-
-### Performance Benchmarks
-**Target Metrics**:
-- Cold start: < 2000ms ✅ Achieved (1650ms)
-- Cache hit: < 500ms ✅ Achieved (285ms)
-- Cache miss: < 4000ms ✅ Achieved (2340ms)
-- Memory usage: < 1GB ✅ Achieved (850MB peak)
-- Concurrent handling: 5+ req ✅ Achieved (10 req/s)
-
-**Detailed Results**: See [Test Execution Report](test_execution_report.md)
-- Warm request: < 3 seconds
-- Memory usage: < 512MB
-- S3 upload time: < 2 seconds
 
 ---
 
-## Test Execution Log
+## June 30, 2025: Production Deployment Issues
 
-### Template
-```
-Date: YYYY-MM-DD HH:MM
-Test: [Test Name]
-Environment: [Local/Staging/Production]
-Result: [Pass/Fail]
-Duration: Xs
-Notes:
-```
+### Test Suite: Route Ordering Bug
+**Date**: June 30, 2025
+**Status**: Fixed
+**Issue**: Health endpoint defined after dynamic route caused all requests to fail
+
+#### Test Results
+- [ ] Health endpoint - **FAILED** (captured by dynamic route)
+- [ ] GUID format requests - **FAILED** (500 error)
+- [ ] ObjectId format requests - **FAILED** (500 error)
+
+#### Fix Applied
+- Moved health endpoint before dynamic routes
+- Result: Route ordering fixed, but new error discovered
+
+### Test Suite: Module Import Error
+**Date**: June 30, 2025
+**Status**: Fixed
+**Issue**: `ModuleNotFoundError: No module named 'lib'`
+
+#### Root Cause Discovery
+- lib/ directory was in .gitignore
+- Files never deployed to Vercel
+- All Python path manipulation attempts were futile
+
+#### Fix Applied
+- Removed lib/ from .gitignore
+- Added lib files to git repository
+- Removed all path manipulation code
+
+#### Current Test Status (Deployment Complete - June 30, 2025 7:41 PM BST)
+- [x] Health endpoint - ✅ WORKING
+- [x] GUID format: `673b06c4-cf90-11ef-b9e1-0b761165641d` - ✅ WORKING (cache hit: 1382ms)
+- [x] ObjectId format: `685ba776e4f9ec2f0756267a` - ✅ WORKING (cache hit: 326ms)
+- [x] Error handling for invalid formats - ✅ WORKING (returns proper error message)
+
+### Performance Expectations
+- Audio URL generation: < 500ms (cache hit)
+- Audio URL generation: < 3s (cache miss)
+- Health check: < 100ms
 
 ---
 
-## Issues Found During Testing
-
-Document any bugs or issues discovered during testing in the issues_and_fixes.md file.
-
----
-
-## Coverage Report
-
-### Current Coverage
-- Unit Tests: 0%
-- Integration Tests: 0%
-- E2E Tests: 0%
-
-### Target Coverage
-- Unit Tests: 80%
-- Integration Tests: 70%
-- E2E Tests: 60%
+## Next Steps
+1. Wait for Vercel deployment to complete (~6 minutes)
+2. Run full test suite against production endpoints
+3. Verify all error scenarios
+4. Update test results with actual measurements

@@ -65,40 +65,45 @@ async def get_audio_clip(
     start_time = time.time()
 
     try:
-        # Validate GUID format (8-4-4-4-12 with hyphens)
+        # Validate ID format - support multiple formats
         import re
         guid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-        if not re.match(guid_pattern, episode_id):
-            # For backward compatibility, check if it's an ObjectId and convert
-            if len(episode_id) == 24:
-                try:
-                    ObjectId(episode_id)
-                    # It's an ObjectId - need to look up the GUID
-                    if not MONGODB_URI:
-                        logger.error("MONGODB_URI not configured")
-                        raise HTTPException(status_code=503, detail="Database service not configured")
 
-                    client = MongoClient(MONGODB_URI)
-                    db = client.podinsight
-
-                    episode = db.episode_metadata.find_one(
-                        {"_id": ObjectId(episode_id)},
-                        {"guid": 1}
-                    )
-
-                    if not episode or not episode.get("guid"):
-                        raise HTTPException(status_code=404, detail="Episode not found or missing GUID")
-
-                    # Use the GUID from here on
-                    guid = episode["guid"]
-                    logger.info(f"Converted ObjectId {episode_id} to GUID {guid}")
-                except Exception:
-                    raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID or ObjectId")
-            else:
-                raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID")
-        else:
-            # It's already a GUID
+        # Check if it's a standard GUID
+        if re.match(guid_pattern, episode_id):
             guid = episode_id
+        # Check if it's a special format (substack:, flightcast:, etc)
+        elif ':' in episode_id and (episode_id.startswith('substack:') or episode_id.startswith('flightcast:')):
+            # These are valid GUIDs in our system
+            guid = episode_id
+            logger.info(f"Using special format ID: {guid}")
+        # For backward compatibility, check if it's an ObjectId and convert
+        elif len(episode_id) == 24:
+            try:
+                ObjectId(episode_id)
+                # It's an ObjectId - need to look up the GUID
+                if not MONGODB_URI:
+                    logger.error("MONGODB_URI not configured")
+                    raise HTTPException(status_code=503, detail="Database service not configured")
+
+                client = MongoClient(MONGODB_URI)
+                db = client.podinsight
+
+                episode = db.episode_metadata.find_one(
+                    {"_id": ObjectId(episode_id)},
+                    {"guid": 1}
+                )
+
+                if not episode or not episode.get("guid"):
+                    raise HTTPException(status_code=404, detail="Episode not found or missing GUID")
+
+                # Use the GUID from here on
+                guid = episode["guid"]
+                logger.info(f"Converted ObjectId {episode_id} to GUID {guid}")
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid episode ID format")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID, ObjectId, or special format (substack:, flightcast:)")
 
         # Validate parameters
         if start_time_ms < 0:
