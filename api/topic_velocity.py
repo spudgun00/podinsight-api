@@ -233,26 +233,30 @@ async def get_topic_velocity(
         # Sort weeks chronologically
         sorted_weeks = sorted(weekly_data.keys())
 
-        # FIXED: Filter weeks to requested time range AFTER processing all data
-        # This ensures historical weeks always have consistent data
-        filtered_weeks = []
-        for week in sorted_weeks:
-            # Parse week to get actual date
-            year, week_num = week.split('-W')
-            week_num = int(week_num)
-            jan1 = datetime(int(year), 1, 1)
-            week_start = jan1 + timedelta(weeks=week_num-1) - timedelta(days=jan1.weekday())
+        # FIXED: Generate ALL weeks in the requested range (including empty weeks)
+        # This ensures we return exactly the number of weeks requested
+        all_weeks_in_range = []
+        current_date = end_date
 
-            # Only include weeks within requested range
-            if week_start >= start_date and week_start <= end_date:
-                filtered_weeks.append(week)
+        # Generate weeks from end_date backwards to start_date
+        while current_date >= start_date:
+            # Get ISO week number and year
+            iso_year, iso_week, _ = current_date.isocalendar()
+            week_key = f"{iso_year}-W{str(iso_week).zfill(2)}"
+            all_weeks_in_range.append(week_key)
 
-        logger.info(f"Filtered {len(sorted_weeks)} total weeks to {len(filtered_weeks)} weeks in requested range")
+            # Move to previous week
+            current_date -= timedelta(weeks=1)
+
+        # Sort chronologically (oldest first)
+        all_weeks_in_range.reverse()
+
+        logger.info(f"Generated {len(all_weeks_in_range)} weeks for requested range, {len(sorted_weeks)} weeks have data")
 
         # Build the data structure for Recharts
         data_by_topic = {topic: [] for topic in topic_list}
 
-        for week in filtered_weeks:
+        for week in all_weeks_in_range:
             # Parse week to get date range for display
             year, week_num = week.split('-W')
             week_num = int(week_num)
@@ -266,7 +270,11 @@ async def get_topic_velocity(
 
             # Add data point for each topic
             for topic in topic_list:
-                mentions = weekly_data[week].get(topic, 0)
+                # Check if we have data for this week, otherwise default to 0
+                mentions = 0
+                if week in weekly_data and topic in weekly_data[week]:
+                    mentions = weekly_data[week][topic]
+
                 data_by_topic[topic].append({
                     "week": week,
                     "mentions": mentions,
