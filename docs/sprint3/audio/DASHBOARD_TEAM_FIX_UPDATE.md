@@ -173,14 +173,56 @@ Both issues have been fixed and the API is ready for use!
 
 ## IMPORTANT: Supported ID Formats
 
-The API only accepts two ID formats:
+The API now accepts FOUR ID formats:
 1. **GUID format**: `673b06c4-cf90-11ef-b9e1-0b761165641d` (8-4-4-4-12 pattern)
 2. **ObjectId format**: `685ba776e4f9ec2f0756267a` (24 hex characters)
+3. **Substack format**: `substack:post:162914366` (100k+ episodes)
+4. **Flightcast format**: `flightcast:01JV6G3ACFK3J2T4C4KSAYSBX5` (100k+ episodes)
 
-The failing request `substack:post:162914366` is not a valid format. The search API should return proper GUIDs that can be used with the audio API.
+### UPDATE: Special Format Support Added (8:00 PM BST)
 
-If you're seeing `substack:post:` format IDs, these need to be converted to GUIDs through your search API or episode metadata lookup.
+Based on your testing feedback, I've added support for special ID formats:
+- **100,371** episodes use `substack:post:XXX` format
+- **106,474** episodes use `flightcast:XXX` format
+- These represent ~25% of all episodes in the database!
+
+The API will now accept these special formats directly. Deployment in progress (~6 minutes).
 
 ### Key Learning
 
 **Always check .gitignore first!** The simplest explanation is often correct. We spent 45 minutes on complex Python path manipulation when the files simply weren't being deployed.
+
+---
+
+## FINAL UPDATE: Frontend Configuration Issue (8:45 PM BST)
+
+### The Real Issue
+
+Your frontend is configured to use `localhost:3000` instead of the production API:
+```
+❌ http://localhost:3000/api/v1/audio_clips/substack:post:162914366
+✅ https://podinsight-api.vercel.app/api/v1/audio_clips/substack:post:162914366
+```
+
+### Proof the API Works
+
+```bash
+# Direct test - WORKS PERFECTLY!
+curl "https://podinsight-api.vercel.app/api/v1/audio_clips/substack:post:162914366?start_time_ms=554412"
+# Returns audio URL successfully
+```
+
+### What You Need to Do
+
+Update your frontend configuration to use the production API URL:
+- Change from: `http://localhost:3000`
+- Change to: `https://podinsight-api.vercel.app`
+
+### Status Summary
+
+✅ **Audio API**: Fully operational with all 4 ID formats
+✅ **Special formats**: Substack and Flightcast now supported
+❌ **Frontend config**: Needs to point to production URL
+⚠️ **Search timeout**: Separate issue with Modal.com cold starts (25+ seconds)
+
+The backend is working perfectly - just need to point the frontend to the right URL!

@@ -194,11 +194,10 @@ async def get_topic_velocity(
             topic_list = default_topics
 
         # Define query function for the pool (sync function since Supabase client is sync)
+        # FIXED: Query ALL mentions to ensure consistent historical data
         def query_topic_mentions(client):
             return client.table("topic_mentions") \
                 .select("*, episodes!inner(published_at)") \
-                .gte("mention_date", start_date.date().isoformat()) \
-                .lte("mention_date", end_date.date().isoformat()) \
                 .in_("topic_name", topic_list) \
                 .execute()
 
@@ -234,10 +233,26 @@ async def get_topic_velocity(
         # Sort weeks chronologically
         sorted_weeks = sorted(weekly_data.keys())
 
+        # FIXED: Filter weeks to requested time range AFTER processing all data
+        # This ensures historical weeks always have consistent data
+        filtered_weeks = []
+        for week in sorted_weeks:
+            # Parse week to get actual date
+            year, week_num = week.split('-W')
+            week_num = int(week_num)
+            jan1 = datetime(int(year), 1, 1)
+            week_start = jan1 + timedelta(weeks=week_num-1) - timedelta(days=jan1.weekday())
+
+            # Only include weeks within requested range
+            if week_start >= start_date and week_start <= end_date:
+                filtered_weeks.append(week)
+
+        logger.info(f"Filtered {len(sorted_weeks)} total weeks to {len(filtered_weeks)} weeks in requested range")
+
         # Build the data structure for Recharts
         data_by_topic = {topic: [] for topic in topic_list}
 
-        for week in sorted_weeks:
+        for week in filtered_weeks:
             # Parse week to get date range for display
             year, week_num = week.split('-W')
             week_num = int(week_num)
