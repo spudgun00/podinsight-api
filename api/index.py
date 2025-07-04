@@ -4,6 +4,7 @@
 from fastapi import FastAPI
 from .topic_velocity import app as topic_velocity_app
 from .audio_clips import router as audio_clips_router
+from .intelligence import router as intelligence_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -15,6 +16,10 @@ app = FastAPI(
 # Include the new audio clips router with its own prefix
 # This keeps audio endpoints completely separate at /api/v1/audio_clips/*
 app.include_router(audio_clips_router)
+
+# Include the intelligence router for episode intelligence endpoints
+# This adds all intelligence endpoints at /api/intelligence/*
+app.include_router(intelligence_router)
 
 # Mount the existing topic_velocity app at the root
 # This preserves ALL existing endpoints exactly as they are
