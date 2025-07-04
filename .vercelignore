@@ -18,6 +18,7 @@ __pycache__/
 .env
 .env.*
 venv/
+venv_old_py39/
 env/
 
 # Ignore development files
@@ -42,3 +43,28 @@ lambda_functions/
 
 # Ignore large zip files
 *.zip
+
+# Ignore archive directory
+archive/
+
+# Ignore MCP server
+zen-mcp-server/
+
+# Ignore old/temporary directories
+api_temp/
+api_backup/
+
+# Ignore documentation directories not needed for deployment
+documentation/
+diagnostics/
+web-testing/
+
+# Ignore Asana-related test files
+*asana*.py
+mcp_asana*.json
+get_story*.py
+mark_story*.py
+story_*_summary.md
+
+# Ignore requirements files for MCP
+requirements-mcp.txt

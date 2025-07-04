@@ -1,0 +1,12 @@
+{
+  "server_url": "https://mcp.asana.com/sse",
+  "auth": {
+    "type": "pat",
+    "pat_token": "2/1210591287134009/1210718842133145:fe639386ff47709fface73632f43bbcb"
+  },
+  "enabled_tools": [
+    "tasks",
+    "projects",
+    "workspaces"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "server_url": "https://mcp.asana.com/sse",
+  "auth": {
+    "type": "oauth",
+    "client_id": "YOUR_ASANA_CLIENT_ID",
+    "client_secret": "YOUR_ASANA_CLIENT_SECRET",
+    "redirect_uri": "http://localhost:8080/callback"
+  },
+  "scopes": [
+    "default"
+  ],
+  "enabled_tools": [
+    "tasks",
+    "projects",
+    "workspaces"
+  ]
+}
