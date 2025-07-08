@@ -172,7 +172,7 @@ def get_episode_signals(db, episode_id: str) -> List[Signal]:
 
                     signal = Signal(
                         type=display_type,
-                        content=signal_item.get("signal_text", ""),
+                        content=signal_item.get("content", signal_item.get("signal_text", "")),  # Try both field names
                         confidence=signal_item.get("confidence", 0.8),
                         timestamp=signal_item.get("timestamp")  # Optional timestamp
                     )
