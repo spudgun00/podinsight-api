@@ -9,7 +9,6 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
-import asyncio
 from bson import ObjectId
 
 # Import authentication middleware (temporarily disabled)
