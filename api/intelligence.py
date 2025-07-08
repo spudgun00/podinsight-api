@@ -910,4 +910,55 @@ async def test_get_signals(episode_id: str):
     except Exception as e:
         return {"error": str(e)}
 
+@router.get("/check-guid-matching")
+async def check_guid_matching():
+    """Debug endpoint to check which GUIDs match between collections"""
+    try:
+        db = get_mongodb()
+        
+        # Get all episode_intelligence documents
+        intelligence_collection = db.get_collection("episode_intelligence")
+        intelligence_docs = list(intelligence_collection.find({}, {"episode_id": 1}))
+        
+        # Get all episode_metadata documents  
+        metadata_collection = db.get_collection("episode_metadata")
+        
+        results = {
+            "total_intelligence_docs": len(intelligence_docs),
+            "matching_guids": [],
+            "non_matching_guids": []
+        }
+        
+        for intel_doc in intelligence_docs:
+            episode_id = intel_doc.get("episode_id")
+            
+            # Try to find in metadata using both guid and episode_id fields
+            metadata_match = metadata_collection.find_one({
+                "$or": [
+                    {"guid": episode_id},
+                    {"episode_id": episode_id}
+                ]
+            })
+            
+            if metadata_match:
+                results["matching_guids"].append({
+                    "episode_id": episode_id,
+                    "metadata_id": str(metadata_match["_id"]),
+                    "title": metadata_match.get("raw_entry_original_feed", {}).get("episode_title", "Unknown")
+                })
+            else:
+                results["non_matching_guids"].append(episode_id)
+        
+        results["matching_count"] = len(results["matching_guids"])
+        results["non_matching_count"] = len(results["non_matching_guids"])
+        
+        # Show first 5 of each category for debugging
+        results["matching_guids"] = results["matching_guids"][:5]
+        results["non_matching_guids"] = results["non_matching_guids"][:10]
+        
+        return results
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
