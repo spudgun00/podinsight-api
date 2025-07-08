@@ -306,25 +306,30 @@ async def get_intelligence_dashboard(
                 episode_count += 1
                 logger.info(f"Processing episode {episode_count}: {episode_doc.get('_id')}")
 
-                # Use episode_id for episode_intelligence lookups (now contains GUID value)
+                # Try multiple ID fields for episode_intelligence lookups
                 episode_guid = episode_doc.get("episode_id")
                 if not episode_guid:
                     # Fallback to guid field if episode_id not present
                     episode_guid = episode_doc.get("guid")
-                    if not episode_guid:
-                        logger.warning(f"Episode {episode_doc.get('_id')} has no episode_id or guid, skipping")
-                        continue
 
-                # Calculate relevance score using episode_id
-                relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
+                # Also get the ObjectId as string
+                object_id_str = str(episode_doc.get("_id"))
 
-                # Get signals for this episode using episode_id
+                # Try to find signals using different ID formats
                 signals = get_episode_signals(db, episode_guid)
+
+                # If no signals found with GUID, try ObjectId
+                if not signals:
+                    logger.info(f"No signals found with GUID {episode_guid}, trying ObjectId {object_id_str}")
+                    signals = get_episode_signals(db, object_id_str)
 
                 # Skip episodes without signals
                 if not signals:
-                    logger.warning(f"No signals found for episode {episode_guid}, skipping")
+                    logger.warning(f"No signals found for episode {object_id_str}, skipping")
                     continue
+
+                # Calculate relevance score using the ID that worked
+                relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
 
                 # Extract episode data
                 raw_entry = episode_doc.get("raw_entry_original_feed", {})
@@ -746,12 +751,16 @@ async def test_data_matching():
         episode_guid = episode_meta.get("guid")
         episode_id = episode_meta.get("episode_id")
 
-        # Try to find matching intelligence using episode_id first, then guid
+        # Try to find matching intelligence using episode_id first, then guid, then ObjectId
         intelligence = None
         if episode_id:
             intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_id})
         if not intelligence and episode_guid:
             intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_guid})
+        if not intelligence:
+            # Try using the ObjectId as string
+            object_id_str = str(episode_meta.get("_id"))
+            intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": object_id_str})
 
         # Also check first intelligence record
         first_intelligence = db.get_collection("episode_intelligence").find_one()
@@ -764,7 +773,9 @@ async def test_data_matching():
                 "has_episode_id_field": episode_id is not None
             },
             "intelligence_match_found": intelligence is not None,
+            "intelligence_match_method": "episode_id" if episode_id and intelligence else ("guid" if episode_guid and intelligence else ("objectid" if intelligence else "none")),
             "first_intelligence_episode_id": first_intelligence.get("episode_id") if first_intelligence else None,
+            "objectid_matches_intelligence": object_id_str == first_intelligence.get("episode_id") if first_intelligence else False,
             "episode_id_matches_intelligence": episode_id == first_intelligence.get("episode_id") if (episode_id and first_intelligence) else False,
             "guid_matches_intelligence": episode_guid == first_intelligence.get("episode_id") if (episode_guid and first_intelligence) else False
         }
