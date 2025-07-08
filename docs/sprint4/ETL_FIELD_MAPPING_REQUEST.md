@@ -12,8 +12,10 @@ The Episode Intelligence API is unable to display real data because the `episode
 Add a new field `episode_id` to all documents in the `episode_metadata` collection that copies the value from the existing `guid` field.
 
 ### MongoDB Update Script
+
+#### Step 1: Update Existing Documents
 ```javascript
-// Run this in MongoDB to add episode_id field
+// Run this in MongoDB to add episode_id field to existing documents
 db.episode_metadata.updateMany(
   {},
   [
@@ -27,6 +29,59 @@ db.episode_metadata.updateMany(
 
 // Verify the update
 db.episode_metadata.findOne({}, { guid: 1, episode_id: 1 });
+```
+
+#### Step 2: Handle Future Documents
+For new documents, the ETL pipeline needs to be updated to automatically set `episode_id = guid` when inserting.
+
+**Option A: Update ETL Code**
+```python
+# In your ETL script when inserting new episodes
+episode_doc = {
+    "guid": episode_guid,
+    "episode_id": episode_guid,  # Add this line
+    # ... other fields
+}
+```
+
+**Option B: MongoDB Schema Validation (Automatic)**
+```javascript
+// Add a pre-save middleware or trigger to automatically copy guid to episode_id
+// This depends on your MongoDB setup (Atlas triggers, etc.)
+db.runCommand({
+  collMod: "episode_metadata",
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["guid"],
+      properties: {
+        episode_id: {
+          bsonType: "string",
+          description: "Should match guid field"
+        }
+      }
+    }
+  }
+});
+```
+
+**Option C: MongoDB Atlas Trigger (Recommended)**
+Create a trigger in MongoDB Atlas that automatically sets `episode_id = guid` on insert/update:
+```javascript
+exports = function(changeEvent) {
+  const collection = context.services.get("mongodb-atlas").db("podinsight").collection("episode_metadata");
+  const docId = changeEvent.documentKey._id;
+
+  if (changeEvent.operationType === "insert" || changeEvent.operationType === "update") {
+    const doc = changeEvent.fullDocument;
+    if (doc.guid && !doc.episode_id) {
+      collection.updateOne(
+        { _id: docId },
+        { $set: { episode_id: doc.guid } }
+      );
+    }
+  }
+};
 ```
 
 ## Expected Result
