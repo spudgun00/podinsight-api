@@ -315,6 +315,11 @@ async def get_intelligence_dashboard(
                 # Get signals for this episode using guid
                 signals = get_episode_signals(db, episode_guid)
 
+                # Skip episodes without signals
+                if not signals:
+                    logger.warning(f"No signals found for episode {episode_guid}, skipping")
+                    continue
+
                 # Extract episode data
                 raw_entry = episode_doc.get("raw_entry_original_feed", {})
 
@@ -340,9 +345,37 @@ async def get_intelligence_dashboard(
             # Return mock data if MongoDB fails
             episodes = []
 
-        # If no episodes found, log the issue
+        # If no episodes found, return mock data for now
         if not episodes:
-            logger.warning(f"No episodes found with intelligence data")
+            logger.warning(f"No episodes found with intelligence data, returning mock for MVP")
+            # Check what's in the collections
+            intelligence_count = db.get_collection("episode_intelligence").count_documents({})
+            authority_count = db.get_collection("podcast_authority").count_documents({})
+            prefs_count = db.get_collection("user_intelligence_prefs").count_documents({})
+
+            logger.info(f"Collection counts - intelligence: {intelligence_count}, authority: {authority_count}, prefs: {prefs_count}")
+
+            # Return mock data for MVP demonstration
+            for i in range(min(limit, 2)):
+                mock_episode = EpisodeBrief(
+                    episode_id=f"mock-{i}",
+                    title=f"Episode {i+1}: Sample Episode (No Real Signals Found)",
+                    podcast_name=["Sample Podcast A", "Sample Podcast B"][i],
+                    published_at=datetime.now(timezone.utc).isoformat(),
+                    duration_seconds=3600,
+                    relevance_score=0.7 - (i * 0.1),
+                    signals=[
+                        Signal(
+                            type="investable",
+                            content="Mock signal - real episode_intelligence data not found",
+                            confidence=0.5
+                        )
+                    ],
+                    summary="This is mock data. The episode_intelligence collection may not have matching episode_ids.",
+                    key_insights=["Check if episode_intelligence.episode_id matches episode_metadata.guid"],
+                    audio_url=None
+                )
+                episodes.append(mock_episode)
 
         # Sort by relevance score and take top N
         episodes.sort(key=lambda x: x.relevance_score, reverse=True)
@@ -639,6 +672,45 @@ async def debug_mongodb():
                     "guid": sample.get("guid"),
                     "has_raw_entry": "raw_entry_original_feed" in sample
                 }
+
+        # Check episode_intelligence
+        if "episode_intelligence" in info["collections"]:
+            collection = db.get_collection("episode_intelligence")
+            info["episode_intelligence"] = {
+                "count": collection.count_documents({}),
+                "sample": None
+            }
+            sample = collection.find_one()
+            if sample:
+                info["episode_intelligence"]["sample"] = {
+                    "id": str(sample.get("_id")),
+                    "episode_id": sample.get("episode_id"),
+                    "has_signals": "signals" in sample,
+                    "signal_types": list(sample.get("signals", {}).keys()) if "signals" in sample else []
+                }
+
+        # Check podcast_authority
+        if "podcast_authority" in info["collections"]:
+            collection = db.get_collection("podcast_authority")
+            info["podcast_authority"] = {
+                "count": collection.count_documents({}),
+                "sample": None
+            }
+            sample = collection.find_one()
+            if sample:
+                info["podcast_authority"]["sample"] = {
+                    "feed_slug": sample.get("feed_slug"),
+                    "podcast_name": sample.get("podcast_name"),
+                    "tier": sample.get("tier")
+                }
+
+        # Check user_intelligence_prefs
+        if "user_intelligence_prefs" in info["collections"]:
+            collection = db.get_collection("user_intelligence_prefs")
+            info["user_intelligence_prefs"] = {
+                "count": collection.count_documents({}),
+                "demo_user_exists": collection.count_documents({"user_id": "demo-user"})
+            }
 
         return info
 
