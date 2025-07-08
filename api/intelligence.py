@@ -535,11 +535,22 @@ async def health_check():
         # Check MongoDB connection
         db.command("ping")
         
+        # Get collection names for debugging
+        collections = db.list_collection_names()
+        
+        # Count documents in episode_metadata if it exists
+        episode_count = 0
+        if "episode_metadata" in collections:
+            episode_count = db.get_collection("episode_metadata").count_documents({})
+        
         return {
             "status": "healthy",
             "service": "intelligence-api",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "mongodb": "connected"
+            "mongodb": "connected",
+            "database_name": db.name,
+            "collections": collections[:10],  # First 10 collections
+            "episode_metadata_count": episode_count
         }
     except Exception as e:
         return {
