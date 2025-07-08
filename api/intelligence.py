@@ -220,9 +220,9 @@ async def get_intelligence_dashboard(
                 episode_brief = EpisodeBrief(
                     episode_id=str(episode_doc["_id"]),
                     title=raw_entry.get("episode_title", "Untitled Episode"),
-                    podcast_name=raw_entry.get("podcast_name", "Unknown Podcast"),
+                    podcast_name=raw_entry.get("podcast_title", "Unknown Podcast"),  # Fixed field name
                     published_at=raw_entry.get("published_date_iso", datetime.now(timezone.utc).isoformat()),
-                    duration_seconds=episode_doc.get("duration_seconds", 0),
+                    duration_seconds=raw_entry.get("duration", 0),  # Fixed field name
                     relevance_score=relevance_score,
                     signals=signals,
                     summary=episode_doc.get("summary", "Episode summary not available"),
@@ -231,7 +231,7 @@ async def get_intelligence_dashboard(
                         "Enterprise adoption is accelerating",
                         "New funding models emerging"
                     ],
-                    audio_url=episode_doc.get("audio_url")
+                    audio_url=episode_doc.get("s3_audio_path")
                 )
                 
                 episodes.append(episode_brief)
@@ -363,9 +363,9 @@ async def get_intelligence_brief(
         return EpisodeBrief(
             episode_id=str(episode_doc["_id"]),
             title=raw_entry.get("episode_title", "Untitled Episode"),
-            podcast_name=raw_entry.get("podcast_name", "Unknown Podcast"),
+            podcast_name=raw_entry.get("podcast_title", "Unknown Podcast"),  # Fixed field name
             published_at=raw_entry.get("published_date_iso", datetime.now(timezone.utc).isoformat()),
-            duration_seconds=episode_doc.get("duration_seconds", 0),
+            duration_seconds=raw_entry.get("duration", 0),  # Fixed field name
             relevance_score=relevance_score,
             signals=signals,
             summary=summary or "Episode summary not available",
@@ -374,7 +374,7 @@ async def get_intelligence_brief(
                 "Founder perspectives on scaling",
                 "Investment thesis validation"
             ],
-            audio_url=episode_doc.get("audio_url")
+            audio_url=episode_doc.get("s3_audio_path")
         )
         
     except HTTPException:
