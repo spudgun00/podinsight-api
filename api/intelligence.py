@@ -166,13 +166,20 @@ def get_episode_signals(db, episode_id: str) -> List[Signal]:
         # Process each signal type
         for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
             if signal_type in signal_data:
+                logger.info(f"Processing {len(signal_data[signal_type])} {signal_type} signals")
                 for signal_item in signal_data[signal_type]:
                     # Map soundbites to sound_bite for consistency
                     display_type = "sound_bite" if signal_type == "soundbites" else signal_type
 
+                    # Extract content - try 'content' field first, then 'signal_text'
+                    content = signal_item.get("content") or signal_item.get("signal_text") or ""
+
+                    if not content:
+                        logger.warning(f"Signal item has no content or signal_text field: {signal_item}")
+
                     signal = Signal(
                         type=display_type,
-                        content=signal_item.get("content", signal_item.get("signal_text", "")),  # Try both field names
+                        content=content,
                         confidence=signal_item.get("confidence", 0.8),
                         timestamp=signal_item.get("timestamp")  # Optional timestamp
                     )
