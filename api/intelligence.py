@@ -720,4 +720,37 @@ async def debug_mongodb():
             "type": type(e).__name__
         }
 
+# Test endpoint to check data matching
+@router.get("/test-match")
+async def test_data_matching():
+    """Test if episode IDs match between collections"""
+    try:
+        db = get_mongodb()
+
+        # Get first episode from metadata
+        episode_meta = db.get_collection("episode_metadata").find_one()
+        if not episode_meta:
+            return {"error": "No episodes in episode_metadata"}
+
+        episode_guid = episode_meta.get("guid")
+
+        # Try to find matching intelligence
+        intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_guid})
+
+        # Also check first intelligence record
+        first_intelligence = db.get_collection("episode_intelligence").find_one()
+
+        return {
+            "episode_metadata_sample": {
+                "id": str(episode_meta.get("_id")),
+                "guid": episode_guid
+            },
+            "intelligence_match_found": intelligence is not None,
+            "first_intelligence_episode_id": first_intelligence.get("episode_id") if first_intelligence else None,
+            "guids_match": episode_guid == first_intelligence.get("episode_id") if first_intelligence else False
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
