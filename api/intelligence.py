@@ -864,4 +864,29 @@ async def find_episodes_with_intelligence():
     except Exception as e:
         return {"error": str(e)}
 
+# Debug endpoint to test get_episode_signals
+@router.get("/test-signals/{episode_id}")
+async def test_get_signals(episode_id: str):
+    """Test getting signals for a specific episode ID"""
+    try:
+        db = get_mongodb()
+
+        # Direct query to episode_intelligence
+        intelligence_collection = db.get_collection("episode_intelligence")
+        intelligence_doc = intelligence_collection.find_one({"episode_id": episode_id})
+
+        # Also try using get_episode_signals function
+        signals = get_episode_signals(db, episode_id)
+
+        return {
+            "searched_episode_id": episode_id,
+            "direct_query_found": intelligence_doc is not None,
+            "direct_query_has_signals": bool(intelligence_doc.get("signals", {})) if intelligence_doc else False,
+            "get_episode_signals_count": len(signals),
+            "signals_from_function": [{"type": s.type, "content": s.content[:50] + "..."} for s in signals[:3]]
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
