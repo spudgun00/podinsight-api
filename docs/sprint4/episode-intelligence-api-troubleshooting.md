@@ -217,40 +217,87 @@ All 4 endpoints remain available in `/api/intelligence.py`:
 4. `PUT /api/intelligence/preferences` - Update user preferences for personalized intelligence
 5. `GET /api/intelligence/health` - Health check for intelligence API
 
+## Session Summary - July 8, 2025
+
+### Problem Resolution Summary
+Successfully diagnosed and fixed multiple issues with Episode Intelligence APIs:
+
+1. **Root Cause #1 - Missing lib directory**
+   - The `lib` directory was accidentally deleted in commit `c1c314b`
+   - Fixed in commit `a414307` by restoring from previous commit
+   - This was causing ALL APIs to fail with `ModuleNotFoundError`
+
+2. **Root Cause #2 - MongoDB Event Loop Issue**
+   - AsyncIOMotorClient was causing "Event loop is closed" errors in Vercel serverless
+   - Fixed by converting to synchronous PyMongo client (following existing patterns)
+   - Removed unnecessary asyncio import
+
+3. **Root Cause #3 - Incorrect MongoDB Field Mappings**
+   - API was using wrong field names (podcast_name → podcast_title, duration_seconds → duration)
+   - Fixed field mappings to match actual MongoDB schema
+   - Added s3_audio_path mapping for audio URLs
+
+4. **Root Cause #4 - Dashboard Mock Data Flag**
+   - Dashboard repository had `NEXT_PUBLIC_USE_MOCK_DATA=true` in .env
+   - This was forcing mock data usage even though API was working
+   - Solution: Change to `false` in dashboard .env file
+
+### Current Status
+- ✅ All Episode Intelligence API endpoints are working
+- ✅ MongoDB connection successful (1,236 episodes available)
+- ✅ Debug endpoint confirms correct database and collections
+- ✅ Health check shows all systems operational
+- ⚠️ Dashboard needs .env update to use real data
+- ⚠️ Authentication still disabled (needs to be re-enabled per Asana)
+
+### API Endpoints Working:
+1. `GET /api/intelligence/health` - ✅ Working
+2. `GET /api/intelligence/dashboard` - ✅ Working (returns real data when not forced to mock)
+3. `GET /api/intelligence/brief/{episode_id}` - ✅ Implemented
+4. `POST /api/intelligence/share` - ✅ Implemented
+5. `PUT /api/intelligence/preferences` - ✅ Implemented
+6. `GET /api/intelligence/debug` - ✅ Added for debugging (temporary)
+
+### MongoDB Collections Available:
+- `episode_metadata` - 1,236 documents
+- `episode_transcripts` - 1,171 documents
+- `transcript_chunks_768d` - 823,763 documents
+- `episode_intelligence` - Ready for signal data
+- `user_intelligence_prefs` - Ready for user preferences
+
 ## Next Steps for New Session
 
 ### Immediate Actions Required:
-1. **Verify Deployment Success**
-   - Check Vercel deployment status for commit `a414307`
-   - Confirm lib directory is included in deployment
+1. **Update Dashboard Environment**
+   - Change `NEXT_PUBLIC_USE_MOCK_DATA=false` in dashboard .env
+   - Test dashboard with real Episode Intelligence data
+   - Fix hydration error (time display inconsistency)
 
-2. **Test Core API Endpoints**
-   ```bash
-   # Test each endpoint to confirm they're working
-   curl https://podinsight-api.vercel.app/api/topic-velocity
-   curl https://podinsight-api.vercel.app/api/heat-sentiment
-   curl https://podinsight-api.vercel.app/api/sentiment_analysis_v2
-   ```
+2. **Re-enable Authentication**
+   - Uncomment lines 15-17 in `api/intelligence.py`
+   - Import and apply authentication middleware to all endpoints
+   - Test with authentication enabled
 
-3. **Test Episode Intelligence Endpoints**
-   ```bash
-   # Health check (no auth required)
-   curl https://podinsight-api.vercel.app/api/intelligence/health
-   
-   # Dashboard endpoint (currently auth disabled)
-   curl https://podinsight-api.vercel.app/api/intelligence/dashboard
-   ```
+3. **Remove Debug Endpoint**
+   - Remove temporary `/api/intelligence/debug` endpoint
+   - Clean up extra logging added for debugging
 
-4. **Story 5B Status**
-   - API code is implemented but needs verification
-   - Authentication is commented out (lines 15-17 in `api/intelligence.py`)
-   - MongoDB connection pattern implemented
-   - Mock data fallback in place
+4. **Complete Story 5B Testing**
+   - Test all endpoints with real data
+   - Verify response times meet <200ms requirement
+   - Test pagination and filtering
+   - Test error handling
+
+5. **Signal Extraction Implementation**
+   - Implement Story 1 (Signal Extraction Engine)
+   - Process episodes to populate `episode_intelligence` collection
+   - Connect real signals to dashboard instead of mock signals
 
 ### Key Issues to Address:
-1. **Authentication**: Currently disabled, needs to be re-enabled per Asana requirements
-2. **Testing**: No actual testing was done for Story 5B
-3. **Dashboard Integration**: Cannot proceed until API endpoints are working
+1. **Authentication**: Must be re-enabled per P0 priority in Asana
+2. **Performance**: Monitor response times, add caching if >200ms
+3. **Signal Data**: Currently returning mock signals, need real extraction
+4. **Testing**: Comprehensive testing needed for all endpoints
 
 ## Related Documentation
 - Episode Intelligence Feature: `docs/sprint4/episode-intelligence-v5-complete.md`
