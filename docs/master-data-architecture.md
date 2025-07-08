@@ -170,6 +170,83 @@
 }
 ```
 
+#### 5. episode_intelligence (50 documents)
+```javascript
+{
+  "_id": ObjectId("..."),
+  "episode_id": "02fc268c-61dc-4074-b7ec-882615bc6d85",  // GUID matching episode_metadata
+  "signals": {
+    "investable": [
+      {
+        "content": "We passed on Uber's seed round",
+        "confidence": 0.85,
+        "timestamp": "00:23:45"
+      }
+    ],
+    "competitive": [
+      {
+        "content": "OpenAI is building a direct competitor to our portfolio company",
+        "confidence": 0.92,
+        "timestamp": "00:15:30"
+      }
+    ],
+    "portfolio": [
+      {
+        "content": "Our portfolio company Figma just crossed $100M ARR",
+        "confidence": 0.95,
+        "timestamp": "00:08:12"
+      }
+    ],
+    "soundbites": [
+      {
+        "content": "that's where the gold is, is that non consensus bet",
+        "confidence": 0.88,
+        "timestamp": "00:45:20"
+      }
+    ]
+  },
+  "relevance_score": 85,  // Pre-calculated relevance score (0-100)
+  "created_at": "2025-01-01T12:00:00Z"
+}
+```
+
+#### 6. podcast_authority (31 documents)
+```javascript
+{
+  "_id": ObjectId("..."),
+  "feed_slug": "all-in",
+  "podcast_name": "All-In with Chamath, Jason, Sacks & Friedberg",
+  "tier": 1,  // 1-5, where 1 is highest authority
+  "authority_score": 95,  // 0-100 score
+  "metrics": {
+    "average_episode_views": 2500000,
+    "subscriber_count": 1200000,
+    "industry_influence": "high"
+  },
+  "updated_at": "2025-01-01T00:00:00Z"
+}
+```
+
+#### 7. user_intelligence_prefs (varies by user count)
+```javascript
+{
+  "_id": ObjectId("..."),
+  "user_id": "demo-user",
+  "preferences": {
+    "portfolio_companies": ["Figma", "Notion", "Airtable", "Retool"],
+    "topics": ["AI", "developer tools", "enterprise software", "crypto"],
+    "keywords": ["seed round", "Series A", "YC", "product-market fit"],
+    "notification_settings": {
+      "frequency": "weekly",
+      "email_enabled": true,
+      "slack_enabled": false
+    }
+  },
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-01T00:00:00Z"
+}
+```
+
 ### Supabase PostgreSQL Tables
 
 #### 1. episodes (1,171 rows)
