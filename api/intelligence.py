@@ -285,6 +285,96 @@ def calculate_relevance_score(db, episode_id: str, user_preferences: Dict) -> fl
         return 0.7
 
 # API Endpoints
+@router.get("/dashboard-debug")
+async def get_intelligence_dashboard_debug(limit: int = 8):
+    """Debug version of dashboard that returns logs"""
+    debug_logs = []
+    
+    try:
+        db = get_mongodb()
+        debug_logs.append(f"MongoDB connected, database: {db.name}")
+        
+        # Get user preferences (using demo user for now)
+        user_id = "demo-user"
+        preferences_collection = db.get_collection("user_preferences")
+        user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
+        debug_logs.append(f"User preferences: {user_prefs}")
+        
+        # Get recent episodes with metadata
+        episodes_collection = db.get_collection("episode_metadata")
+        
+        # First, let's check if we have any episodes at all
+        total_episodes = episodes_collection.count_documents({})
+        debug_logs.append(f"Total episodes in collection: {total_episodes}")
+        
+        episodes = []
+        
+        # Get ALL episodes and filter for those with intelligence data
+        debug_logs.append("Searching all episodes for those with intelligence data")
+        
+        # First, let's check which episodes have intelligence data
+        intelligence_collection = db.get_collection("episode_intelligence")
+        intel_count = intelligence_collection.count_documents({})
+        debug_logs.append(f"Total episode_intelligence documents: {intel_count}")
+        
+        # Get a sample of episode IDs that have intelligence
+        sample_intel = list(intelligence_collection.find({}, {"episode_id": 1}).limit(5))
+        debug_logs.append(f"Sample intelligence episode_ids: {[doc.get('episode_id') for doc in sample_intel]}")
+        
+        cursor = episodes_collection.find().limit(20)  # Limit to 20 for debug
+        
+        episode_count = 0
+        episodes_with_signals = 0
+        first_10_checks = []
+        
+        for episode_doc in cursor:
+            episode_count += 1
+            
+            # Try multiple ID fields for episode_intelligence lookups
+            episode_guid = episode_doc.get("episode_id")
+            if not episode_guid:
+                # Fallback to guid field if episode_id not present
+                episode_guid = episode_doc.get("guid")
+            
+            # Log first 10 episodes we check
+            if episode_count <= 10:
+                first_10_checks.append({
+                    "count": episode_count,
+                    "episode_id": episode_doc.get("episode_id"),
+                    "guid": episode_doc.get("guid"),
+                    "used_id": episode_guid
+                })
+            
+            # Try to find signals using different ID formats
+            signals = get_episode_signals(db, episode_guid)
+            
+            # If no signals found with GUID, try ObjectId
+            if not signals:
+                object_id_str = str(episode_doc.get("_id"))
+                if episode_count <= 10:
+                    debug_logs.append(f"Episode {episode_count}: No signals found with ID {episode_guid}, trying ObjectId {object_id_str}")
+                signals = get_episode_signals(db, object_id_str)
+            
+            # Skip episodes without signals
+            if not signals:
+                continue
+                
+            episodes_with_signals += 1
+            debug_logs.append(f"Found episode with signals! Count: {episodes_with_signals}, ID: {episode_guid}, Signal count: {len(signals)}")
+        
+        debug_logs.append(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
+        debug_logs.append(f"First 10 episodes checked: {first_10_checks}")
+        
+        return {
+            "debug_logs": debug_logs,
+            "episodes_found": episodes_with_signals,
+            "total_checked": episode_count
+        }
+        
+    except Exception as e:
+        debug_logs.append(f"Error: {str(e)}")
+        return {"debug_logs": debug_logs, "error": str(e)}
+
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_intelligence_dashboard(
     limit: int = 8
