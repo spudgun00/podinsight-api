@@ -374,10 +374,6 @@ async def get_intelligence_dashboard(
 
                 episodes_with_signals += 1
                 logger.info(f"Found episode with signals! Count: {episodes_with_signals}, ID: {episode_guid}, Signal count: {len(signals)}")
-            
-            # Log debugging info
-            logger.info(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
-            logger.info(f"First 10 episodes checked: {first_10_checks}")
 
                 # Calculate relevance score using the ID that worked
                 relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
@@ -400,7 +396,9 @@ async def get_intelligence_dashboard(
 
                 episodes.append(episode_brief)
 
-            logger.info(f"Processed {episode_count} total episodes, found {episodes_with_signals} with intelligence data")
+            # Log debugging info
+            logger.info(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
+            logger.info(f"First 10 episodes checked: {first_10_checks}")
 
         except Exception as e:
             logger.error(f"Error fetching episodes from MongoDB: {str(e)}", exc_info=True)
