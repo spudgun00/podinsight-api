@@ -181,15 +181,21 @@ async def get_intelligence_dashboard(
     """
     try:
         db = get_mongodb()
+        logger.info(f"MongoDB connected, database: {db.name}")
         
         # TODO: Re-add authentication when auth system is implemented
         # Get user preferences (using demo user for now)
         user_id = "demo-user"
         preferences_collection = db.get_collection("user_preferences")
         user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
+        logger.info(f"User preferences: {user_prefs}")
         
         # Get recent episodes with metadata
         episodes_collection = db.get_collection("episode_metadata")
+        
+        # First, let's check if we have any episodes at all
+        total_episodes = episodes_collection.count_documents({})
+        logger.info(f"Total episodes in collection: {total_episodes}")
         
         # For MVP, let's get any recent episodes without date filtering
         # since 'created_at' might not be the right field
@@ -205,9 +211,13 @@ async def get_intelligence_dashboard(
         episodes = []
         
         try:
+            logger.info(f"Executing aggregation pipeline: {pipeline}")
             cursor = episodes_collection.aggregate(pipeline)
             
+            episode_count = 0
             for episode_doc in cursor:
+                episode_count += 1
+                logger.info(f"Processing episode {episode_count}: {episode_doc.get('_id')}")
                 # Calculate relevance score
                 relevance_score = calculate_relevance_score(db, str(episode_doc["_id"]), user_prefs)
                 
@@ -236,14 +246,16 @@ async def get_intelligence_dashboard(
                 
                 episodes.append(episode_brief)
         
+            logger.info(f"Successfully processed {episode_count} episodes from MongoDB")
+        
         except Exception as e:
-            logger.warning(f"Error fetching episodes from MongoDB: {str(e)}")
+            logger.error(f"Error fetching episodes from MongoDB: {str(e)}", exc_info=True)
             # Return mock data if MongoDB fails
             episodes = []
         
         # If no episodes found, return mock data for MVP
         if not episodes:
-            logger.info("No episodes found in MongoDB, returning mock data")
+            logger.warning(f"No episodes found in MongoDB (processed {len(episodes)} episodes), returning mock data")
             for i in range(min(limit, 4)):
                 mock_episode = EpisodeBrief(
                     episode_id=f"mock-{i}",
