@@ -297,14 +297,16 @@ async def get_intelligence_dashboard(
         episodes = []
 
         try:
-            # Try using find() instead of aggregate() for debugging
-            logger.info(f"Using find() to get episodes, limit: {limit * 2}")
-            cursor = episodes_collection.find().limit(limit * 2)
+            # Get ALL episodes and filter for those with intelligence data
+            logger.info(f"Searching all episodes for those with intelligence data")
+            cursor = episodes_collection.find()  # No limit - check all episodes
 
             episode_count = 0
+            episodes_with_signals = 0
             for episode_doc in cursor:
                 episode_count += 1
-                logger.info(f"Processing episode {episode_count}: {episode_doc.get('_id')}")
+                if episode_count % 100 == 0:
+                    logger.info(f"Processed {episode_count} episodes, found {episodes_with_signals} with signals")
 
                 # Try multiple ID fields for episode_intelligence lookups
                 episode_guid = episode_doc.get("episode_id")
@@ -325,8 +327,9 @@ async def get_intelligence_dashboard(
 
                 # Skip episodes without signals
                 if not signals:
-                    logger.warning(f"No signals found for episode {object_id_str}, skipping")
-                    continue
+                    continue  # Just skip, don't log warnings for each one
+
+                episodes_with_signals += 1
 
                 # Calculate relevance score using the ID that worked
                 relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
@@ -349,44 +352,19 @@ async def get_intelligence_dashboard(
 
                 episodes.append(episode_brief)
 
-            logger.info(f"Successfully processed {episode_count} episodes from MongoDB")
+            logger.info(f"Processed {episode_count} total episodes, found {episodes_with_signals} with intelligence data")
 
         except Exception as e:
             logger.error(f"Error fetching episodes from MongoDB: {str(e)}", exc_info=True)
             # Return mock data if MongoDB fails
             episodes = []
 
-        # If no episodes found, return mock data for now
+        # Log results
         if not episodes:
-            logger.warning(f"No episodes found with intelligence data, returning mock for MVP")
-            # Check what's in the collections
+            logger.warning(f"No episodes found with intelligence data after checking {episode_count} episodes")
+            # Check collection counts for debugging
             intelligence_count = db.get_collection("episode_intelligence").count_documents({})
-            authority_count = db.get_collection("podcast_authority").count_documents({})
-            prefs_count = db.get_collection("user_intelligence_prefs").count_documents({})
-
-            logger.info(f"Collection counts - intelligence: {intelligence_count}, authority: {authority_count}, prefs: {prefs_count}")
-
-            # Return mock data for MVP demonstration
-            for i in range(min(limit, 2)):
-                mock_episode = EpisodeBrief(
-                    episode_id=f"mock-{i}",
-                    title=f"Episode {i+1}: Sample Episode (No Real Signals Found)",
-                    podcast_name=["Sample Podcast A", "Sample Podcast B"][i],
-                    published_at=datetime.now(timezone.utc).isoformat(),
-                    duration_seconds=3600,
-                    relevance_score=0.7 - (i * 0.1),
-                    signals=[
-                        Signal(
-                            type="investable",
-                            content="Mock signal - real episode_intelligence data not found",
-                            confidence=0.5
-                        )
-                    ],
-                    summary="This is mock data. The episode_intelligence collection may not have matching episode_ids.",
-                    key_insights=["Check if episode_intelligence.episode_id matches episode_metadata.guid"],
-                    audio_url=None
-                )
-                episodes.append(mock_episode)
+            logger.info(f"Total episode_intelligence documents: {intelligence_count}")
 
         # Sort by relevance score and take top N
         episodes.sort(key=lambda x: x.relevance_score, reverse=True)
