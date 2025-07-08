@@ -177,11 +177,25 @@ def get_episode_signals(db, episode_id: str) -> List[Signal]:
                     if not content:
                         logger.warning(f"Signal item has no content or signal_text field: {signal_item}")
 
+                    # Handle timestamp - convert dict to string if needed
+                    timestamp_raw = signal_item.get("timestamp")
+                    timestamp = None
+                    if timestamp_raw:
+                        if isinstance(timestamp_raw, dict):
+                            # Convert dict with start/end to a string format
+                            start = timestamp_raw.get("start", 0)
+                            timestamp = f"{int(start // 60):02d}:{int(start % 60):02d}"
+                        elif isinstance(timestamp_raw, str):
+                            timestamp = timestamp_raw
+                        elif isinstance(timestamp_raw, (int, float)):
+                            # Convert seconds to MM:SS format
+                            timestamp = f"{int(timestamp_raw // 60):02d}:{int(timestamp_raw % 60):02d}"
+
                     signal = Signal(
                         type=display_type,
                         content=content,
                         confidence=signal_item.get("confidence", 0.8),
-                        timestamp=signal_item.get("timestamp")  # Optional timestamp
+                        timestamp=timestamp
                     )
                     signals.append(signal)
 

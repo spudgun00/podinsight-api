@@ -1,0 +1,50 @@
+{
+  "database_name": "podinsight",
+  "collections": [
+    "episode_intelligence",
+    "episode_transcripts",
+    "episode_processing_status",
+    "user_intelligence_prefs",
+    "podcast_authority",
+    "sentiment_results",
+    "signal_duplicates",
+    "episode_metadata",
+    "transcript_chunks_768d"
+  ],
+  "episode_metadata": {
+    "count": 1236,
+    "sample": {
+      "id": "685ba6df1531246a77e71c63",
+      "guid": "0e983347-7815-4b62-87a6-84d988a772b7",
+      "episode_id": "0e983347-7815-4b62-87a6-84d988a772b7",
+      "has_raw_entry": true,
+      "guid_equals_episode_id": true
+    }
+  },
+  "episode_intelligence": {
+    "count": 50,
+    "sample": {
+      "id": "6866efe5768f1d5a6d0d9e1d",
+      "episode_id": "02fc268c-61dc-4074-b7ec-882615bc6d85",
+      "has_signals": true,
+      "signal_types": [
+        "investable",
+        "competitive",
+        "portfolio",
+        "soundbites"
+      ]
+    }
+  },
+  "podcast_authority": {
+    "count": 17,
+    "sample": {
+      "feed_slug": null,
+      "podcast_name": "All-In with Chamath, Jason, Sacks & Friedberg",
+      "tier": 1
+    }
+  },
+  "user_intelligence_prefs": {
+    "count": 0,
+    "demo_user_exists": 0
+  }
+}
