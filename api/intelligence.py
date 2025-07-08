@@ -783,4 +783,63 @@ async def test_data_matching():
     except Exception as e:
         return {"error": str(e)}
 
+# Test endpoint to check specific GUID
+@router.get("/check-guid/{guid}")
+async def check_guid_in_collections(guid: str):
+    """Check if a specific GUID exists in various collections"""
+    try:
+        db = get_mongodb()
+
+        results = {
+            "searched_guid": guid,
+            "found_in": []
+        }
+
+        # Check episode_metadata by guid field
+        metadata_by_guid = db.get_collection("episode_metadata").find_one({"guid": guid})
+        if metadata_by_guid:
+            results["found_in"].append("episode_metadata.guid")
+            results["episode_metadata_by_guid"] = {
+                "id": str(metadata_by_guid.get("_id")),
+                "title": metadata_by_guid.get("raw_entry_original_feed", {}).get("episode_title", "Unknown"),
+                "guid": metadata_by_guid.get("guid"),
+                "episode_id": metadata_by_guid.get("episode_id")
+            }
+
+        # Check episode_metadata by episode_id field
+        metadata_by_episode_id = db.get_collection("episode_metadata").find_one({"episode_id": guid})
+        if metadata_by_episode_id and metadata_by_episode_id != metadata_by_guid:
+            results["found_in"].append("episode_metadata.episode_id")
+            results["episode_metadata_by_episode_id"] = {
+                "id": str(metadata_by_episode_id.get("_id")),
+                "title": metadata_by_episode_id.get("raw_entry_original_feed", {}).get("episode_title", "Unknown"),
+                "guid": metadata_by_episode_id.get("guid"),
+                "episode_id": metadata_by_episode_id.get("episode_id")
+            }
+
+        # Check episode_intelligence
+        intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": guid})
+        if intelligence:
+            results["found_in"].append("episode_intelligence.episode_id")
+            results["episode_intelligence"] = {
+                "id": str(intelligence.get("_id")),
+                "episode_id": intelligence.get("episode_id"),
+                "has_signals": bool(intelligence.get("signals"))
+            }
+
+        # Check episode_transcripts
+        transcript = db.get_collection("episode_transcripts").find_one({"episode_id": guid})
+        if transcript:
+            results["found_in"].append("episode_transcripts.episode_id")
+            results["episode_transcripts"] = {
+                "id": str(transcript.get("_id")),
+                "episode_id": transcript.get("episode_id"),
+                "word_count": transcript.get("word_count")
+            }
+
+        return results
+
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
