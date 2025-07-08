@@ -259,11 +259,17 @@ Successfully diagnosed and fixed multiple issues with Episode Intelligence APIs:
 6. `GET /api/intelligence/debug` - ✅ Added for debugging (temporary)
 
 ### MongoDB Collections Available:
-- `episode_metadata` - 1,236 documents
-- `episode_transcripts` - 1,171 documents
-- `transcript_chunks_768d` - 823,763 documents
-- `episode_intelligence` - Ready for signal data
-- `user_intelligence_prefs` - Ready for user preferences
+- `episode_metadata` - 1,236 documents (✅ USING)
+- `episode_transcripts` - 1,171 documents (✅ USING for summaries)
+- `transcript_chunks_768d` - 823,763 documents (❌ NOT USING)
+- `episode_intelligence` - **EXISTS BUT NOT CONNECTED** (❌ returning mock signals instead)
+- `user_intelligence_prefs` - **EXISTS BUT NOT CONNECTED** (❌ using empty object instead)
+- `podcast_authority` - **EXISTS BUT NOT CONNECTED** (❌ not used for scoring)
+- `signal_duplicates` - **EXISTS BUT NOT CONNECTED** (❌ purpose unknown)
+- `sentiment_results` - 62 documents (❌ NOT USING)
+
+### CRITICAL FINDING:
+The Episode Intelligence collections were already created by the ETL pipeline (Story 1-2), but the API is not querying them! Instead, it's returning mock data for signals and using hardcoded relevance scores.
 
 ## Next Steps for New Session
 
@@ -288,16 +294,27 @@ Successfully diagnosed and fixed multiple issues with Episode Intelligence APIs:
    - Test pagination and filtering
    - Test error handling
 
-5. **Signal Extraction Implementation**
-   - Implement Story 1 (Signal Extraction Engine)
-   - Process episodes to populate `episode_intelligence` collection
-   - Connect real signals to dashboard instead of mock signals
+5. **Connect Existing Episode Intelligence Data**
+   - **URGENT**: Story 1-2 appear to be complete (collections exist with data)
+   - Need to find ETL documentation showing schema for these collections
+   - Update `get_episode_signals()` to query `episode_intelligence` collection
+   - Update relevance scoring to use `podcast_authority` data
+   - Connect `user_intelligence_prefs` for personalization
+   - **ACTION**: Search for ETL documentation or schema definitions
 
 ### Key Issues to Address:
-1. **Authentication**: Must be re-enabled per P0 priority in Asana
-2. **Performance**: Monitor response times, add caching if >200ms
-3. **Signal Data**: Currently returning mock signals, need real extraction
-4. **Testing**: Comprehensive testing needed for all endpoints
+1. **Missing Collection Integration**: API not using existing Episode Intelligence collections!
+2. **Documentation Gap**: Need ETL schema documentation for `episode_intelligence`, `user_intelligence_prefs`, `podcast_authority`
+3. **Authentication**: Must be re-enabled per P0 priority in Asana
+4. **Mock Data Removal**: Remove all mock signal generation once connected to real collections
+5. **Testing**: Comprehensive testing needed with real Episode Intelligence data
+
+### Questions for Next Session:
+1. Where is the ETL documentation for Episode Intelligence collections?
+2. What is the schema for `episode_intelligence` collection?
+3. How should `podcast_authority` be used for relevance scoring?
+4. What is `signal_duplicates` collection for?
+5. Should we be using `sentiment_results` for Episode Intelligence?
 
 ## Related Documentation
 - Episode Intelligence Feature: `docs/sprint4/episode-intelligence-v5-complete.md`
