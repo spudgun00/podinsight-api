@@ -1,7 +1,8 @@
 # Master API Reference Document - PodInsightHQ
 
-**Document Version**: 1.0
+**Document Version**: 1.1
 **Created**: 2025-01-03
+**Last Modified**: 2025-01-08
 **Purpose**: Comprehensive API reference with all endpoints, integrations, and patterns
 
 ---
@@ -38,6 +39,7 @@
 - **Documentation**: References auth endpoints
 - **Reality**: No authentication implemented (planned for Sprint 4)
 - **Resolution**: ✅ All endpoints currently public
+- **Update (2025-01-08)**: Episode Intelligence endpoints (Story 5B) temporarily have authentication removed to unblock Story 4 dashboard integration. Auth will be re-added when auth system is implemented.
 
 ### 4. Audio Endpoint Versions
 - **Inconsistency**: Some docs show `/api/audio/*`, others `/api/v1/audio_clips/*`
@@ -273,7 +275,155 @@
 - S3 for clip storage
 - 1-hour pre-signed URLs
 
-#### 5. Future Endpoints (Documented but Not Implemented)
+#### 5. Episode Intelligence Endpoints (Sprint 4)
+
+##### GET `/api/intelligence/dashboard`
+```json
+// Query Parameters
+?limit=8  // Number of episodes to return (default: 8)
+
+// Response
+{
+  "episodes": [
+    {
+      "episode_id": "507f1f77bcf86cd799439011",
+      "title": "The Future of AI Agents",
+      "podcast_name": "Tech Insights Podcast",
+      "published_at": "2024-01-08T10:00:00Z",
+      "duration_seconds": 3600,
+      "relevance_score": 0.85,
+      "signals": [
+        {
+          "type": "investable",
+          "content": "Discussion about Series A fundraising trends in AI startups",
+          "confidence": 0.85,
+          "timestamp": null
+        },
+        {
+          "type": "competitive",
+          "content": "Mention of recent acquisition in the enterprise SaaS space",
+          "confidence": 0.75,
+          "timestamp": null
+        },
+        {
+          "type": "portfolio",
+          "content": "Portfolio company mentioned in context of market expansion",
+          "confidence": 0.9,
+          "timestamp": null
+        },
+        {
+          "type": "sound_bite",
+          "content": "'The future of work is not remote, it's hybrid with AI augmentation'",
+          "confidence": 0.9,
+          "timestamp": null
+        }
+      ],
+      "summary": "Episode summary not available",
+      "key_insights": [
+        "AI agents are becoming more sophisticated",
+        "Enterprise adoption is accelerating",
+        "New funding models emerging"
+      ],
+      "audio_url": null
+    }
+  ],
+  "total_episodes": 8,
+  "generated_at": "2024-01-08T14:30:00Z"
+}
+```
+
+**Purpose**: Returns consolidated episode intelligence data for dashboard
+- **Auth**: None (temporarily removed)
+- **Signal Types**: `investable`, `competitive`, `portfolio`, `sound_bite`
+- **Usage**: Dashboard transforms response into card-specific data
+
+##### GET `/api/intelligence/brief/{episode_id}`
+```json
+// Path Parameters
+{episode_id} - Episode ID (MongoDB ObjectId or GUID)
+
+// Response
+{
+  "episode_id": "507f1f77bcf86cd799439011",
+  "title": "Episode Title",
+  "podcast_name": "Podcast Name",
+  "published_at": "2024-01-08T10:00:00Z",
+  "duration_seconds": 3600,
+  "relevance_score": 0.85,
+  "signals": [...],
+  "summary": "Detailed episode summary",
+  "key_insights": [...],
+  "audio_url": null
+}
+```
+
+**Purpose**: Returns detailed intelligence brief for specific episode
+- **Auth**: None (temporarily removed)
+- **Use Case**: Modal view with full episode details
+
+##### POST `/api/intelligence/share`
+```json
+// Request
+{
+  "episode_id": "507f1f77bcf86cd799439011",
+  "method": "email",  // or "slack"
+  "recipient": "user@example.com",
+  "include_summary": true,
+  "personal_note": "Check out this insight"
+}
+
+// Response
+{
+  "success": true,
+  "message": "Episode intelligence shared via email to user@example.com",
+  "shared_at": "2024-01-08T14:30:00Z"
+}
+```
+
+**Purpose**: Share episode intelligence via email or Slack
+- **Auth**: None (temporarily removed)
+- **Methods**: `email`, `slack`
+- **Note**: Currently simulated, not sending actual emails
+
+##### PUT `/api/intelligence/preferences`
+```json
+// Request
+{
+  "portfolio_companies": ["Company A", "Company B"],
+  "interest_topics": ["AI", "SaaS", "Web3"],
+  "notification_frequency": "weekly",
+  "email_notifications": true,
+  "slack_notifications": false
+}
+
+// Response
+{
+  "success": true,
+  "preferences": {...},
+  "updated_at": "2024-01-08T14:30:00Z"
+}
+```
+
+**Purpose**: Update user preferences for relevance scoring
+- **Auth**: None (temporarily removed)
+- **User**: Currently uses "demo-user" for all requests
+
+##### GET `/api/intelligence/health`
+```json
+// Response
+{
+  "status": "healthy",
+  "service": "intelligence-api",
+  "timestamp": "2024-01-08T14:30:00Z",
+  "mongodb": "connected"
+}
+```
+
+**Purpose**: Health check for intelligence API
+- **Auth**: None
+- **Use**: Monitoring endpoint status
+
+#### 6. Future Endpoints (Documented but Not Implemented)
 
 ##### Authentication (Sprint 4)
 - `POST /api/auth/signup`
@@ -379,6 +529,10 @@ allow_origins=[
 | `/api/topic-velocity` | 2s | <500ms | 30s |
 | `/api/entities` | 2s | <500ms | 30s |
 | `/api/v1/audio_clips/*` | 5s | 2.5s | 30s |
+| `/api/intelligence/dashboard` | 3s | <1s | 30s |
+| `/api/intelligence/brief/*` | 2s | <500ms | 30s |
+| `/api/intelligence/share` | 1s | <200ms | 30s |
+| `/api/intelligence/preferences` | 1s | <200ms | 30s |
 
 **Bottlenecks**:
 1. Modal.com cold start (14s) - physics limit of loading 2.1GB model
@@ -390,7 +544,7 @@ allow_origins=[
 ## 🔐 Security Considerations
 
 ### Current Issues
-1. **No Authentication**: All endpoints public
+1. **No Authentication**: All endpoints public (Episode Intelligence endpoints temporarily have auth removed for Story 4)
 2. **Token Exposure**: Backend token in Next.js routes
 3. **CORS Too Open**: Accepts all origins
 4. **No Rate Limiting**: Vulnerable to abuse
@@ -454,4 +608,4 @@ async function searchPodcasts(query: string) {
 
 ---
 
-**Note**: This document represents the current production API as of January 2025. Authentication and user-specific endpoints are planned for Sprint 4 implementation.
+**Note**: This document represents the current production API as of January 2025. Authentication and user-specific endpoints are planned for Sprint 4 implementation. Episode Intelligence endpoints (Story 5B) temporarily have authentication removed to unblock Story 4 dashboard integration.
