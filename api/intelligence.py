@@ -560,4 +560,41 @@ async def health_check():
             "error": str(e)
         }
 
+# Debug endpoint (temporary)
+@router.get("/debug")
+async def debug_mongodb():
+    """Debug MongoDB connection and collections"""
+    try:
+        db = get_mongodb()
+        
+        # Get basic info
+        info = {
+            "database_name": db.name,
+            "collections": db.list_collection_names(),
+        }
+        
+        # Check episode_metadata
+        if "episode_metadata" in info["collections"]:
+            collection = db.get_collection("episode_metadata")
+            info["episode_metadata"] = {
+                "count": collection.count_documents({}),
+                "sample": None
+            }
+            # Get one sample document
+            sample = collection.find_one()
+            if sample:
+                info["episode_metadata"]["sample"] = {
+                    "id": str(sample.get("_id")),
+                    "guid": sample.get("guid"),
+                    "has_raw_entry": "raw_entry_original_feed" in sample
+                }
+        
+        return info
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "type": type(e).__name__
+        }
+
 # Export router for inclusion in main app
