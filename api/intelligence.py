@@ -199,8 +199,11 @@ def calculate_relevance_score(db, episode_id: str, user_preferences: Dict) -> fl
             # Fallback to calculating based on signals and authority
             base_score = 0.5
 
-            # Get podcast authority score
-            episode_metadata = db.get_collection("episode_metadata").find_one({"guid": episode_id})
+            # Get podcast authority score (try episode_id first, then guid)
+            episode_metadata = db.get_collection("episode_metadata").find_one({"episode_id": episode_id})
+            if not episode_metadata:
+                # Fallback to guid field
+                episode_metadata = db.get_collection("episode_metadata").find_one({"guid": episode_id})
             if episode_metadata:
                 raw_entry = episode_metadata.get("raw_entry_original_feed", {})
                 podcast_name = raw_entry.get("podcast_title", "")
@@ -303,16 +306,19 @@ async def get_intelligence_dashboard(
                 episode_count += 1
                 logger.info(f"Processing episode {episode_count}: {episode_doc.get('_id')}")
 
-                # Use guid instead of _id for episode_intelligence lookups
-                episode_guid = episode_doc.get("guid")
+                # Use episode_id for episode_intelligence lookups (now contains GUID value)
+                episode_guid = episode_doc.get("episode_id")
                 if not episode_guid:
-                    logger.warning(f"Episode {episode_doc.get('_id')} has no guid, skipping")
-                    continue
+                    # Fallback to guid field if episode_id not present
+                    episode_guid = episode_doc.get("guid")
+                    if not episode_guid:
+                        logger.warning(f"Episode {episode_doc.get('_id')} has no episode_id or guid, skipping")
+                        continue
 
-                # Calculate relevance score using guid
+                # Calculate relevance score using episode_id
                 relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
 
-                # Get signals for this episode using guid
+                # Get signals for this episode using episode_id
                 signals = get_episode_signals(db, episode_guid)
 
                 # Skip episodes without signals
@@ -434,12 +440,15 @@ async def get_intelligence_brief(
         preferences_collection = db.get_collection("user_preferences")
         user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
 
-        # Get the guid for intelligence lookups
-        episode_guid = episode_doc.get("guid")
+        # Get the episode_id for intelligence lookups (now contains GUID value)
+        episode_guid = episode_doc.get("episode_id")
         if not episode_guid:
-            # If no guid, try to use the episode_id parameter as guid
-            episode_guid = episode_id
-            logger.warning(f"Episode {episode_doc.get('_id')} has no guid field, using {episode_id}")
+            # Fallback to guid field if episode_id not present
+            episode_guid = episode_doc.get("guid")
+            if not episode_guid:
+                # If neither field exists, try to use the episode_id parameter as guid
+                episode_guid = episode_id
+                logger.warning(f"Episode {episode_doc.get('_id')} has no episode_id or guid field, using {episode_id}")
 
         # Calculate relevance score using guid
         relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
@@ -670,7 +679,9 @@ async def debug_mongodb():
                 info["episode_metadata"]["sample"] = {
                     "id": str(sample.get("_id")),
                     "guid": sample.get("guid"),
-                    "has_raw_entry": "raw_entry_original_feed" in sample
+                    "episode_id": sample.get("episode_id"),
+                    "has_raw_entry": "raw_entry_original_feed" in sample,
+                    "guid_equals_episode_id": sample.get("guid") == sample.get("episode_id")
                 }
 
         # Check episode_intelligence
@@ -733,9 +744,14 @@ async def test_data_matching():
             return {"error": "No episodes in episode_metadata"}
 
         episode_guid = episode_meta.get("guid")
+        episode_id = episode_meta.get("episode_id")
 
-        # Try to find matching intelligence
-        intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_guid})
+        # Try to find matching intelligence using episode_id first, then guid
+        intelligence = None
+        if episode_id:
+            intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_id})
+        if not intelligence and episode_guid:
+            intelligence = db.get_collection("episode_intelligence").find_one({"episode_id": episode_guid})
 
         # Also check first intelligence record
         first_intelligence = db.get_collection("episode_intelligence").find_one()
@@ -743,11 +759,14 @@ async def test_data_matching():
         return {
             "episode_metadata_sample": {
                 "id": str(episode_meta.get("_id")),
-                "guid": episode_guid
+                "guid": episode_guid,
+                "episode_id": episode_id,
+                "has_episode_id_field": episode_id is not None
             },
             "intelligence_match_found": intelligence is not None,
             "first_intelligence_episode_id": first_intelligence.get("episode_id") if first_intelligence else None,
-            "guids_match": episode_guid == first_intelligence.get("episode_id") if first_intelligence else False
+            "episode_id_matches_intelligence": episode_id == first_intelligence.get("episode_id") if (episode_id and first_intelligence) else False,
+            "guid_matches_intelligence": episode_guid == first_intelligence.get("episode_id") if (episode_guid and first_intelligence) else False
         }
 
     except Exception as e:
