@@ -320,10 +320,22 @@ async def get_intelligence_dashboard(
         try:
             # Get ALL episodes and filter for those with intelligence data
             logger.info(f"Searching all episodes for those with intelligence data")
+            
+            # First, let's check which episodes have intelligence data
+            intelligence_collection = db.get_collection("episode_intelligence")
+            intel_count = intelligence_collection.count_documents({})
+            logger.info(f"Total episode_intelligence documents: {intel_count}")
+            
+            # Get a sample of episode IDs that have intelligence
+            sample_intel = list(intelligence_collection.find({}, {"episode_id": 1}).limit(5))
+            logger.info(f"Sample intelligence episode_ids: {[doc.get('episode_id') for doc in sample_intel]}")
+            
             cursor = episodes_collection.find()  # No limit - check all episodes
 
             episode_count = 0
             episodes_with_signals = 0
+            first_10_checks = []  # Track first 10 episodes checked
+            
             for episode_doc in cursor:
                 episode_count += 1
                 if episode_count % 100 == 0:
@@ -335,6 +347,15 @@ async def get_intelligence_dashboard(
                     # Fallback to guid field if episode_id not present
                     episode_guid = episode_doc.get("guid")
 
+                # Log first 10 episodes we check
+                if episode_count <= 10:
+                    first_10_checks.append({
+                        "count": episode_count,
+                        "episode_id": episode_doc.get("episode_id"),
+                        "guid": episode_doc.get("guid"),
+                        "used_id": episode_guid
+                    })
+
                 # Also get the ObjectId as string
                 object_id_str = str(episode_doc.get("_id"))
 
@@ -343,7 +364,8 @@ async def get_intelligence_dashboard(
 
                 # If no signals found with GUID, try ObjectId
                 if not signals:
-                    logger.info(f"No signals found with GUID {episode_guid}, trying ObjectId {object_id_str}")
+                    if episode_count <= 10:
+                        logger.info(f"Episode {episode_count}: No signals found with ID {episode_guid}, trying ObjectId {object_id_str}")
                     signals = get_episode_signals(db, object_id_str)
 
                 # Skip episodes without signals
@@ -351,6 +373,11 @@ async def get_intelligence_dashboard(
                     continue  # Just skip, don't log warnings for each one
 
                 episodes_with_signals += 1
+                logger.info(f"Found episode with signals! Count: {episodes_with_signals}, ID: {episode_guid}, Signal count: {len(signals)}")
+            
+            # Log debugging info
+            logger.info(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
+            logger.info(f"First 10 episodes checked: {first_10_checks}")
 
                 # Calculate relevance score using the ID that worked
                 relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
