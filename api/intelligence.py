@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
 import asyncio
 from bson import ObjectId
 
@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
 
-# MongoDB connection
+# MongoDB connection (using synchronous client for serverless reliability)
 _mongodb_client = None
 _db = None
 
-async def get_mongodb():
-    """Get MongoDB connection"""
+def get_mongodb():
+    """Get MongoDB connection (synchronous for serverless)"""
     global _mongodb_client, _db
     
     if _mongodb_client is None:
@@ -37,7 +37,8 @@ async def get_mongodb():
             raise ValueError("MONGODB_URI not configured")
         
         try:
-            _mongodb_client = AsyncIOMotorClient(
+            # Use synchronous PyMongo client for serverless reliability
+            _mongodb_client = MongoClient(
                 mongodb_uri,
                 serverSelectionTimeoutMS=10000,
                 connectTimeoutMS=10000,
@@ -50,7 +51,7 @@ async def get_mongodb():
             _db = _mongodb_client[db_name]
             
             # Test connection
-            await _db.command('ping')
+            _db.command('ping')
             logger.info(f"MongoDB connected successfully to database: {db_name}")
         except Exception as e:
             logger.error(f"MongoDB connection failed: {str(e)}")
@@ -109,7 +110,7 @@ class PreferencesResponse(BaseModel):
     updated_at: str
 
 # Helper functions
-async def get_episode_signals(db, episode_id: str) -> List[Signal]:
+def get_episode_signals(db, episode_id: str) -> List[Signal]:
     """Get signals for a specific episode from MongoDB"""
     try:
         # For MVP, always return mock signals since the signals collection doesn't exist yet
@@ -146,7 +147,7 @@ async def get_episode_signals(db, episode_id: str) -> List[Signal]:
         logger.error(f"Error fetching signals for episode {episode_id}: {str(e)}")
         return []
 
-async def calculate_relevance_score(db, episode_id: str, user_preferences: Dict) -> float:
+def calculate_relevance_score(db, episode_id: str, user_preferences: Dict) -> float:
     """Calculate relevance score based on user preferences and episode content"""
     # For MVP, use a simple scoring mechanism
     # In production, this would use the relevance scoring from Story 2
@@ -180,13 +181,13 @@ async def get_intelligence_dashboard(
     - Recency
     """
     try:
-        db = await get_mongodb()
+        db = get_mongodb()
         
         # TODO: Re-add authentication when auth system is implemented
         # Get user preferences (using demo user for now)
         user_id = "demo-user"
         preferences_collection = db.get_collection("user_preferences")
-        user_prefs = await preferences_collection.find_one({"user_id": user_id}) or {}
+        user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
         
         # Get recent episodes with metadata
         episodes_collection = db.get_collection("episode_metadata")
@@ -207,12 +208,12 @@ async def get_intelligence_dashboard(
         try:
             cursor = episodes_collection.aggregate(pipeline)
             
-            async for episode_doc in cursor:
+            for episode_doc in cursor:
                 # Calculate relevance score
-                relevance_score = await calculate_relevance_score(db, str(episode_doc["_id"]), user_prefs)
+                relevance_score = calculate_relevance_score(db, str(episode_doc["_id"]), user_prefs)
                 
                 # Get signals for this episode
-                signals = await get_episode_signals(db, str(episode_doc["_id"]))
+                signals = get_episode_signals(db, str(episode_doc["_id"]))
                 
                 # Extract episode data
                 raw_entry = episode_doc.get("raw_entry_original_feed", {})
@@ -315,7 +316,7 @@ async def get_intelligence_brief(
     - Audio URL when available
     """
     try:
-        db = await get_mongodb()
+        db = get_mongodb()
         
         # Get episode metadata
         episodes_collection = db.get_collection("episode_metadata")
@@ -324,10 +325,10 @@ async def get_intelligence_brief(
         episode_doc = None
         try:
             # Try as ObjectId
-            episode_doc = await episodes_collection.find_one({"_id": ObjectId(episode_id)})
+            episode_doc = episodes_collection.find_one({"_id": ObjectId(episode_id)})
         except:
             # Try as GUID in episode_id field
-            episode_doc = await episodes_collection.find_one({"episode_id": episode_id})
+            episode_doc = episodes_collection.find_one({"episode_id": episode_id})
         
         if not episode_doc:
             raise HTTPException(
@@ -339,17 +340,17 @@ async def get_intelligence_brief(
         # Get user preferences for relevance scoring (using demo user for now)
         user_id = "demo-user"
         preferences_collection = db.get_collection("user_preferences")
-        user_prefs = await preferences_collection.find_one({"user_id": user_id}) or {}
+        user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
         
         # Calculate relevance score
-        relevance_score = await calculate_relevance_score(db, str(episode_doc["_id"]), user_prefs)
+        relevance_score = calculate_relevance_score(db, str(episode_doc["_id"]), user_prefs)
         
         # Get signals
-        signals = await get_episode_signals(db, str(episode_doc["_id"]))
+        signals = get_episode_signals(db, str(episode_doc["_id"]))
         
         # Get transcript for summary if available
         transcripts_collection = db.get_collection("episode_transcripts")
-        transcript_doc = await transcripts_collection.find_one({"episode_id": str(episode_doc["_id"])})
+        transcript_doc = transcripts_collection.find_one({"episode_id": str(episode_doc["_id"])})
         
         summary = episode_doc.get("summary", "")
         if not summary and transcript_doc:
@@ -407,15 +408,15 @@ async def share_intelligence(
             )
         
         # Get episode brief
-        db = await get_mongodb()
+        db = get_mongodb()
         episodes_collection = db.get_collection("episode_metadata")
         
         # Find episode
         episode_doc = None
         try:
-            episode_doc = await episodes_collection.find_one({"_id": ObjectId(request.episode_id)})
+            episode_doc = episodes_collection.find_one({"_id": ObjectId(request.episode_id)})
         except:
-            episode_doc = await episodes_collection.find_one({"episode_id": request.episode_id})
+            episode_doc = episodes_collection.find_one({"episode_id": request.episode_id})
         
         if not episode_doc:
             raise HTTPException(
@@ -437,7 +438,7 @@ async def share_intelligence(
         # Log share activity (using demo user for now)
         user_id = "demo-user"
         shares_collection = db.get_collection("share_history")
-        await shares_collection.insert_one({
+        shares_collection.insert_one({
             "user_id": user_id,
             "episode_id": request.episode_id,
             "method": request.method,
@@ -476,7 +477,7 @@ async def update_preferences(
     """
     try:
         # TODO: Re-add authentication when auth system is implemented
-        db = await get_mongodb()
+        db = get_mongodb()
         preferences_collection = db.get_collection("user_preferences")
         
         # Using demo user for now
@@ -494,7 +495,7 @@ async def update_preferences(
         }
         
         # Upsert preferences
-        await preferences_collection.replace_one(
+        preferences_collection.replace_one(
             {"user_id": user_id},
             update_doc,
             upsert=True
@@ -518,10 +519,10 @@ async def update_preferences(
 async def health_check():
     """Health check for intelligence API"""
     try:
-        db = await get_mongodb()
+        db = get_mongodb()
         
         # Check MongoDB connection
-        await db.command("ping")
+        db.command("ping")
         
         return {
             "status": "healthy",

@@ -179,8 +179,80 @@ app.mount("/", topic_velocity_app)
    - Mount order matters (specific routes before catch-all)
    - Preserve working code structure
 
-## Current Status
-- All working APIs preserved and functional
-- Episode Intelligence endpoints properly integrated
-- Function count reduced to 10 (under 12 limit)
-- Ready for deployment with proper MongoDB connection handling
+## Current Status (Updated: July 8, 2025)
+
+### Critical Discovery: Missing `lib` Directory
+**Root Cause Found:** ALL API endpoints were failing with `ModuleNotFoundError: No module named 'lib'`
+
+**Investigation Timeline:**
+1. Initial assumption: Episode Intelligence specific issue
+2. Discovery: ALL endpoints failing (topic-velocity, search, health, intelligence)
+3. Vercel logs revealed: `ModuleNotFoundError` in `search_lightweight_768d.py` line 32
+4. Root cause: `lib` directory was accidentally deleted in commit `c1c314b`
+
+**Git History Analysis:**
+- `2ee39fb` - Moved files from `api/` to `lib/` to reduce function count
+- `b887687` - Fixed .gitignore and added lib directory to git
+- `c1c314b` - **Accidentally deleted entire lib directory** while adding Episode Intelligence
+
+**Fix Applied:**
+```bash
+# Restored lib directory from commit b887687
+git checkout b887687 -- lib/
+git add lib/
+git commit -m "fix: Restore lib directory that was accidentally deleted"
+git push origin main
+```
+
+**Current Deployment Status:**
+- Commit `a414307` pushed to restore lib directory
+- Vercel deployment triggered
+- Awaiting deployment completion to verify fix
+
+## Episode Intelligence Endpoints
+All 4 endpoints remain available in `/api/intelligence.py`:
+1. `GET /api/intelligence/dashboard` - Get top episodes by relevance score
+2. `GET /api/intelligence/brief/{episode_id}` - Get full intelligence brief for specific episode
+3. `POST /api/intelligence/share` - Share episode intelligence via email/Slack
+4. `PUT /api/intelligence/preferences` - Update user preferences for personalized intelligence
+5. `GET /api/intelligence/health` - Health check for intelligence API
+
+## Next Steps for New Session
+
+### Immediate Actions Required:
+1. **Verify Deployment Success**
+   - Check Vercel deployment status for commit `a414307`
+   - Confirm lib directory is included in deployment
+
+2. **Test Core API Endpoints**
+   ```bash
+   # Test each endpoint to confirm they're working
+   curl https://podinsight-api.vercel.app/api/topic-velocity
+   curl https://podinsight-api.vercel.app/api/heat-sentiment
+   curl https://podinsight-api.vercel.app/api/sentiment_analysis_v2
+   ```
+
+3. **Test Episode Intelligence Endpoints**
+   ```bash
+   # Health check (no auth required)
+   curl https://podinsight-api.vercel.app/api/intelligence/health
+   
+   # Dashboard endpoint (currently auth disabled)
+   curl https://podinsight-api.vercel.app/api/intelligence/dashboard
+   ```
+
+4. **Story 5B Status**
+   - API code is implemented but needs verification
+   - Authentication is commented out (lines 15-17 in `api/intelligence.py`)
+   - MongoDB connection pattern implemented
+   - Mock data fallback in place
+
+### Key Issues to Address:
+1. **Authentication**: Currently disabled, needs to be re-enabled per Asana requirements
+2. **Testing**: No actual testing was done for Story 5B
+3. **Dashboard Integration**: Cannot proceed until API endpoints are working
+
+## Related Documentation
+- Episode Intelligence Feature: `docs/sprint4/episode-intelligence-v5-complete.md`
+- API Reference: `docs/master-api-reference.md`
+- Business Overview: `docs/Business Overview.md`
