@@ -198,11 +198,8 @@ async def get_intelligence_dashboard(
         logger.info(f"Total episodes in collection: {total_episodes}")
         
         # For MVP, let's get any recent episodes without date filtering
-        # since 'created_at' might not be the right field
+        # Let's simplify the pipeline for debugging
         pipeline = [
-            {
-                "$sort": {"_id": -1}  # Sort by ObjectId (newest first)
-            },
             {
                 "$limit": limit * 2  # Get extra for filtering
             }
@@ -211,8 +208,9 @@ async def get_intelligence_dashboard(
         episodes = []
         
         try:
-            logger.info(f"Executing aggregation pipeline: {pipeline}")
-            cursor = episodes_collection.aggregate(pipeline)
+            # Try using find() instead of aggregate() for debugging
+            logger.info(f"Using find() to get episodes, limit: {limit * 2}")
+            cursor = episodes_collection.find().limit(limit * 2)
             
             episode_count = 0
             for episode_doc in cursor:
