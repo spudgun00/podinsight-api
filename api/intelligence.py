@@ -986,4 +986,55 @@ async def check_guid_matching():
     except Exception as e:
         return {"error": str(e)}
 
+@router.get("/debug-dashboard-issue")
+async def debug_dashboard_issue():
+    """Debug why dashboard returns empty despite 50 matching docs"""
+    try:
+        db = get_mongodb()
+        
+        # Get the first intelligence document
+        intelligence_collection = db.get_collection("episode_intelligence")
+        first_intel = intelligence_collection.find_one({})
+        
+        if not first_intel:
+            return {"error": "No intelligence documents found"}
+            
+        episode_id = first_intel.get("episode_id")
+        
+        # Try to find this in metadata
+        metadata_collection = db.get_collection("episode_metadata")
+        metadata_by_episode_id = metadata_collection.find_one({"episode_id": episode_id})
+        metadata_by_guid = metadata_collection.find_one({"guid": episode_id})
+        
+        # Try get_episode_signals
+        signals = get_episode_signals(db, episode_id)
+        
+        # Get first few metadata docs to see structure
+        first_metadata_docs = list(metadata_collection.find({}).limit(3))
+        
+        return {
+            "intelligence_episode_id": episode_id,
+            "metadata_found_by_episode_id": metadata_by_episode_id is not None,
+            "metadata_found_by_guid": metadata_by_guid is not None,
+            "signals_extracted": len(signals),
+            "first_3_metadata_docs": [
+                {
+                    "id": str(doc.get("_id")),
+                    "episode_id": doc.get("episode_id"),
+                    "guid": doc.get("guid"),
+                    "has_episode_id": "episode_id" in doc,
+                    "has_guid": "guid" in doc
+                }
+                for doc in first_metadata_docs
+            ],
+            "intelligence_doc_structure": {
+                "keys": list(first_intel.keys()),
+                "signals_type": type(first_intel.get("signals")).__name__ if "signals" in first_intel else "missing",
+                "signals_keys": list(first_intel.get("signals", {}).keys()) if isinstance(first_intel.get("signals"), dict) else "not a dict"
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
