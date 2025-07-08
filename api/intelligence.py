@@ -842,4 +842,48 @@ async def check_guid_in_collections(guid: str):
     except Exception as e:
         return {"error": str(e)}
 
+# Test endpoint to find episodes with intelligence
+@router.get("/find-episodes-with-intelligence")
+async def find_episodes_with_intelligence():
+    """Find episodes that have matching intelligence data"""
+    try:
+        db = get_mongodb()
+
+        # Get all episode_intelligence documents
+        intelligence_collection = db.get_collection("episode_intelligence")
+        intelligence_docs = list(intelligence_collection.find().limit(10))
+
+        matches = []
+        for intel in intelligence_docs:
+            episode_id = intel.get("episode_id")
+
+            # Try to find this episode in metadata
+            metadata = db.get_collection("episode_metadata").find_one({
+                "$or": [
+                    {"guid": episode_id},
+                    {"episode_id": episode_id},
+                    {"_id": ObjectId(episode_id) if ObjectId.is_valid(episode_id) else None}
+                ]
+            })
+
+            if metadata:
+                matches.append({
+                    "intelligence_id": str(intel.get("_id")),
+                    "episode_id_in_intelligence": episode_id,
+                    "metadata_id": str(metadata.get("_id")),
+                    "metadata_guid": metadata.get("guid"),
+                    "metadata_episode_id": metadata.get("episode_id"),
+                    "title": metadata.get("raw_entry_original_feed", {}).get("episode_title", "Unknown"),
+                    "has_signals": bool(intel.get("signals", {}))
+                })
+
+        return {
+            "total_intelligence_docs": len(intelligence_docs),
+            "matches_found": len(matches),
+            "matches": matches
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
 # Export router for inclusion in main app
