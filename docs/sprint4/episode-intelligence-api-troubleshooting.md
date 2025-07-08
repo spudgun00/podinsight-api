@@ -127,7 +127,7 @@ _db = None
 
 async def get_mongodb():
     global _mongodb_client, _db
-    
+
     if _mongodb_client is None:
         # Lazy initialization with proper timeouts
         _mongodb_client = AsyncIOMotorClient(
@@ -309,12 +309,54 @@ The Episode Intelligence collections were already created by the ETL pipeline (S
 4. **Mock Data Removal**: Remove all mock signal generation once connected to real collections
 5. **Testing**: Comprehensive testing needed with real Episode Intelligence data
 
-### Questions for Next Session:
-1. Where is the ETL documentation for Episode Intelligence collections?
-2. What is the schema for `episode_intelligence` collection?
-3. How should `podcast_authority` be used for relevance scoring?
-4. What is `signal_duplicates` collection for?
-5. Should we be using `sentiment_results` for Episode Intelligence?
+### CRITICAL UPDATE - Documentation Found!
+ETL team has provided complete documentation:
+- **API_INTEGRATION_GUIDE.md** - Full schemas for all collections
+- **CLAUDE_API.md** - Implementation instructions
+
+### Collection Schemas (from API_INTEGRATION_GUIDE.md):
+
+1. **`episode_intelligence`**:
+   ```javascript
+   {
+     episode_id: String,       // Maps to Supabase episodes.guid
+     signals: {
+       investable: [{chunk_id, signal_text, confidence, entities, keywords}],
+       competitive: [...],
+       portfolio: [...],
+       soundbites: [...]
+     },
+     relevance_score: Number,  // 0-100 from Story 2
+     last_updated: Date
+   }
+   ```
+
+2. **`user_intelligence_prefs`**:
+   ```javascript
+   {
+     user_id: String,          // Maps to Supabase auth.users.id
+     preferences: {
+       topics: [String],
+       keywords: [String],
+       notification_threshold: Number
+     }
+   }
+   ```
+
+3. **`podcast_authority`**:
+   ```javascript
+   {
+     feed_slug: String,
+     tier: Number,            // 1-5 (1 = highest)
+     authority_score: Number  // 0-100
+   }
+   ```
+
+### Required API Changes:
+1. Update `get_episode_signals()` to query `episode_intelligence` collection
+2. Update dashboard endpoint to use real relevance scores
+3. Connect user preferences for personalization
+4. Remove ALL mock data generation
 
 ## Related Documentation
 - Episode Intelligence Feature: `docs/sprint4/episode-intelligence-v5-complete.md`
