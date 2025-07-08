@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Episode Intelligence API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .pass { background: #d4edda; }
+        .fail { background: #f8d7da; }
+        pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Episode Intelligence API Manual Test</h1>
+
+    <div class="test">
+        <h2>1. Health Check (No Auth Required)</h2>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="test">
+        <h2>2. Dashboard (Auth Required)</h2>
+        <button onclick="testDashboard()">Test Dashboard</button>
+        <div id="dashboard-result"></div>
+    </div>
+
+    <div class="test">
+        <h2>3. Test with Custom Token</h2>
+        <input type="text" id="jwt-token" placeholder="Enter JWT token" style="width: 300px;">
+        <button onclick="testWithToken()">Test with Token</button>
+        <div id="token-result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://podinsight-api.vercel.app';
+
+        async function testHealth() {
+            const resultDiv = document.getElementById('health-result');
+            try {
+                const response = await fetch(`${API_URL}/api/intelligence/health`);
+                const data = await response.json();
+
+                resultDiv.className = response.ok ? 'pass' : 'fail';
+                resultDiv.innerHTML = `
+                    <strong>Status: ${response.status}</strong>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.className = 'fail';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+
+        async function testDashboard() {
+            const resultDiv = document.getElementById('dashboard-result');
+            try {
+                const response = await fetch(`${API_URL}/api/intelligence/dashboard`);
+                const data = await response.json();
+
+                resultDiv.className = response.ok ? 'pass' : 'fail';
+                resultDiv.innerHTML = `
+                    <strong>Status: ${response.status}</strong>
+                    <p>Expected: 403 (No auth token provided)</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.className = 'fail';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+
+        async function testWithToken() {
+            const token = document.getElementById('jwt-token').value;
+            const resultDiv = document.getElementById('token-result');
+
+            if (!token) {
+                resultDiv.innerHTML = '<strong>Please enter a JWT token</strong>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/intelligence/dashboard`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+
+                resultDiv.className = response.ok ? 'pass' : 'fail';
+                resultDiv.innerHTML = `
+                    <strong>Status: ${response.status}</strong>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                if (response.ok && data.episodes) {
+                    resultDiv.innerHTML += `
+                        <p><strong>Episodes found: ${data.episodes.length}</strong></p>
+                        <p><strong>First episode:</strong> ${data.episodes[0]?.title || 'None'}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'fail';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+
+        // Test health on load
+        window.onload = () => testHealth();
+    </script>
+</body>
+</html>

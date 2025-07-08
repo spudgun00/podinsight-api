@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from .topic_velocity import app as topic_velocity_app
 from .audio_clips import router as audio_clips_router
 from .intelligence import router as intelligence_router
+from .episode_intelligence import router as episode_intelligence_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -20,6 +21,10 @@ app.include_router(audio_clips_router)
 # Include the intelligence router for episode intelligence endpoints
 # This adds all intelligence endpoints at /api/intelligence/*
 app.include_router(intelligence_router)
+
+# Include the episode intelligence router for dashboard intelligence cards
+# This adds the 4 new endpoints for Story 4
+app.include_router(episode_intelligence_router)
 
 # Mount the existing topic_velocity app at the root
 # This preserves ALL existing endpoints exactly as they are
