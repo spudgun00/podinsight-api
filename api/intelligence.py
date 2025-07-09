@@ -289,53 +289,53 @@ def calculate_relevance_score(db, episode_id: str, user_preferences: Dict) -> fl
 async def get_intelligence_dashboard_debug(limit: int = 8):
     """Debug version of dashboard that returns logs"""
     debug_logs = []
-    
+
     try:
         db = get_mongodb()
         debug_logs.append(f"MongoDB connected, database: {db.name}")
-        
+
         # Get user preferences (using demo user for now)
         user_id = "demo-user"
         preferences_collection = db.get_collection("user_preferences")
         user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
         debug_logs.append(f"User preferences: {user_prefs}")
-        
+
         # Get recent episodes with metadata
         episodes_collection = db.get_collection("episode_metadata")
-        
+
         # First, let's check if we have any episodes at all
         total_episodes = episodes_collection.count_documents({})
         debug_logs.append(f"Total episodes in collection: {total_episodes}")
-        
+
         episodes = []
-        
+
         # Get ALL episodes and filter for those with intelligence data
         debug_logs.append("Searching all episodes for those with intelligence data")
-        
+
         # First, let's check which episodes have intelligence data
         intelligence_collection = db.get_collection("episode_intelligence")
         intel_count = intelligence_collection.count_documents({})
         debug_logs.append(f"Total episode_intelligence documents: {intel_count}")
-        
+
         # Get a sample of episode IDs that have intelligence
         sample_intel = list(intelligence_collection.find({}, {"episode_id": 1}).limit(5))
         debug_logs.append(f"Sample intelligence episode_ids: {[doc.get('episode_id') for doc in sample_intel]}")
-        
+
         cursor = episodes_collection.find().limit(20)  # Limit to 20 for debug
-        
+
         episode_count = 0
         episodes_with_signals = 0
         first_10_checks = []
-        
+
         for episode_doc in cursor:
             episode_count += 1
-            
+
             # Try multiple ID fields for episode_intelligence lookups
             episode_guid = episode_doc.get("episode_id")
             if not episode_guid:
                 # Fallback to guid field if episode_id not present
                 episode_guid = episode_doc.get("guid")
-            
+
             # Log first 10 episodes we check
             if episode_count <= 10:
                 first_10_checks.append({
@@ -344,33 +344,33 @@ async def get_intelligence_dashboard_debug(limit: int = 8):
                     "guid": episode_doc.get("guid"),
                     "used_id": episode_guid
                 })
-            
+
             # Try to find signals using different ID formats
             signals = get_episode_signals(db, episode_guid)
-            
+
             # If no signals found with GUID, try ObjectId
             if not signals:
                 object_id_str = str(episode_doc.get("_id"))
                 if episode_count <= 10:
                     debug_logs.append(f"Episode {episode_count}: No signals found with ID {episode_guid}, trying ObjectId {object_id_str}")
                 signals = get_episode_signals(db, object_id_str)
-            
+
             # Skip episodes without signals
             if not signals:
                 continue
-                
+
             episodes_with_signals += 1
             debug_logs.append(f"Found episode with signals! Count: {episodes_with_signals}, ID: {episode_guid}, Signal count: {len(signals)}")
-        
+
         debug_logs.append(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
         debug_logs.append(f"First 10 episodes checked: {first_10_checks}")
-        
+
         return {
             "debug_logs": debug_logs,
             "episodes_found": episodes_with_signals,
             "total_checked": episode_count
         }
-        
+
     except Exception as e:
         debug_logs.append(f"Error: {str(e)}")
         return {"debug_logs": debug_logs, "error": str(e)}
@@ -408,65 +408,94 @@ async def get_intelligence_dashboard(
         episodes = []
 
         try:
-            # Get ALL episodes and filter for those with intelligence data
-            logger.info(f"Searching all episodes for those with intelligence data")
-            
-            # First, let's check which episodes have intelligence data
+            # More efficient approach: Query episode_intelligence first, then join with metadata
+            logger.info(f"Searching for episodes with intelligence data")
+
+            # Get episode_intelligence collection
             intelligence_collection = db.get_collection("episode_intelligence")
             intel_count = intelligence_collection.count_documents({})
             logger.info(f"Total episode_intelligence documents: {intel_count}")
-            
-            # Get a sample of episode IDs that have intelligence
-            sample_intel = list(intelligence_collection.find({}, {"episode_id": 1}).limit(5))
-            logger.info(f"Sample intelligence episode_ids: {[doc.get('episode_id') for doc in sample_intel]}")
-            
-            cursor = episodes_collection.find()  # No limit - check all episodes
 
-            episode_count = 0
-            episodes_with_signals = 0
-            first_10_checks = []  # Track first 10 episodes checked
-            
-            for episode_doc in cursor:
-                episode_count += 1
-                if episode_count % 100 == 0:
-                    logger.info(f"Processed {episode_count} episodes, found {episodes_with_signals} with signals")
+            # Get ALL episodes with intelligence data
+            intelligence_docs = list(intelligence_collection.find())
+            logger.info(f"Found {len(intelligence_docs)} episodes with intelligence data")
 
-                # Try multiple ID fields for episode_intelligence lookups
-                episode_guid = episode_doc.get("episode_id")
-                if not episode_guid:
-                    # Fallback to guid field if episode_id not present
-                    episode_guid = episode_doc.get("guid")
+            episodes_processed = 0
+            episodes_with_metadata = 0
 
-                # Log first 10 episodes we check
-                if episode_count <= 10:
-                    first_10_checks.append({
-                        "count": episode_count,
-                        "episode_id": episode_doc.get("episode_id"),
-                        "guid": episode_doc.get("guid"),
-                        "used_id": episode_guid
-                    })
+            for intel_doc in intelligence_docs:
+                episodes_processed += 1
+                episode_id_from_intel = intel_doc.get("episode_id")
 
-                # Also get the ObjectId as string
-                object_id_str = str(episode_doc.get("_id"))
+                # Find corresponding metadata
+                episode_doc = episodes_collection.find_one({
+                    "$or": [
+                        {"episode_id": episode_id_from_intel},
+                        {"guid": episode_id_from_intel}
+                    ]
+                })
 
-                # Try to find signals using different ID formats
-                signals = get_episode_signals(db, episode_guid)
+                if not episode_doc:
+                    logger.warning(f"No metadata found for intelligence episode_id: {episode_id_from_intel}")
+                    continue
 
-                # If no signals found with GUID, try ObjectId
-                if not signals:
-                    if episode_count <= 10:
-                        logger.info(f"Episode {episode_count}: No signals found with ID {episode_guid}, trying ObjectId {object_id_str}")
-                    signals = get_episode_signals(db, object_id_str)
+                episodes_with_metadata += 1
 
-                # Skip episodes without signals
-                if not signals:
-                    continue  # Just skip, don't log warnings for each one
+                # Get signals directly from intelligence document
+                signals = []
+                signal_data = intel_doc.get("signals", {})
 
-                episodes_with_signals += 1
-                logger.info(f"Found episode with signals! Count: {episodes_with_signals}, ID: {episode_guid}, Signal count: {len(signals)}")
+                # Process each signal type
+                for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
+                    if signal_type in signal_data and isinstance(signal_data[signal_type], list):
+                        for signal_item in signal_data[signal_type]:
+                            # Map soundbites to sound_bite for consistency
+                            display_type = "sound_bite" if signal_type == "soundbites" else signal_type
 
-                # Calculate relevance score using the ID that worked
-                relevance_score = calculate_relevance_score(db, episode_guid, user_prefs)
+                            # Extract content
+                            content = signal_item.get("content") or signal_item.get("signal_text") or ""
+
+                            # Handle timestamp
+                            timestamp_raw = signal_item.get("timestamp")
+                            timestamp = None
+                            if timestamp_raw:
+                                if isinstance(timestamp_raw, dict):
+                                    start = timestamp_raw.get("start", 0)
+                                    timestamp = f"{int(start // 60):02d}:{int(start % 60):02d}"
+                                elif isinstance(timestamp_raw, str):
+                                    timestamp = timestamp_raw
+                                elif isinstance(timestamp_raw, (int, float)):
+                                    timestamp = f"{int(timestamp_raw // 60):02d}:{int(timestamp_raw % 60):02d}"
+
+                            signal = Signal(
+                                type=display_type,
+                                content=content,
+                                confidence=signal_item.get("confidence", 0.8),
+                                timestamp=timestamp
+                            )
+                            signals.append(signal)
+
+                # Calculate relevance score
+                relevance_score = intel_doc.get("relevance_score", 0.5)
+                if relevance_score > 1.0:  # If stored as 0-100, convert to 0-1
+                    relevance_score = relevance_score / 100.0
+
+                # Apply user preference boosts
+                if user_prefs:
+                    portfolio_companies = user_prefs.get("portfolio_companies", [])
+                    interest_topics = user_prefs.get("interest_topics", [])
+
+                    # Check signals for matches
+                    all_signal_text = " ".join([s.content.lower() for s in signals])
+
+                    for company in portfolio_companies:
+                        if company.lower() in all_signal_text:
+                            relevance_score = min(relevance_score + 0.15, 1.0)
+                            break
+
+                    for topic in interest_topics:
+                        if topic.lower() in all_signal_text:
+                            relevance_score = min(relevance_score + 0.05, 1.0)
 
                 # Extract episode data
                 raw_entry = episode_doc.get("raw_entry_original_feed", {})
@@ -474,12 +503,12 @@ async def get_intelligence_dashboard(
                 episode_brief = EpisodeBrief(
                     episode_id=str(episode_doc["_id"]),
                     title=raw_entry.get("episode_title", "Untitled Episode"),
-                    podcast_name=raw_entry.get("podcast_title", "Unknown Podcast"),  # Fixed field name
+                    podcast_name=raw_entry.get("podcast_title", "Unknown Podcast"),
                     published_at=raw_entry.get("published_date_iso", datetime.now(timezone.utc).isoformat()),
-                    duration_seconds=raw_entry.get("duration", 0),  # Fixed field name
+                    duration_seconds=raw_entry.get("duration", 0),
                     relevance_score=relevance_score,
                     signals=signals,
-                    summary=episode_doc.get("summary", "Episode summary not available"),
+                    summary=intel_doc.get("summary", episode_doc.get("summary", "Episode summary not available")),
                     key_insights=extract_key_insights(signals),
                     audio_url=episode_doc.get("s3_audio_path")
                 )
@@ -487,8 +516,7 @@ async def get_intelligence_dashboard(
                 episodes.append(episode_brief)
 
             # Log debugging info
-            logger.info(f"Dashboard search complete. Checked {episode_count} episodes, found {episodes_with_signals} with signals")
-            logger.info(f"First 10 episodes checked: {first_10_checks}")
+            logger.info(f"Dashboard search complete. Processed {episodes_processed} intelligence docs, found {episodes_with_metadata} with metadata")
 
         except Exception as e:
             logger.error(f"Error fetching episodes from MongoDB: {str(e)}", exc_info=True)
@@ -1030,23 +1058,23 @@ async def check_guid_matching():
     """Debug endpoint to check which GUIDs match between collections"""
     try:
         db = get_mongodb()
-        
+
         # Get all episode_intelligence documents
         intelligence_collection = db.get_collection("episode_intelligence")
         intelligence_docs = list(intelligence_collection.find({}, {"episode_id": 1}))
-        
-        # Get all episode_metadata documents  
+
+        # Get all episode_metadata documents
         metadata_collection = db.get_collection("episode_metadata")
-        
+
         results = {
             "total_intelligence_docs": len(intelligence_docs),
             "matching_guids": [],
             "non_matching_guids": []
         }
-        
+
         for intel_doc in intelligence_docs:
             episode_id = intel_doc.get("episode_id")
-            
+
             # Try to find in metadata using both guid and episode_id fields
             metadata_match = metadata_collection.find_one({
                 "$or": [
@@ -1054,7 +1082,7 @@ async def check_guid_matching():
                     {"episode_id": episode_id}
                 ]
             })
-            
+
             if metadata_match:
                 results["matching_guids"].append({
                     "episode_id": episode_id,
@@ -1063,16 +1091,16 @@ async def check_guid_matching():
                 })
             else:
                 results["non_matching_guids"].append(episode_id)
-        
+
         results["matching_count"] = len(results["matching_guids"])
         results["non_matching_count"] = len(results["non_matching_guids"])
-        
+
         # Show first 5 of each category for debugging
         results["matching_guids"] = results["matching_guids"][:5]
         results["non_matching_guids"] = results["non_matching_guids"][:10]
-        
+
         return results
-        
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -1081,27 +1109,27 @@ async def debug_dashboard_issue():
     """Debug why dashboard returns empty despite 50 matching docs"""
     try:
         db = get_mongodb()
-        
+
         # Get the first intelligence document
         intelligence_collection = db.get_collection("episode_intelligence")
         first_intel = intelligence_collection.find_one({})
-        
+
         if not first_intel:
             return {"error": "No intelligence documents found"}
-            
+
         episode_id = first_intel.get("episode_id")
-        
+
         # Try to find this in metadata
         metadata_collection = db.get_collection("episode_metadata")
         metadata_by_episode_id = metadata_collection.find_one({"episode_id": episode_id})
         metadata_by_guid = metadata_collection.find_one({"guid": episode_id})
-        
+
         # Try get_episode_signals
         signals = get_episode_signals(db, episode_id)
-        
+
         # Get first few metadata docs to see structure
         first_metadata_docs = list(metadata_collection.find({}).limit(3))
-        
+
         return {
             "intelligence_episode_id": episode_id,
             "metadata_found_by_episode_id": metadata_by_episode_id is not None,
@@ -1123,7 +1151,7 @@ async def debug_dashboard_issue():
                 "signals_keys": list(first_intel.get("signals", {}).keys()) if isinstance(first_intel.get("signals"), dict) else "not a dict"
             }
         }
-        
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -1133,23 +1161,23 @@ async def debug_signal_structure(episode_id: str):
     try:
         db = get_mongodb()
         intelligence_collection = db.get_collection("episode_intelligence")
-        
+
         # Get the intelligence document
         intel_doc = intelligence_collection.find_one({"episode_id": episode_id})
-        
+
         if not intel_doc:
             return {"error": f"No intelligence document found for episode {episode_id}"}
-        
+
         # Get signals data
         signals = intel_doc.get("signals", {})
-        
+
         # Analyze structure
         signal_analysis = {}
-        
+
         for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
             if signal_type in signals:
                 signal_list = signals[signal_type]
-                
+
                 # Check if it's a list
                 if isinstance(signal_list, list):
                     signal_analysis[signal_type] = {
@@ -1166,10 +1194,10 @@ async def debug_signal_structure(episode_id: str):
                     }
             else:
                 signal_analysis[signal_type] = {"exists": False}
-        
+
         # Try signal extraction
         extracted_signals = get_episode_signals(db, episode_id)
-        
+
         return {
             "episode_id": episode_id,
             "has_signals_field": "signals" in intel_doc,
@@ -1181,7 +1209,7 @@ async def debug_signal_structure(episode_id: str):
                 "types": [s.type for s in extracted_signals]
             }
         }
-        
+
     except Exception as e:
         return {"error": str(e), "type": type(e).__name__}
 
@@ -1191,21 +1219,21 @@ async def audit_empty_signals():
     try:
         db = get_mongodb()
         intelligence_collection = db.get_collection("episode_intelligence")
-        
+
         # Get ALL episode_intelligence documents
         all_docs = list(intelligence_collection.find())
-        
+
         empty_episodes = []
         populated_episodes = []
-        
+
         for doc in all_docs:
             episode_id = doc.get("episode_id", "Unknown")
             signals = doc.get("signals", {})
-            
+
             # Count total signals
             total_signals = 0
             signal_breakdown = {}
-            
+
             for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
                 if signal_type in signals and isinstance(signals[signal_type], list):
                     count = len(signals[signal_type])
@@ -1213,22 +1241,22 @@ async def audit_empty_signals():
                     signal_breakdown[signal_type] = count
                 else:
                     signal_breakdown[signal_type] = 0
-            
+
             episode_info = {
                 "episode_id": episode_id,
                 "title": doc.get("episode_title", "Unknown Title"),
                 "total_signals": total_signals,
                 "breakdown": signal_breakdown
             }
-            
+
             if total_signals == 0:
                 empty_episodes.append(episode_info)
             else:
                 populated_episodes.append(episode_info)
-        
+
         # Sort by total signals descending
         populated_episodes.sort(key=lambda x: x["total_signals"], reverse=True)
-        
+
         return {
             "total_documents": len(all_docs),
             "documents_with_signals": len(populated_episodes),
@@ -1243,7 +1271,7 @@ async def audit_empty_signals():
                 "total_soundbites": sum(ep["breakdown"]["soundbites"] for ep in populated_episodes)
             }
         }
-        
+
     except Exception as e:
         return {"error": str(e), "type": type(e).__name__}
 

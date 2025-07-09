@@ -1,0 +1,147 @@
+{
+  "generated_at": "2025-07-09T10:07:58.265142",
+  "total_episodes": 50,
+  "episodes_with_signals": 49,
+  "episodes_empty": 1,
+  "success_rate": "98.0%",
+  "signal_distribution": {
+    "total_investable": 102,
+    "total_competitive": 102,
+    "total_portfolio": 56,
+    "total_soundbites": 332
+  },
+  "episodes": [
+    {
+      "episode_id": "296d0e1d-6ff1-4e31-9177-02fb33a79d2f",
+      "title": null,
+      "total_signals": 79,
+      "signals": {
+        "investable": 41,
+        "competitive": 17,
+        "portfolio": 6,
+        "soundbites": 15
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "0b1e9e00-9377-4165-afd7-64dd87d29468",
+      "title": null,
+      "total_signals": 43,
+      "signals": {
+        "investable": 3,
+        "competitive": 7,
+        "portfolio": 2,
+        "soundbites": 31
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "150c8a9f-eade-4fb2-821a-f768db2a49d9",
+      "title": null,
+      "total_signals": 31,
+      "signals": {
+        "investable": 7,
+        "competitive": 4,
+        "portfolio": 6,
+        "soundbites": 14
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "d7c80edb-6b20-493c-9362-1f2d94f5df4b",
+      "title": null,
+      "total_signals": 30,
+      "signals": {
+        "investable": 5,
+        "competitive": 15,
+        "portfolio": 1,
+        "soundbites": 9
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "substack:post:154353227",
+      "title": null,
+      "total_signals": 29,
+      "signals": {
+        "investable": 1,
+        "competitive": 1,
+        "portfolio": 0,
+        "soundbites": 27
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "0effa03a-025a-4c45-ba57-6ee1b7f1b0b3",
+      "title": null,
+      "total_signals": 26,
+      "signals": {
+        "investable": 3,
+        "competitive": 10,
+        "portfolio": 1,
+        "soundbites": 12
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "206947be-80bc-4538-bf81-d76b7a39393e",
+      "title": null,
+      "total_signals": 23,
+      "signals": {
+        "investable": 1,
+        "competitive": 2,
+        "portfolio": 1,
+        "soundbites": 19
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "substack:post:154815386",
+      "title": null,
+      "total_signals": 22,
+      "signals": {
+        "investable": 2,
+        "competitive": 0,
+        "portfolio": 1,
+        "soundbites": 19
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "165e23c4-08ef-11f0-9b4a-2bc3b33e6b65",
+      "title": null,
+      "total_signals": 20,
+      "signals": {
+        "investable": 3,
+        "competitive": 5,
+        "portfolio": 3,
+        "soundbites": 9
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "07554222-0b56-11f0-a080-935e11313d28",
+      "title": null,
+      "total_signals": 20,
+      "signals": {
+        "investable": 5,
+        "competitive": 1,
+        "portfolio": 8,
+        "soundbites": 6
+      },
+      "has_signals": true
+    },
+    {
+      "episode_id": "46dc5446-2e3b-46d6-b4af-24e7c0e8beff",
+      "title": null,
+      "total_signals": 0,
+      "signals": {
+        "investable": 0,
+        "competitive": 0,
+        "portfolio": 0,
+        "soundbites": 0
+      },
+      "has_signals": false
+    }
+  ]
+}
