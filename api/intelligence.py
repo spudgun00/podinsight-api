@@ -420,6 +420,15 @@ async def get_intelligence_dashboard(
             intelligence_docs = list(intelligence_collection.find())
             logger.info(f"Found {len(intelligence_docs)} episodes with intelligence data")
 
+            # Quick check - if no docs, return early
+            if not intelligence_docs:
+                logger.error("No intelligence documents found!")
+                return DashboardResponse(
+                    episodes=[],
+                    total_episodes=0,
+                    generated_at=datetime.now(timezone.utc).isoformat()
+                )
+
             episodes_processed = 0
             episodes_with_metadata = 0
 
