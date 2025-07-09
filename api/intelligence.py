@@ -965,7 +965,7 @@ async def find_episodes_with_intelligence():
 
         # Get all episode_intelligence documents
         intelligence_collection = db.get_collection("episode_intelligence")
-        intelligence_docs = list(intelligence_collection.find().limit(10))
+        intelligence_docs = list(intelligence_collection.find())
 
         matches = []
         for intel in intelligence_docs:
@@ -1179,6 +1179,68 @@ async def debug_signal_structure(episode_id: str):
             "extraction_result": {
                 "count": len(extracted_signals),
                 "types": [s.type for s in extracted_signals]
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+
+@router.get("/audit-empty-signals")
+async def audit_empty_signals():
+    """Find all episodes with empty signal arrays"""
+    try:
+        db = get_mongodb()
+        intelligence_collection = db.get_collection("episode_intelligence")
+        
+        # Get ALL episode_intelligence documents
+        all_docs = list(intelligence_collection.find())
+        
+        empty_episodes = []
+        populated_episodes = []
+        
+        for doc in all_docs:
+            episode_id = doc.get("episode_id", "Unknown")
+            signals = doc.get("signals", {})
+            
+            # Count total signals
+            total_signals = 0
+            signal_breakdown = {}
+            
+            for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
+                if signal_type in signals and isinstance(signals[signal_type], list):
+                    count = len(signals[signal_type])
+                    total_signals += count
+                    signal_breakdown[signal_type] = count
+                else:
+                    signal_breakdown[signal_type] = 0
+            
+            episode_info = {
+                "episode_id": episode_id,
+                "title": doc.get("episode_title", "Unknown Title"),
+                "total_signals": total_signals,
+                "breakdown": signal_breakdown
+            }
+            
+            if total_signals == 0:
+                empty_episodes.append(episode_info)
+            else:
+                populated_episodes.append(episode_info)
+        
+        # Sort by total signals descending
+        populated_episodes.sort(key=lambda x: x["total_signals"], reverse=True)
+        
+        return {
+            "total_documents": len(all_docs),
+            "documents_with_signals": len(populated_episodes),
+            "documents_empty": len(empty_episodes),
+            "success_rate": f"{(len(populated_episodes) / len(all_docs) * 100):.1f}%",
+            "empty_episodes": empty_episodes,
+            "populated_episodes_sample": populated_episodes[:10],  # Show top 10
+            "signal_distribution": {
+                "total_investable": sum(ep["breakdown"]["investable"] for ep in populated_episodes),
+                "total_competitive": sum(ep["breakdown"]["competitive"] for ep in populated_episodes),
+                "total_portfolio": sum(ep["breakdown"]["portfolio"] for ep in populated_episodes),
+                "total_soundbites": sum(ep["breakdown"]["soundbites"] for ep in populated_episodes)
             }
         }
         
