@@ -6,7 +6,7 @@
 ---
 
 ## 🎯 Business Context
-
+Read @business_overview.md for full business context
 ### What is Episode Intelligence?
 Episode Intelligence is an AI-powered briefing system that transforms 90-minute podcast episodes into 30-second actionable intelligence specifically for VCs. It automatically surfaces:
 - **Investable opportunities** - Companies raising funds, check sizes, round details
@@ -16,6 +16,7 @@ Episode Intelligence is an AI-powered briefing system that transforms 90-minute 
 
 ### The Problem It Solves
 VCs consume 15+ hours of podcast content weekly but miss critical signals buried in conversations. They fear missing the next Uber announcement or competitor move because they couldn't listen to every episode.
+Read @episode_intelligence_v5_complete.md for full business context
 
 ### Sprint 4 Goal
 Deliver an MVP with 50 pre-processed episodes from 5 core podcasts (All-In, 20VC, Acquired, European VC, Invest Like the Best) that demonstrates value to 10 beta VCs who will say "I can't imagine my morning without this."

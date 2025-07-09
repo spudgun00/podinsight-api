@@ -1127,4 +1127,62 @@ async def debug_dashboard_issue():
     except Exception as e:
         return {"error": str(e)}
 
+@router.get("/debug-signal-structure/{episode_id}")
+async def debug_signal_structure(episode_id: str):
+    """Debug raw signal structure for a specific episode"""
+    try:
+        db = get_mongodb()
+        intelligence_collection = db.get_collection("episode_intelligence")
+        
+        # Get the intelligence document
+        intel_doc = intelligence_collection.find_one({"episode_id": episode_id})
+        
+        if not intel_doc:
+            return {"error": f"No intelligence document found for episode {episode_id}"}
+        
+        # Get signals data
+        signals = intel_doc.get("signals", {})
+        
+        # Analyze structure
+        signal_analysis = {}
+        
+        for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
+            if signal_type in signals:
+                signal_list = signals[signal_type]
+                
+                # Check if it's a list
+                if isinstance(signal_list, list):
+                    signal_analysis[signal_type] = {
+                        "is_list": True,
+                        "count": len(signal_list),
+                        "first_signal_keys": list(signal_list[0].keys()) if len(signal_list) > 0 else [],
+                        "sample_signal": signal_list[0] if len(signal_list) > 0 else None
+                    }
+                else:
+                    signal_analysis[signal_type] = {
+                        "is_list": False,
+                        "actual_type": type(signal_list).__name__,
+                        "value": str(signal_list)[:200]  # First 200 chars
+                    }
+            else:
+                signal_analysis[signal_type] = {"exists": False}
+        
+        # Try signal extraction
+        extracted_signals = get_episode_signals(db, episode_id)
+        
+        return {
+            "episode_id": episode_id,
+            "has_signals_field": "signals" in intel_doc,
+            "signals_type": type(signals).__name__,
+            "signal_types_present": list(signals.keys()),
+            "signal_analysis": signal_analysis,
+            "extraction_result": {
+                "count": len(extracted_signals),
+                "types": [s.type for s in extracted_signals]
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+
 # Export router for inclusion in main app
