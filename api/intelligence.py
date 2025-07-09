@@ -525,7 +525,7 @@ async def get_intelligence_dashboard(
 
         # Log results
         if not episodes:
-            logger.warning(f"No episodes found with intelligence data after checking {episode_count} episodes")
+            logger.warning("No episodes found with intelligence data")
             # Check collection counts for debugging
             intelligence_count = db.get_collection("episode_intelligence").count_documents({})
             logger.info(f"Total episode_intelligence documents: {intelligence_count}")
