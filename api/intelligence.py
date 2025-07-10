@@ -517,7 +517,7 @@ async def get_intelligence_dashboard(
                     duration_seconds=raw_entry.get("duration", 0),
                     relevance_score=relevance_score,
                     signals=signals,
-                    summary=intel_doc.get("summary", episode_doc.get("summary", "Episode summary not available")),
+                    summary=intel_doc.get("summary") or episode_doc.get("summary") or "Episode summary not available",
                     key_insights=extract_key_insights(signals),
                     audio_url=episode_doc.get("s3_audio_path")
                 )
