@@ -116,9 +116,9 @@ def format_chunks_for_prompt(chunks: List[Dict[str, Any]], query: str) -> str:
         )
 
     prompt_parts.append(
-        "\nSynthesize a 2-sentence answer (max 60 words) that directly addresses the query. "
-        "Be specific and actionable. Cite sources using [number] format, e.g., [1] or [3]. "
-        "Only cite sources that directly support your statements."
+        "\nProvide specific, actionable intelligence that directly addresses the query. "
+        "Prioritize company names, metrics, and concrete details. "
+        "Cite sources using [number] format. Never generalize when specifics are available."
     )
 
     return "\n".join(prompt_parts)
@@ -146,7 +146,7 @@ async def synthesize_answer(
     query: str,
     model: str = "gpt-4o-mini",
     temperature: float = 0.0,
-    max_tokens: int = 80
+    max_tokens: int = 250
 ) -> Optional[SynthesizedAnswer]:
     """
     Main synthesis function that calls OpenAI and formats the response
@@ -174,10 +174,15 @@ async def synthesize_answer(
 
         # System prompt
         system_prompt = (
-            "You are a podcast intelligence assistant. Given search results from various podcasts, "
-            "provide a concise 2-sentence synthesis (max 60 words) that directly answers the question. "
-            "Cite sources with [number] format. Be specific and use exact quotes when impactful. "
-            "Focus on insights from VCs, founders, and industry experts."
+            "You are a VC intelligence analyst extracting actionable insights from podcast transcripts. "
+            "Your response must prioritize specific details:\n\n"
+            "- Company names (always mention specific companies)\n"
+            "- Numbers (ARR, valuations, growth rates, timelines)\n"
+            "- People (who said it, which firm they're from)\n"
+            "- Direct quotes when impactful\n\n"
+            "Format: Start with the most specific, actionable finding. Use bullet points for multiple insights. "
+            "Cite sources with [number]. If no specific companies/numbers exist in the sources, explicitly state that. "
+            "Never use generic phrases like 'several companies' or 'various VCs' - always name them."
         )
 
         logger.info(f"Calling OpenAI {model} for synthesis")
