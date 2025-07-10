@@ -799,7 +799,9 @@ async def health_check():
             "mongodb": "connected",
             "database_name": db.name,
             "collections": collections[:10],  # First 10 collections
-            "episode_metadata_count": episode_count
+            "episode_metadata_count": episode_count,
+            "version": "2.1.0",  # Updated to track deployment
+            "dashboard_fix": "query_intelligence_first"
         }
     except Exception as e:
         return {
