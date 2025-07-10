@@ -775,6 +775,41 @@ async def update_preferences(
         )
 
 # Health check endpoint
+@router.get("/dashboard-test")
+async def test_dashboard():
+    """Test endpoint to verify dashboard logic"""
+    try:
+        db = get_mongodb()
+        intelligence_collection = db.get_collection("episode_intelligence")
+        metadata_collection = db.get_collection("episode_metadata")
+
+        # Get first intelligence doc
+        intel_doc = intelligence_collection.find_one({})
+        if not intel_doc:
+            return {"error": "No intelligence docs found"}
+
+        # Try to find metadata
+        episode_id = intel_doc.get("episode_id")
+        metadata = metadata_collection.find_one({
+            "$or": [
+                {"episode_id": episode_id},
+                {"guid": episode_id}
+            ]
+        })
+
+        return {
+            "intelligence_found": True,
+            "episode_id": episode_id,
+            "metadata_found": metadata is not None,
+            "title": metadata.get("raw_entry_original_feed", {}).get("episode_title") if metadata else None,
+            "signals": len(intel_doc.get("signals", {}).get("investable", [])) +
+                      len(intel_doc.get("signals", {}).get("competitive", [])) +
+                      len(intel_doc.get("signals", {}).get("portfolio", [])) +
+                      len(intel_doc.get("signals", {}).get("soundbites", []))
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @router.get("/health")
 async def health_check():
     """Health check for intelligence API"""
