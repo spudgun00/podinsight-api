@@ -559,6 +559,171 @@ async def get_intelligence_dashboard(
             detail=f"Failed to generate dashboard: {str(e)}"
         )
 
+@router.get("/episodes")
+async def get_intelligence_episodes(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    search: str = Query(None, description="Search term for title/podcast name"),
+    sort: str = Query("relevance_score:desc", description="Sort field:direction")
+):
+    """
+    Get paginated list of all episodes with intelligence data
+
+    Supports:
+    - Pagination with page/limit
+    - Search by title or podcast name
+    - Sorting by relevance_score, published_at
+
+    Returns all 50 episodes with intelligence data (not just top 8 like dashboard)
+    """
+    try:
+        db = get_mongodb()
+
+        # Get user preferences
+        user_id = "demo-user"
+        preferences_collection = db.get_collection("user_preferences")
+        user_prefs = preferences_collection.find_one({"user_id": user_id}) or {}
+
+        # Start with intelligence collection
+        intelligence_collection = db.get_collection("episode_intelligence")
+        episodes_collection = db.get_collection("episode_metadata")
+
+        # Build base query
+        query = {}
+
+        # Get ALL intelligence documents first to enable search
+        all_intelligence_docs = list(intelligence_collection.find(query))
+
+        # Process all episodes first, then filter and paginate
+        all_episodes = []
+        for intel_doc in all_intelligence_docs:
+            episode_id_from_intel = intel_doc.get("episode_id")
+
+            # Find corresponding metadata
+            episode_doc = episodes_collection.find_one({
+                "$or": [
+                    {"episode_id": episode_id_from_intel},
+                    {"guid": episode_id_from_intel}
+                ]
+            })
+
+            if not episode_doc:
+                continue
+
+            # Get signals from intelligence document
+            signals = []
+            signal_data = intel_doc.get("signals", {})
+
+            for signal_type in ["investable", "competitive", "portfolio", "soundbites"]:
+                if signal_type in signal_data and isinstance(signal_data[signal_type], list):
+                    for signal_item in signal_data[signal_type]:
+                        display_type = "sound_bite" if signal_type == "soundbites" else signal_type
+
+                        content = signal_item.get("content") or signal_item.get("signal_text") or ""
+
+                        timestamp_raw = signal_item.get("timestamp")
+                        timestamp = None
+                        if timestamp_raw:
+                            if isinstance(timestamp_raw, dict):
+                                start = timestamp_raw.get("start", 0)
+                                timestamp = f"{int(start // 60):02d}:{int(start % 60):02d}"
+                            elif isinstance(timestamp_raw, str):
+                                timestamp = timestamp_raw
+                            elif isinstance(timestamp_raw, (int, float)):
+                                timestamp = f"{int(timestamp_raw // 60):02d}:{int(timestamp_raw % 60):02d}"
+
+                        signal = Signal(
+                            type=display_type,
+                            content=content,
+                            confidence=signal_item.get("confidence", 0.8),
+                            timestamp=timestamp
+                        )
+                        signals.append(signal)
+
+            # Calculate relevance score
+            relevance_score = intel_doc.get("relevance_score", 0.5)
+            if relevance_score > 1.0:
+                relevance_score = relevance_score / 100.0
+
+            # Apply user preference boosts
+            if user_prefs:
+                portfolio_companies = user_prefs.get("portfolio_companies", [])
+                interest_topics = user_prefs.get("interest_topics", [])
+
+                all_signal_text = " ".join([s.content.lower() for s in signals])
+
+                for company in portfolio_companies:
+                    if company.lower() in all_signal_text:
+                        relevance_score = min(relevance_score + 0.15, 1.0)
+                        break
+
+                for topic in interest_topics:
+                    if topic.lower() in all_signal_text:
+                        relevance_score = min(relevance_score + 0.05, 1.0)
+
+            # Extract episode data
+            raw_entry = episode_doc.get("raw_entry_original_feed", {})
+
+            episode_brief = EpisodeBrief(
+                episode_id=str(episode_doc["_id"]),
+                title=raw_entry.get("episode_title", "Untitled Episode"),
+                podcast_name=raw_entry.get("podcast_title", "Unknown Podcast"),
+                published_at=raw_entry.get("published_date_iso", datetime.now(timezone.utc).isoformat()),
+                duration_seconds=raw_entry.get("duration", 0),
+                relevance_score=relevance_score,
+                signals=signals,
+                summary=intel_doc.get("summary") or episode_doc.get("summary") or "Episode summary not available",
+                key_insights=extract_key_insights(signals),
+                audio_url=episode_doc.get("s3_audio_path")
+            )
+
+            all_episodes.append(episode_brief)
+
+        # Apply search filter if provided
+        filtered_episodes = all_episodes
+        if search:
+            search_lower = search.lower()
+            filtered_episodes = [
+                ep for ep in all_episodes
+                if search_lower in ep.title.lower() or search_lower in ep.podcast_name.lower()
+            ]
+
+        # Apply sorting
+        sort_field, sort_direction = sort.split(":")
+        reverse = sort_direction == "desc"
+
+        if sort_field == "relevance_score":
+            filtered_episodes.sort(key=lambda x: x.relevance_score, reverse=reverse)
+        elif sort_field == "published_at":
+            filtered_episodes.sort(key=lambda x: x.published_at, reverse=reverse)
+
+        # Calculate pagination on filtered results
+        total_items = len(filtered_episodes)
+        total_pages = (total_items + limit - 1) // limit
+        skip = (page - 1) * limit
+
+        # Apply pagination
+        paginated_episodes = filtered_episodes[skip:skip + limit]
+
+        return {
+            "data": paginated_episodes,
+            "meta": {
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total_items": total_items,
+                    "total_pages": total_pages
+                }
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Episodes list error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get episodes: {str(e)}"
+        )
+
 @router.get("/brief/{episode_id}", response_model=EpisodeBrief)
 async def get_intelligence_brief(
     episode_id: str = Path(..., description="Episode ID (MongoDB ObjectId or GUID)")
