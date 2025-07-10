@@ -529,8 +529,11 @@ async def get_intelligence_dashboard(
 
         except Exception as e:
             logger.error(f"Error fetching episodes from MongoDB: {str(e)}", exc_info=True)
-            # Return mock data if MongoDB fails
-            episodes = []
+            # Re-raise the error so we can see what's happening
+            raise HTTPException(
+                status_code=500,
+                detail=f"Dashboard query error: {str(e)}"
+            )
 
         # Log results
         if not episodes:
