@@ -4,7 +4,7 @@ Provides AI-generated briefs and insights from podcast episodes
 """
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Query
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
