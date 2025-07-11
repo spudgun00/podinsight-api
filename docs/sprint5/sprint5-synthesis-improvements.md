@@ -461,3 +461,32 @@ Based on the database field mapping Rosetta Stone document:
   - Updated field mappings throughout
   - Increased connection timeouts
   - Fixed field names from `podcast_title` to `podcast_name`
+
+---
+
+## Search Relevance Improvements (July 11, 2025 - Continued)
+
+### Issues Found in Production
+1. Search results showing generic "What about AI?" instead of valuation-specific content
+2. Synthesis rejecting all results due to scores below 0.5 threshold
+3. Poor keyword matching for multi-word concepts like "AI valuations"
+
+### Improvements Made
+
+1. **Lowered Vector Search Threshold**:
+   - Changed from 0.5 to 0.4 to capture more potentially relevant results
+   - Allows broader initial retrieval before re-ranking
+
+2. **Enhanced Domain Boost Patterns**:
+   - Added valuation-specific terms: "overvalued", "undervalued", "pricing", "multiple", "revenue multiple"
+   - Increases scores for finance-related content
+
+3. **Dynamic Weight Adjustment**:
+   - If text score > 0.5, adjust weights to favor text matching (50% text, 30% vector)
+   - Helps surface results with strong keyword matches
+   - Default remains 40% vector, 40% text for balanced search
+
+### Expected Impact
+- Better relevance for specific queries like "AI valuations"
+- Higher scores for domain-specific content
+- Synthesis should now accept results with scores >= 0.4

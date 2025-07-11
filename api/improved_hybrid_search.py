@@ -192,7 +192,7 @@ class ImprovedHybridSearch:
                     }
                 },
                 {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
-                {"$match": {"score": {"$gte": 0.5}}},  # Min threshold
+                {"$match": {"score": {"$gte": 0.4}}},  # Lowered threshold for better recall
                 # Add lookup to join episode_metadata for missing fields
                 {
                     "$lookup": {
@@ -373,14 +373,24 @@ class ImprovedHybridSearch:
             matches = self._find_term_matches(chunk_data['text'], query_terms)
 
             # Calculate hybrid score with weights
-            # Vector: 40%, Text: 40%, Domain boost: 20%
+            # Adjust weights based on whether specific terms are present
             domain_boost = self._calculate_domain_boost(chunk_data['text'])
 
-            hybrid_score = (
-                0.4 * chunk_data['vector_score'] +
-                0.4 * chunk_data['text_score'] +
-                0.2 * domain_boost
-            )
+            # If we have strong text matches, weight text more heavily
+            if chunk_data['text_score'] > 0.5:
+                # Text: 50%, Vector: 30%, Domain boost: 20%
+                hybrid_score = (
+                    0.3 * chunk_data['vector_score'] +
+                    0.5 * chunk_data['text_score'] +
+                    0.2 * domain_boost
+                )
+            else:
+                # Default: Vector: 40%, Text: 40%, Domain boost: 20%
+                hybrid_score = (
+                    0.4 * chunk_data['vector_score'] +
+                    0.4 * chunk_data['text_score'] +
+                    0.2 * domain_boost
+                )
 
             # Boost if contains exact phrases
             if self._contains_exact_phrases(chunk_data['text'], query_terms):
@@ -447,7 +457,12 @@ class ImprovedHybridSearch:
             r'cap table',
             r'unicorn',
             r'IPO',
-            r'acquisition'
+            r'acquisition',
+            r'overvalued',  # Added for valuation queries
+            r'undervalued',  # Added for valuation queries
+            r'pricing',  # Added for valuation context
+            r'multiple',  # Added for valuation multiples
+            r'revenue multiple'  # Added for specific metrics
         ]
 
         for pattern in vc_patterns:
