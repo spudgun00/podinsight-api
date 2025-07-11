@@ -381,6 +381,7 @@ async def synthesize_answer(
         return None
 
     start_time = time.time()
+    logger.info("[SYNTHESIS v1] Running original synthesize_answer function")
 
     try:
         # Get the OpenAI client using lazy initialization
@@ -474,6 +475,7 @@ async def synthesize_answer(
 
         # Check if this is a "no results" response
         is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+        logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
@@ -481,6 +483,8 @@ async def synthesize_answer(
         if confidence and confidence > 0.8 and not is_no_results:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
+
+        logger.info(f"[SYNTHESIS DEBUG] Final show_confidence: {show_confidence}")
 
         return SynthesizedAnswer(
             text=formatted_answer + confidence_str,
@@ -508,6 +512,7 @@ async def synthesize_answer_v2(
     """Enhanced synthesis with fallback to related insights"""
 
     start_time = time.time()
+    logger.info("[SYNTHESIS v2 - UPDATED] Running enhanced synthesis with confidence fixes")
 
     try:
         client = get_openai_client()
@@ -600,6 +605,7 @@ async def synthesize_answer_v2(
 
         # Check if this is a "no results" response
         is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+        logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
@@ -607,6 +613,8 @@ async def synthesize_answer_v2(
         if confidence and confidence > 0.8 and not is_no_results:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
+
+        logger.info(f"[SYNTHESIS DEBUG] Final show_confidence: {show_confidence}")
 
         return SynthesizedAnswer(
             text=formatted_answer + confidence_str,
@@ -632,13 +640,18 @@ async def synthesize_with_retry(
     Wrapper function with retry logic for resilience
     Updated to use the enhanced v2 synthesis
     """
+    logger.info(f"[SYNTHESIS WITH RETRY] Called with query: '{query}', chunks: {len(chunks)}")
+
     for attempt in range(max_retries + 1):
         try:
             # Try v2 first for better results
+            logger.info("[SYNTHESIS WITH RETRY] Attempting v2 synthesis")
             result = await synthesize_answer_v2(chunks, query)
             if result:
+                logger.info(f"[SYNTHESIS WITH RETRY] v2 succeeded, confidence: {result.confidence}, show: {result.show_confidence}")
                 return result
             # Fallback to original if v2 fails
+            logger.info("[SYNTHESIS WITH RETRY] v2 failed, falling back to v1")
             result = await synthesize_answer(chunks, query)
             if result:
                 return result
