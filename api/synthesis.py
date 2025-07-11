@@ -399,6 +399,18 @@ async def synthesize_answer(
             logger.warning("No chunks available for synthesis")
             return None
 
+        # Only return null if we have NO relevant results at all
+        # Check if chunks have very low relevance scores
+        all_low_relevance = all(
+            chunk.get('score', 1.0) < 0.5
+            for chunk in deduplicated_chunks
+            if 'score' in chunk
+        )
+
+        if len(deduplicated_chunks) == 0 or all_low_relevance:
+            logger.info("[SYNTHESIS v1] No relevant results found (empty or all scores < 0.5)")
+            return None
+
         # Format chunks for the prompt
         user_prompt = format_chunks_for_prompt(deduplicated_chunks, query)
 
@@ -478,16 +490,9 @@ async def synthesize_answer(
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
-        # Check if this is a "no results" response
-        is_no_results = any(pattern in formatted_answer.lower() for pattern in [
-            "no specific", "○ no", "no results found", "didn't find",
-            "no insights found", "no data available"
-        ])
-        logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
-
-        if is_no_results:
-            logger.info("[SYNTHESIS v1] No results detected, returning None for frontend")
-            return None  # This will cause answer: null in API response
+        # REMOVED: Don't return None based on answer content!
+        # We have relevant chunks (score > 0.5), so always return the synthesis
+        # even if it doesn't contain specific dollar amounts
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
@@ -532,6 +537,22 @@ async def synthesize_answer_v2(
         # Deduplicate primary chunks
         deduplicated_chunks = deduplicate_chunks(chunks, max_per_episode=2)
         logger.info(f"Deduplicated from {len(chunks)} to {len(deduplicated_chunks)} chunks")
+
+        # Only return null if we have NO relevant results at all
+        if not deduplicated_chunks:
+            logger.warning("No chunks available for synthesis")
+            return None
+
+        # Check if chunks have very low relevance scores
+        all_low_relevance = all(
+            chunk.get('score', 1.0) < 0.5
+            for chunk in deduplicated_chunks
+            if 'score' in chunk
+        )
+
+        if len(deduplicated_chunks) == 0 or all_low_relevance:
+            logger.info("[SYNTHESIS v2] No relevant results found (empty or all scores < 0.5)")
+            return None
 
         # Analyze if we have specific actionable data
         has_specific_data = analyze_chunks_for_specifics(deduplicated_chunks, query)
@@ -615,16 +636,9 @@ async def synthesize_answer_v2(
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
-        # Check if this is a "no results" response
-        is_no_results = any(pattern in formatted_answer.lower() for pattern in [
-            "no specific", "○ no", "no results found", "didn't find",
-            "no insights found", "no data available"
-        ])
-        logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
-
-        if is_no_results:
-            logger.info("[SYNTHESIS v1] No results detected, returning None for frontend")
-            return None  # This will cause answer: null in API response
+        # REMOVED: Don't return None based on answer content!
+        # We have relevant chunks (score > 0.5), so always return the synthesis
+        # even if it doesn't contain specific dollar amounts
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
