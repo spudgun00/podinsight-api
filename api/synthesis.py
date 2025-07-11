@@ -119,21 +119,42 @@ def calculate_relatedness_score(chunk: Dict[str, Any], query_terms: List[str]) -
 
     return min(score, 1.0)
 
+def extract_entities(query: str) -> List[str]:
+    """Extract potential entity names from query"""
+    # Look for capitalized words that might be company/VC names
+    potential_entities = re.findall(r'\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b', query)
+
+    # Filter out common non-entity words
+    non_entities = {'What', 'When', 'Where', 'Why', 'How', 'The', 'Is', 'Are', 'Was', 'Were', 'Has', 'Have'}
+    entities = [e for e in potential_entities if e not in non_entities]
+
+    return entities
+
 def find_related_insights(query: str, all_chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Find tangentially related valuable content"""
-    # Extract key terms from query
+    """Find actually valuable related content"""
+    # Extract entities and key terms from query
+    query_entities = extract_entities(query)
     query_terms = extract_key_terms(query)
 
-    # Score all chunks for relevance
+    # Score chunks based on entity overlap AND value indicators
     scored_chunks = []
     for chunk in all_chunks:
-        score = calculate_relatedness_score(chunk, query_terms)
-        if score > 0.3:  # Threshold for "somewhat related"
-            scored_chunks.append((score, chunk))
+        chunk_text = chunk.get("text", "")
 
-    # Return top 3 related insights
+        # Check for specific value indicators
+        has_metrics = bool(re.search(r'\$\d+[BMK]|\d+%|\d+x', chunk_text))
+        has_entities = any(entity.lower() in chunk_text.lower() for entity in query_entities)
+        has_action = bool(re.search(r'(raised|closed|launched|acquired|valued|grew)', chunk_text))
+
+        # Only include if it has real value
+        if has_metrics or (has_entities and has_action):
+            relevance_score = calculate_relatedness_score(chunk, query_terms)
+            if relevance_score > 0.3:
+                scored_chunks.append((relevance_score, chunk))
+
+    # Return top valuable chunks only (with higher threshold)
     scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    return [chunk for score, chunk in scored_chunks[:3]]
+    return [chunk for score, chunk in scored_chunks[:3] if score > 0.4]
 
 def analyze_available_topics(chunks: List[Dict[str, Any]]) -> List[str]:
     """Analyze what topics are available in the chunks"""
@@ -158,27 +179,54 @@ def analyze_available_topics(chunks: List[Dict[str, Any]]) -> List[str]:
     return list(topics)
 
 def generate_better_queries(original_query: str, available_chunks: List[Dict[str, Any]]) -> str:
-    """Generate queries that would actually return results"""
-    # Analyze what data we DO have
-    available_topics = analyze_available_topics(available_chunks)
+    """Generate queries based on what's actually in your data"""
+    # Analyze what topics/entities you have data for
+    available_entities = set()
+    available_metrics = set()
 
-    # Generate 2-3 relevant alternatives
+    for chunk in available_chunks[:100]:  # Sample recent chunks
+        text = chunk.get("text", "")
+
+        # Extract company names
+        companies = re.findall(r'[A-Z][a-zA-Z]+(?:\.ai|Labs|Capital|Ventures|AI)', text)
+        available_entities.update(companies)
+
+        # Extract metric types
+        if "$" in text and "ARR" in text:
+            available_metrics.add("ARR")
+        if re.search(r'Series [A-E]', text):
+            available_metrics.add("funding")
+        if "acquired" in text:
+            available_metrics.add("acquisitions")
+        if "IPO" in text:
+            available_metrics.add("IPO")
+
+    # Generate suggestions based on what exists
     suggestions = []
 
-    if "valuation" in original_query.lower():
-        if "ARR" in available_topics:
-            suggestions.append("AI companies with ARR metrics")
-        if "funding" in available_topics:
-            suggestions.append("recent AI funding rounds")
+    # If query is about valuation/metrics
+    if any(term in original_query.lower() for term in ["valuation", "metrics", "numbers"]):
+        if "ARR" in available_metrics:
+            suggestions.append("companies with ARR metrics")
+        if "funding" in available_metrics:
+            suggestions.append("recent Series A rounds")
 
-    if "ai" in original_query.lower():
-        if "founder" in available_topics:
-            suggestions.append("AI founder insights")
-        if "product" in available_topics:
-            suggestions.append("AI product launches")
+    # If query mentions AI/tech
+    if any(term in original_query.lower() for term in ["ai", "tech", "startup"]):
+        if available_entities:
+            # Pick a real entity they might search for
+            sample_company = list(available_entities)[:2]
+            if sample_company:
+                suggestions.append(f"{sample_company[0]} latest updates")
 
+    # Add time-based suggestions if we have recent content
+    if "IPO" in available_metrics:
+        suggestions.append("recent IPO discussions")
+    if "acquisitions" in available_metrics:
+        suggestions.append("recent acquisitions")
+
+    # Fallback suggestions
     if not suggestions:
-        # Fallback to generic but useful
         suggestions = ["recent funding rounds", "founder insights this week"]
 
     return " or ".join([f"'{s}'" for s in suggestions[:2]])
@@ -187,6 +235,8 @@ def is_recent(chunk: Dict[str, Any], days: int = 30) -> bool:
     """Check if chunk is from recent content"""
     # This would need actual date checking implementation
     # For now, return True as placeholder
+    # TODO: Implement actual date checking using chunk['published_at']
+    _ = (chunk, days)  # Suppress unused warnings until implemented
     return True
 
 def calculate_smart_confidence(has_specific_data: bool, chunks: List[Dict[str, Any]]) -> Optional[float]:
@@ -422,10 +472,13 @@ async def synthesize_answer(
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
-        # Add confidence to response if high enough
+        # Check if this is a "no results" response
+        is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+
+        # Only show confidence for positive results with high confidence
         confidence_str = ""
         show_confidence = False
-        if confidence and confidence > 0.8:
+        if confidence and confidence > 0.8 and not is_no_results:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
 
@@ -434,7 +487,7 @@ async def synthesize_answer(
             citations=citations,
             cited_indices=cited_indices,
             synthesis_time_ms=synthesis_time_ms,
-            confidence=confidence,
+            confidence=confidence if not is_no_results else None,
             show_confidence=show_confidence
         )
 
@@ -545,10 +598,13 @@ async def synthesize_answer_v2(
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
-        # Format final response with confidence
+        # Check if this is a "no results" response
+        is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+
+        # Only show confidence for positive results with high confidence
         confidence_str = ""
         show_confidence = False
-        if confidence and confidence > 0.8:
+        if confidence and confidence > 0.8 and not is_no_results:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
 
@@ -557,7 +613,7 @@ async def synthesize_answer_v2(
             citations=citations,
             cited_indices=cited_indices,
             synthesis_time_ms=synthesis_time_ms,
-            confidence=confidence,
+            confidence=confidence if not is_no_results else None,
             show_confidence=show_confidence
         )
 
