@@ -213,14 +213,11 @@ class ImprovedHybridSearch:
         combined_pattern = '|'.join(patterns)
 
         try:
-            # Use text index if available, otherwise regex
+            # Just use regex search - text index has issues with OR queries
             pipeline = [
                 {
                     "$match": {
-                        "$or": [
-                            {"$text": {"$search": " ".join(query_terms.keys())}},
-                            {"text": {"$regex": combined_pattern, "$options": "i"}}
-                        ]
+                        "text": {"$regex": combined_pattern, "$options": "i"}
                     }
                 },
                 {

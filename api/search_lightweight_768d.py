@@ -350,7 +350,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Add more debugging for content analysis
                 logger.info(f"[SEARCH_DEBUG] Top 3 results for '{clean_query}':")
                 for i, result in enumerate(vector_results[:3]):
-                    logger.info(f"[SEARCH_DEBUG] Result {i+1}: {result.get('episode_title', 'Unknown')[:50]} - Score: {result.get('score', 0):.3f}")
+                    episode_title = result.get('episode_title', 'Unknown')
+                    if episode_title is None:
+                        episode_title = 'Unknown'
+                    logger.info(f"[SEARCH_DEBUG] Result {i+1}: {episode_title[:50]} - Score: {result.get('score', 0):.3f}")
                     logger.info(f"[SEARCH_DEBUG] Text preview: {result.get('text', '')[:100]}...")
             else:
                 logger.info(f"[ALWAYS_LOG] Vector search returned EMPTY results for '{clean_query}'")
