@@ -68,6 +68,7 @@ class AnswerObject(BaseModel):
     """Synthesized answer with citations"""
     text: str
     citations: List[Citation]
+    confidence: Optional[float] = None  # Only shown when >80%
 
 class SearchResponse(BaseModel):
     answer: Optional[AnswerObject] = None  # Optional synthesized answer
@@ -497,7 +498,8 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     if synthesis_result:
                         answer_object = AnswerObject(
                             text=synthesis_result.text,
-                            citations=synthesis_result.citations
+                            citations=synthesis_result.citations,
+                            confidence=synthesis_result.confidence if synthesis_result.show_confidence else None
                         )
                         logger.info(f"Synthesis successful: {len(synthesis_result.citations)} citations")
                     else:
