@@ -27,7 +27,7 @@ import time
 from pydantic import BaseModel, Field, validator
 from .database import get_pool
 from .mongodb_search import get_search_handler
-from .mongodb_vector_search import get_vector_search_handler
+from .improved_hybrid_search import get_hybrid_search_handler
 # Import from root lib directory
 from lib.embedding_utils import embed_query, validate_embedding
 from .synthesis import synthesize_with_retry, Citation
@@ -79,7 +79,7 @@ class SearchResponse(BaseModel):
     query: str
     limit: int
     offset: int
-    search_method: str  # "vector_768d", "text", or "vector_384d"
+    search_method: str  # "hybrid", "vector_768d", "text", or "vector_384d"
     processing_time_ms: Optional[int] = None
     raw_chunks: Optional[List[Dict[str, Any]]] = None  # Original chunks for debugging
 
@@ -308,40 +308,39 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             #     asyncio.create_task(store_query_cache_768d(request.query, query_hash, embedding_768d))
 
         if embedding_768d:
-            # Get MongoDB vector search handler
-            pre_vector = time.time()
-            logger.info(f"[TIMING] Pre-vector handler: {pre_vector - handler_start:.3f}s elapsed")
-            vector_handler = await get_vector_search_handler()
-            logger.info(f"[TIMING] Vector handler created: {time.time() - handler_start:.3f}s elapsed")
+            # Get hybrid search handler (combines vector + text search)
+            pre_hybrid = time.time()
+            logger.info(f"[TIMING] Pre-hybrid handler: {pre_hybrid - handler_start:.3f}s elapsed")
+            hybrid_handler = await get_hybrid_search_handler()
+            logger.info(f"[TIMING] Hybrid handler created: {time.time() - handler_start:.3f}s elapsed")
 
-            # Always try vector search if we have an embedding
-            logger.info(f"Using MongoDB 768D vector search: {clean_query}")
+            # Use hybrid search for better relevance
+            logger.info(f"Using MongoDB hybrid search (vector + text): {clean_query}")
 
             # Always fetch 10 chunks for synthesis, regardless of requested limit
             # But also fetch enough for pagination
             num_for_synthesis = 10
             num_to_fetch = max(num_for_synthesis, request.limit + request.offset)
-            logger.info(f"Calling vector search with limit={num_to_fetch}, min_score=0.0")
+            logger.info(f"Calling hybrid search with limit={num_to_fetch}")
             logger.warning(
-                "[VECTOR_HANDLER] about to call %s from module %s",
-                vector_handler.__class__.__qualname__,
-                vector_handler.__class__.__module__,
+                "[HYBRID_HANDLER] about to call %s from module %s",
+                hybrid_handler.__class__.__qualname__,
+                hybrid_handler.__class__.__module__,
             )
             try:
                 start = time.time()
-                vector_results = await vector_handler.vector_search(
-                    embedding_768d,
-                    limit=num_to_fetch,
-                    min_score=0.0  # Lowered threshold to debug - was 0.7
+                vector_results = await hybrid_handler.search(
+                    clean_query,  # Pass original query, not embedding
+                    limit=num_to_fetch
                 )
-                logger.info("[VECTOR_LATENCY] %.1f ms", (time.time()-start)*1000)
+                logger.info("[HYBRID_LATENCY] %.1f ms", (time.time()-start)*1000)
             except Exception as ve:
-                logger.error(f"[VECTOR_SEARCH_ERROR] Exception during vector search: {str(ve)}")
-                logger.error(f"[VECTOR_SEARCH_ERROR] Type: {type(ve).__name__}")
+                logger.error(f"[HYBRID_SEARCH_ERROR] Exception during hybrid search: {str(ve)}")
+                logger.error(f"[HYBRID_SEARCH_ERROR] Type: {type(ve).__name__}")
                 import traceback
-                logger.error(f"[VECTOR_SEARCH_ERROR] Traceback: {traceback.format_exc()}")
+                logger.error(f"[HYBRID_SEARCH_ERROR] Traceback: {traceback.format_exc()}")
                 vector_results = []
-            logger.info(f"Vector search returned {len(vector_results)} results")
+            logger.info(f"Hybrid search returned {len(vector_results)} results")
 
             # ALWAYS log first result for debugging
             if vector_results:
@@ -535,7 +534,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     query=request.query,
                     limit=request.limit,
                     offset=request.offset,
-                    search_method="vector_768d",
+                    search_method="hybrid",
                     processing_time_ms=total_time,
                     raw_chunks=chunks_for_synthesis if DEBUG_MODE else None
                 )
@@ -552,91 +551,19 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 # Return the response object (let FastAPI serialize it)
                 return response
             else:
-                logger.warning(f"Vector search returned 0 results, falling back to text search")
+                logger.warning(f"Hybrid search returned 0 results")
                 if DEBUG_MODE:
-                    logger.info(f"[DEBUG] fallback_used: text (vector returned 0)")
+                    logger.info(f"[DEBUG] hybrid search returned 0 results")
 
     except Exception as e:
-        logger.error(f"768D vector search failed for query '{request.query}': {str(e)}")
+        logger.error(f"Hybrid search failed for query '{request.query}': {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
 
-    # Fallback to MongoDB text search
-    try:
-        mongo_handler = await get_search_handler()
-
-        if mongo_handler.db is not None:
-            logger.info(f"Falling back to MongoDB text search: {clean_query}")
-
-            mongo_results = await mongo_handler.search_transcripts(
-                clean_query,
-                limit=request.limit + request.offset
-            )
-
-            # Apply offset
-            paginated_results = mongo_results[request.offset:request.offset + request.limit]
-
-            # Convert MongoDB results to API format
-            formatted_results = []
-            for result in paginated_results:
-                formatted_results.append(SearchResult(
-                    episode_id=result["episode_id"],
-                    podcast_name=result["podcast_name"],
-                    episode_title=result["episode_title"],
-                    published_at=result["published_at"],
-                    published_date=result.get("published_date", "Unknown date"),
-                    similarity_score=float(result.get("relevance_score", 0.0)) if result.get("relevance_score") is not None else 0.0,
-                    excerpt=result["excerpt"],
-                    word_count=result.get("word_count", 0),
-                    duration_seconds=0,
-                    topics=result.get("topics", []),
-                    s3_audio_path=None,
-                    timestamp=result.get("timestamp")
-                ))
-
-            # Skip Supabase enrichment to avoid UUID errors
-            # if formatted_results:
-            #     pool = get_pool()
-            #     episode_ids = [r.episode_id for r in formatted_results]
-            #
-            #     def get_audio_paths(client):
-            #         return client.table("episodes") \
-            #             .select("id, s3_audio_path, duration_seconds") \
-            #             .in_("id", episode_ids) \
-            #             .execute()
-            #
-            #     audio_data = await pool.execute_with_retry(get_audio_paths)
-            #
-            #     audio_by_id = {
-            #         ep["id"]: {
-            #             "s3_audio_path": ep.get("s3_audio_path"),
-            #             "duration_seconds": ep.get("duration_seconds", 0)
-            #         }
-            #         for ep in audio_data.data
-            #     }
-            #
-            #     for result in formatted_results:
-            #         if result.episode_id in audio_by_id:
-            #             result.s3_audio_path = audio_by_id[result.episode_id]["s3_audio_path"]
-            #             result.duration_seconds = audio_by_id[result.episode_id]["duration_seconds"]
-
-            return SearchResponse(
-                results=formatted_results,
-                total_results=len(mongo_results),
-                cache_hit=False,
-                search_id=search_id,
-                query=request.query,
-                limit=request.limit,
-                offset=request.offset,
-                search_method="text"
-            )
-
-    except Exception as e:
-        logger.warning(f"MongoDB text search failed: {str(e)}")
-
-    # No more fallbacks - this is a problem
-    logger.error(f"All search methods failed for: {request.query}")
+    # No fallback needed - hybrid search handles both vector and text
+    # If we reach here, search completely failed
+    logger.error(f"Hybrid search failed for: {request.query}")
 
     # TEMPORARILY DISABLED FOR DEBUGGING
     # Return empty results instead of 503 to see what's happening

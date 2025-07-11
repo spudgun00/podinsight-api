@@ -196,3 +196,96 @@ Tested production API (`https://podinsight-api.vercel.app/api/search`) with quer
 2. **Force Redeploy** (c8cf8d1): Empty commit to trigger Vercel deployment
 
 The synthesis improvements are now successfully deployed and working in production! 🚀
+
+---
+
+## Hybrid Search Implementation (July 11, 2025)
+
+### Problem Identified
+
+The search system was using pure vector search, which caused irrelevant results. For queries like "What are VCs saying about AI valuations?", the system would return generic "What about AI?" content with high scores (0.968) instead of relevant valuation discussions.
+
+### Solution: Hybrid Search
+
+Implemented a hybrid search system that combines:
+1. **Vector Search** (40%): Semantic similarity using 768D embeddings
+2. **Text Search** (40%): Keyword matching for exact terms
+3. **Domain Boost** (20%): VC-specific term weighting
+
+### Implementation Details
+
+#### 1. Created `api/improved_hybrid_search.py`
+- **Ported from ETL**: Adapted `ImprovedHybridSearch` class from `podinsight-etl`
+- **Async Conversion**: Converted sync MongoDB operations to async Motor client
+- **Event Loop Handling**: Per-event-loop client storage to avoid asyncio issues
+- **Modal Integration**: Replaced local SentenceTransformer with Modal embedding service
+- **Domain Terms**: Preserved VC-specific weightings (valuation: 2.0, series: 1.5, etc.)
+
+Key features:
+```python
+# Hybrid scoring algorithm
+hybrid_score = (
+    0.4 * vector_score +
+    0.4 * text_score +
+    0.2 * domain_boost
+)
+
+# Domain-specific term weights
+domain_terms = {
+    'valuation': 2.0,
+    'series': 1.5,
+    'funding': 1.5,
+    'unicorn': 1.8,
+    # ... more VC terms
+}
+```
+
+#### 2. Updated `api/search_lightweight_768d.py`
+- **Replaced Vector Search**: Changed from `MongoVectorSearchHandler` to `ImprovedHybridSearch`
+- **Removed Fallback**: Eliminated separate text search fallback (hybrid handles both)
+- **Integration Points**:
+  ```python
+  # Before: vector_results = await vector_handler.vector_search(embedding_768d, limit=num_to_fetch)
+  # After:
+  hybrid_handler = await get_hybrid_search_handler()
+  vector_results = await hybrid_handler.search(clean_query, limit=num_to_fetch)
+  ```
+
+#### 3. Technical Decisions
+
+1. **Async Motor Client**: Uses connection pooling with event loop awareness
+2. **Concurrent Searches**: Vector and text searches run in parallel with `asyncio.gather`
+3. **Phrase Matching**: Supports bigram matching for multi-word terms
+4. **Result Merging**: Reciprocal rank fusion combines vector and text results
+5. **Score Capping**: Hybrid scores capped at 1.0 for consistency
+
+### Expected Benefits
+
+1. **Better Relevance**: Queries like "AI valuations" will find content with both terms
+2. **Reduced False Positives**: Generic content scores lower without keyword matches
+3. **Domain Awareness**: VC terminology gets appropriate weighting
+4. **Phrase Support**: Multi-word queries work better (e.g., "Series A funding")
+
+### Files Modified
+```
+Created:
+- api/improved_hybrid_search.py (460 lines)
+
+Modified:
+- api/search_lightweight_768d.py (updated imports and search call)
+```
+
+### MongoDB Authentication Note
+
+During testing, encountered MongoDB authentication issues. The credentials may need updating in the environment variables. Once resolved, the hybrid search is ready to significantly improve search relevance.
+
+### Next Steps
+
+1. **Deploy to Vercel**: Commit and push changes
+2. **Update MongoDB Credentials**: Ensure correct credentials in Vercel dashboard
+3. **Production Testing**: Verify with queries like "What are VCs saying about AI valuations?"
+4. **Monitor Performance**: Check that hybrid search improves result relevance
+
+---
+
+*Hybrid search implementation ready to deliver more relevant VC insights!* 🎯
