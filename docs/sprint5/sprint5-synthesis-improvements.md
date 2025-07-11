@@ -490,3 +490,110 @@ Based on the database field mapping Rosetta Stone document:
 - Better relevance for specific queries like "AI valuations"
 - Higher scores for domain-specific content
 - Synthesis should now accept results with scores >= 0.4
+
+---
+
+## Synthesis Threshold Fix (July 11, 2025 - Final Update)
+
+### Issue
+- Synthesis was rejecting all results with scores below 0.5
+- Hybrid search results were scoring ~0.46x, causing "No results found" errors
+
+### Solution
+- Updated synthesis threshold from 0.5 to 0.4 in both v1 and v2 synthesis functions
+- Now matches the lowered vector search threshold
+
+### Files Modified
+- `api/synthesis.py`: Changed threshold in both synthesize_answer and synthesize_answer_v2
+
+### Commits Summary
+1. `505df12` - Eliminated duplicate embedding generation
+2. `1bc657c` - Added MongoDB $lookup for metadata fields
+3. `9f4c9c8` - Improved search relevance scoring
+4. `e31b917` - Lowered synthesis threshold to 0.4
+
+### Current Status
+- ✅ Metadata fields now properly populated
+- ✅ No more Pydantic validation errors
+- ✅ Duplicate embedding issue fixed
+- ✅ Synthesis threshold aligned with search
+- ⚠️ Search relevance still finding generic "AI" mentions
+- ⚠️ MongoDB connection issues persist (ReplicaSetNoPrimary)
+
+### Remaining Issues
+
+1. **Content Quality**
+   - Searches for "AI valuations" return generic AI mentions
+   - Suggests limited specific content about valuations in the dataset
+   - May need larger chunk sizes or better content indexing
+
+2. **MongoDB Connection**
+   - Persistent "ReplicaSetNoPrimary" errors
+   - Likely authentication or network configuration issue
+   - Check MongoDB Atlas dashboard and IP whitelist
+
+3. **Search Performance**
+   - 20+ second response times due to MongoDB timeouts
+   - Cold starts still taking 20+ seconds for Modal embedding
+
+---
+
+## Handover Summary
+
+### What Was Accomplished
+1. **Fixed Critical Bugs**:
+   - Eliminated duplicate embedding generation (saves ~18s per search)
+   - Added proper MongoDB joins to fetch metadata fields
+   - Aligned synthesis and search thresholds
+   - Improved search relevance scoring
+
+2. **Technical Improvements**:
+   - Added $lookup stages to both vector and text search pipelines
+   - Implemented dynamic weight adjustment for better keyword matching
+   - Increased MongoDB timeouts from 5s to 10s
+   - Added valuation-specific terms to domain boost
+
+3. **Current State**:
+   - Search returns results with proper metadata
+   - Synthesis processes results instead of rejecting them
+   - System is functional but needs content and connection improvements
+
+### Next Session Focus
+1. **MongoDB Connection Issues**:
+   - Investigate ReplicaSetNoPrimary errors
+   - Check MongoDB Atlas cluster status
+   - Verify connection string and authentication
+   - Consider connection pooling improvements
+
+2. **Content Relevance**:
+   - Analyze why searches return generic results
+   - Consider implementing:
+     - Larger chunk sizes for better context
+     - Multi-chunk context windows
+     - Better query expansion for financial terms
+     - Reindexing with improved text extraction
+
+3. **Performance Optimization**:
+   - Implement Modal endpoint pre-warming
+   - Add caching for common queries
+   - Consider fallback embedding service
+   - Optimize MongoDB aggregation pipelines
+
+### Key Files to Review
+- `/api/improved_hybrid_search.py` - Main search implementation
+- `/api/synthesis.py` - Answer generation logic
+- `/api/search_lightweight_768d.py` - API endpoint
+- `/docs/latest/database_field_mapping_rosetta_stone.md` - Database schema reference
+
+### Environment Variables to Check
+- `MONGODB_URI` - Ensure connection string is correct
+- `MODAL_EMBEDDING_URL` - Verify Modal endpoint is accessible
+- `OPENAI_API_KEY` - Needed for synthesis
+
+### Testing Queries
+- "What are VCs saying about AI valuations?"
+- "Series A funding trends"
+- "Startup burn rates"
+- "Unicorn valuations 2024"
+
+The hybrid search implementation is now complete and functional, but requires operational improvements for production readiness.
