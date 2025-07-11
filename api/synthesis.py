@@ -401,14 +401,15 @@ async def synthesize_answer(
 
         # Only return null if we have NO relevant results at all
         # Check if chunks have very low relevance scores
+        # Lowered threshold to match hybrid search improvements
         all_low_relevance = all(
-            chunk.get('score', 1.0) < 0.5
+            chunk.get('score', 1.0) < 0.4
             for chunk in deduplicated_chunks
             if 'score' in chunk
         )
 
         if len(deduplicated_chunks) == 0 or all_low_relevance:
-            logger.info("[SYNTHESIS v1] No relevant results found (empty or all scores < 0.5)")
+            logger.info("[SYNTHESIS v1] No relevant results found (empty or all scores < 0.4)")
             return None
 
         # Format chunks for the prompt
@@ -544,14 +545,15 @@ async def synthesize_answer_v2(
             return None
 
         # Check if chunks have very low relevance scores
+        # Lowered threshold to match hybrid search improvements
         all_low_relevance = all(
-            chunk.get('score', 1.0) < 0.5
+            chunk.get('score', 1.0) < 0.4
             for chunk in deduplicated_chunks
             if 'score' in chunk
         )
 
         if len(deduplicated_chunks) == 0 or all_low_relevance:
-            logger.info("[SYNTHESIS v2] No relevant results found (empty or all scores < 0.5)")
+            logger.info("[SYNTHESIS v2] No relevant results found (empty or all scores < 0.4)")
             return None
 
         # Analyze if we have specific actionable data
