@@ -84,9 +84,9 @@ class ImprovedHybridSearch:
             logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=10000,  # Increased to 10s for better reliability
-                connectTimeoutMS=10000,  # Increased to 10s
-                socketTimeoutMS=10000,  # Increased to 10s
+                serverSelectionTimeoutMS=20000,  # Increased to 20s for text search reliability
+                connectTimeoutMS=20000,  # Increased to 20s
+                socketTimeoutMS=20000,  # Increased to 20s
                 maxPoolSize=10,
                 retryWrites=True
             )
@@ -230,41 +230,37 @@ class ImprovedHybridSearch:
             return []
 
     async def _text_search(self, collection, query_terms: Dict[str, float], limit: int) -> List[Dict]:
-        """Perform text-based search for query terms"""
-        # Build regex patterns for all terms
-        patterns = []
-        for term in query_terms:
-            # Escape special regex characters
-            escaped_term = re.escape(term)
-            patterns.append(f"\\b{escaped_term}\\b")
+        """Perform text-based search using MongoDB text index"""
+        # Build search string for MongoDB $text operator
+        # Include all terms, with phrases quoted
+        search_terms = []
 
-        # Combine patterns with OR
-        combined_pattern = '|'.join(patterns)
+        for term in query_terms:
+            if ' ' in term:
+                # Multi-word terms should be quoted for phrase matching
+                search_terms.append(f'"{term}"')
+            else:
+                # Single words can be added directly
+                search_terms.append(term)
+
+        # Join all terms with spaces (MongoDB $text uses OR logic by default)
+        search_string = ' '.join(search_terms)
+        logger.info(f"[TEXT_SEARCH] Using search string: {search_string}")
 
         try:
-            # Just use regex search - text index has issues with OR queries
+            # Use MongoDB text index for efficient searching
             pipeline = [
                 {
                     "$match": {
-                        "text": {"$regex": combined_pattern, "$options": "i"}
+                        "$text": {"$search": search_string}
                     }
                 },
                 {
                     "$addFields": {
-                        "text_matches": {
-                            "$size": {
-                                "$filter": {
-                                    "input": {"$split": [{"$toLower": "$text"}, " "]},
-                                    "cond": {
-                                        "$in": ["$$this", [term.lower() for term in query_terms]]
-                                    }
-                                }
-                            }
-                        }
+                        "text_score": {"$meta": "textScore"}
                     }
                 },
-                {"$match": {"text_matches": {"$gt": 0}}},
-                {"$sort": {"text_matches": -1}},
+                {"$sort": {"text_score": -1}},
                 {"$limit": limit},
                 # Add lookup to join episode_metadata for missing fields
                 {
@@ -282,7 +278,7 @@ class ImprovedHybridSearch:
                         "_id": 1,
                         "text": 1,
                         "episode_id": 1,
-                        "text_matches": 1,
+                        "text_score": 1,  # Use text score instead of text_matches
                         "chunk_index": 1,
                         "start_time": 1,
                         "end_time": 1,
@@ -300,12 +296,57 @@ class ImprovedHybridSearch:
 
         except Exception as e:
             logger.error(f"Text search error: {e}")
-            # Fallback to simple regex if text index not available
+            logger.info("[TEXT_SEARCH] Falling back to regex search due to text index error")
+
+            # Fallback to regex search if text index fails
             try:
-                results = await collection.find(
-                    {"text": {"$regex": combined_pattern, "$options": "i"}}
-                ).limit(limit).to_list(limit)
+                # Build regex pattern from search terms
+                patterns = []
+                for term in query_terms:
+                    escaped_term = re.escape(term)
+                    patterns.append(f"\\b{escaped_term}\\b")
+
+                combined_pattern = '|'.join(patterns)
+
+                # Simple regex search without complex aggregation
+                pipeline = [
+                    {
+                        "$match": {
+                            "text": {"$regex": combined_pattern, "$options": "i"}
+                        }
+                    },
+                    {"$limit": limit},
+                    # Add lookup for metadata
+                    {
+                        "$lookup": {
+                            "from": "episode_metadata",
+                            "localField": "episode_id",
+                            "foreignField": "guid",
+                            "as": "metadata"
+                        }
+                    },
+                    {"$unwind": {"path": "$metadata", "preserveNullAndEmptyArrays": True}},
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "text": 1,
+                            "episode_id": 1,
+                            "text_score": {"$literal": 1.0},  # Default score for regex matches
+                            "chunk_index": 1,
+                            "start_time": 1,
+                            "end_time": 1,
+                            "feed_slug": 1,
+                            "podcast_name": "$metadata.podcast_title",
+                            "episode_title": "$metadata.raw_entry_original_feed.episode_title",
+                            "published": "$metadata.raw_entry_original_feed.published_date_iso"
+                        }
+                    }
+                ]
+
+                results = await collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                logger.info(f"[TEXT_SEARCH] Regex fallback returned {len(results)} results")
                 return results
+
             except Exception as e2:
                 logger.error(f"Regex search also failed: {e2}")
                 return []
@@ -346,7 +387,8 @@ class ImprovedHybridSearch:
             chunk_id = str(tr['_id'])
             if chunk_id in results_map:
                 # Update text score for existing result
-                results_map[chunk_id]['text_score'] = tr.get('text_matches', 0) / len(query_terms)
+                # Normalize MongoDB text score (typically 0-5 range) to 0-1 range
+                results_map[chunk_id]['text_score'] = min(tr.get('text_score', 0) / 5.0, 1.0)
             else:
                 # Add new result from text search
                 results_map[chunk_id] = {
@@ -354,7 +396,7 @@ class ImprovedHybridSearch:
                     'text': tr['text'],
                     'episode_id': tr['episode_id'],
                     'vector_score': 0.0,
-                    'text_score': tr.get('text_matches', 0) / len(query_terms),
+                    'text_score': min(tr.get('text_score', 0) / 5.0, 1.0),
                     'metadata': {
                         'chunk_index': tr.get('chunk_index'),
                         'start_time': tr.get('start_time'),
