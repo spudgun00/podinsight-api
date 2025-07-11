@@ -49,6 +49,7 @@ class ImprovedHybridSearch:
         # VC-specific term weights
         self.domain_terms = {
             'valuation': 2.0,
+            'valuations': 2.0,  # Add plural form
             'series': 1.5,
             'funding': 1.5,
             'investment': 1.5,
@@ -146,12 +147,17 @@ class ImprovedHybridSearch:
         # Basic tokenization and cleaning
         words = re.findall(r'\b\w+\b', query.lower())
 
+        # Important short words in VC domain
+        important_short_words = {'ai', 'vc', 'vcs', 'ipo', 'arr', 'b2b', 'b2c', 'yc', 'sfr', 'mvp'}
+
         # Weight terms based on domain importance
         terms = {}
         for word in words:
             if word in self.domain_terms:
                 terms[word] = self.domain_terms[word]
-            elif len(word) > 3:  # Skip short words
+            elif word in important_short_words:
+                terms[word] = 1.5  # Boost important short words
+            elif len(word) > 3:  # Skip short common words
                 terms[word] = 1.0
 
         # Add bigrams for phrase matching
