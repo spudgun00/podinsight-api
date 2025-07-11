@@ -330,8 +330,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             try:
                 start = time.time()
                 vector_results = await hybrid_handler.search(
-                    clean_query,  # Pass original query, not embedding
-                    limit=num_to_fetch
+                    clean_query,  # Pass original query
+                    limit=num_to_fetch,
+                    query_embedding=embedding_768d  # Pass pre-computed embedding to avoid duplicate generation
                 )
                 logger.info("[HYBRID_LATENCY] %.1f ms", (time.time()-start)*1000)
             except Exception as ve:

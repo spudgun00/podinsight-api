@@ -84,9 +84,9 @@ class ImprovedHybridSearch:
             logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=10000,
-                connectTimeoutMS=10000,
-                socketTimeoutMS=10000,
+                serverSelectionTimeoutMS=5000,  # Reduced from 10s to 5s
+                connectTimeoutMS=5000,  # Reduced from 10s to 5s
+                socketTimeoutMS=5000,  # Reduced from 10s to 5s
                 maxPoolSize=10,
                 retryWrites=True
             )
@@ -96,10 +96,15 @@ class ImprovedHybridSearch:
         db = client[db_name]
         return db["transcript_chunks_768d"]
 
-    async def search(self, query: str, limit: int = 50) -> List[Dict[str, Any]]:
+    async def search(self, query: str, limit: int = 50, query_embedding: Optional[List[float]] = None) -> List[Dict[str, Any]]:
         """
         Perform hybrid search combining vector and text matching
         Returns dict format compatible with existing API
+
+        Args:
+            query: The search query string
+            limit: Maximum number of results to return
+            query_embedding: Pre-computed query embedding (optional) to avoid duplicate generation
         """
         logger.info(f"[HYBRID_SEARCH] Starting search for: '{query}' with limit={limit}")
 
@@ -113,20 +118,26 @@ class ImprovedHybridSearch:
         query_terms = self._extract_query_terms(query)
         logger.info(f"[HYBRID_SEARCH] Extracted terms: {list(query_terms.keys())}")
 
-        # Step 2: Generate embedding using Modal service
-        from .search_lightweight_768d import generate_embedding_768d_local
-        query_vector = await generate_embedding_768d_local(query)
+        # Step 2: Use provided embedding or generate one
+        if query_embedding:
+            query_vector = query_embedding
+            logger.info(f"[HYBRID_SEARCH] Using pre-computed embedding (dim: {len(query_vector)})")
+        else:
+            # Generate embedding using Modal service
+            from .search_lightweight_768d import generate_embedding_768d_local
+            query_vector = await generate_embedding_768d_local(query)
 
         if not query_vector:
-            logger.error("Failed to generate query embedding")
+            logger.error("Failed to get query embedding")
             return []
 
-        # Step 3: Vector search with MongoDB aggregation
-        vector_results = await self._vector_search(collection, query_vector, limit * 2)
-        logger.info(f"[HYBRID_SEARCH] Vector search returned {len(vector_results)} results")
+        # Step 3 & 4: Run vector and text searches in parallel to save time
+        import asyncio
+        vector_task = self._vector_search(collection, query_vector, limit * 2)
+        text_task = self._text_search(collection, query_terms, limit * 2)
 
-        # Step 4: Text search for chunks containing query terms
-        text_results = await self._text_search(collection, query_terms, limit * 2)
+        vector_results, text_results = await asyncio.gather(vector_task, text_task)
+        logger.info(f"[HYBRID_SEARCH] Vector search returned {len(vector_results)} results")
         logger.info(f"[HYBRID_SEARCH] Text search returned {len(text_results)} results")
 
         # Step 5: Merge and re-rank results

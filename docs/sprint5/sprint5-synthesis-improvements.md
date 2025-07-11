@@ -289,3 +289,108 @@ During testing, encountered MongoDB authentication issues. The credentials may n
 ---
 
 *Hybrid search implementation ready to deliver more relevant VC insights!* 🎯
+
+## Hybrid Search Deployment Status (July 11, 2025 - Evening Update)
+
+### Implementation Completed
+- ✅ Successfully ported `ImprovedHybridSearch` from ETL to API
+- ✅ Converted sync MongoDB to async Motor client
+- ✅ Integrated with Modal embedding service
+- ✅ Implemented hybrid scoring (40% vector + 40% text + 20% domain boost)
+- ✅ Added VC-specific term weighting
+- ✅ Fixed term extraction to include important short words (AI, VC, VCs)
+- ✅ Added plural forms to domain terms (valuations)
+- ✅ Implemented parallel search execution for vector and text searches
+
+### Issues Encountered
+
+#### 1. MongoDB Text Index Error
+- **Issue**: MongoDB text search with `$or` operator caused query planner errors
+- **Solution**: Used regex search (same as ETL implementation)
+- **Status**: Resolved
+
+#### 2. NoneType Error
+- **Issue**: `episode_title` field returning None caused string slicing error
+- **Solution**: Added null checking before string operations
+- **Status**: Resolved
+
+#### 3. Term Extraction
+- **Issue**: Important short words (AI, VC) were being filtered out
+- **Solution**: Added important_short_words list with proper weighting
+- **Status**: Resolved
+
+#### 4. Vercel Timeout (CURRENT ISSUE)
+- **Issue**: Requests timing out after 30 seconds
+- **Root Causes**:
+  - Modal embedding service taking 18+ seconds for initial request
+  - MongoDB connection initialization overhead
+  - Two embedding calls being made (one in search handler, one in hybrid search)
+- **Status**: Needs investigation in next session
+
+### Commits Made
+1. `ac2afdb` - Initial hybrid search implementation
+2. `8b4c2b7` - Fixed MongoDB text search and NoneType errors
+3. `6912d61` - Improved term extraction for VC queries
+
+### Next Session Focus
+1. Investigate why Modal embedding is taking 18+ seconds
+2. Eliminate duplicate embedding generation
+3. Consider caching strategies for embeddings
+4. Optimize MongoDB connection pooling
+5. Test if hybrid search improves relevance once timeout is resolved
+
+---
+
+## Duplicate Embedding Fix (July 11, 2025 - Current Session)
+
+### Issue Identified
+- **Problem**: Duplicate embedding generation causing timeouts
+- **Root Cause**:
+  1. `search_lightweight_768d.py` generates embedding (line 293)
+  2. `improved_hybrid_search.py` generates embedding again (line 118)
+  3. Each Modal call takes ~18s on cold start = 36s total > 30s Vercel timeout
+
+### Solution Implemented
+Modified `improved_hybrid_search.py` to accept an optional pre-computed embedding:
+```python
+async def search(self, query: str, limit: int = 50, query_embedding: Optional[List[float]] = None)
+```
+
+Updated `search_lightweight_768d.py` to pass the pre-computed embedding:
+```python
+vector_results = await hybrid_handler.search(
+    clean_query,
+    limit=num_to_fetch,
+    query_embedding=embedding_768d  # Pass pre-computed embedding
+)
+```
+
+### Expected Impact
+- Eliminates duplicate embedding generation
+- Reduces total time by ~18 seconds (one Modal call instead of two)
+- Should resolve Vercel timeout issues for most queries
+
+### Files Modified
+- `api/improved_hybrid_search.py` - Added optional query_embedding parameter
+- `api/search_lightweight_768d.py` - Pass pre-computed embedding to hybrid search
+
+### Additional Optimizations Needed
+
+#### Modal Embedding Service Performance
+Current issues with Modal service:
+1. **Cold Start Time**: ~18 seconds for first request
+2. **Timeout Setting**: Currently 25s, might need increase for reliability
+3. **No Pre-warming**: Service goes cold between requests
+
+Potential solutions:
+1. **Implement Pre-warming**: Add a cron job to ping Modal endpoint every 5 minutes
+2. **Increase Timeout**: Bump to 28s (just under Vercel's 30s limit)
+3. **Add Retry Logic**: Quick retry on timeout with exponential backoff
+4. **Consider Caching**: Cache embeddings for common queries
+5. **Fallback Strategy**: Use lighter model if Modal times out
+
+### Next Steps
+1. Test if duplicate embedding fix resolves timeout issue
+2. Deploy changes to Vercel
+3. Monitor Modal service performance
+4. Implement pre-warming if cold starts persist
