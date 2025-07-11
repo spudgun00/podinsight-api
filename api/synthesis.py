@@ -35,8 +35,13 @@ def get_openai_client():
             logger.error("CRITICAL: OPENAI_API_KEY environment variable not set or empty.")
             raise ValueError("OPENAI_API_KEY is not configured.")
 
-        _openai_client = AsyncOpenAI(api_key=api_key)
-        logger.info("AsyncOpenAI client created successfully.")
+        # Add timeout and reduce retries for Vercel compatibility
+        _openai_client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=10.0,  # 10 second timeout (well below Vercel's 30s)
+            max_retries=1  # Reduce from default 2 to 1
+        )
+        logger.info("AsyncOpenAI client created successfully with 10s timeout.")
 
     return _openai_client
 
@@ -474,13 +479,20 @@ async def synthesize_answer(
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
         # Check if this is a "no results" response
-        is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+        is_no_results = any(pattern in formatted_answer.lower() for pattern in [
+            "no specific", "○ no", "no results found", "didn't find",
+            "no insights found", "no data available"
+        ])
         logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
+
+        if is_no_results:
+            logger.info("[SYNTHESIS v1] No results detected, returning None for frontend")
+            return None  # This will cause answer: null in API response
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
         show_confidence = False
-        if confidence and confidence > 0.8 and not is_no_results:
+        if confidence and confidence > 0.8:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
 
@@ -491,7 +503,7 @@ async def synthesize_answer(
             citations=citations,
             cited_indices=cited_indices,
             synthesis_time_ms=synthesis_time_ms,
-            confidence=confidence if not is_no_results else None,
+            confidence=confidence,
             show_confidence=show_confidence
         )
 
@@ -604,13 +616,20 @@ async def synthesize_answer_v2(
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
         # Check if this is a "no results" response
-        is_no_results = any(pattern in formatted_answer for pattern in ["No specific", "○ No", "no results found", "didn't find"])
+        is_no_results = any(pattern in formatted_answer.lower() for pattern in [
+            "no specific", "○ no", "no results found", "didn't find",
+            "no insights found", "no data available"
+        ])
         logger.info(f"[SYNTHESIS DEBUG] Is no results: {is_no_results}, Original confidence: {confidence}")
+
+        if is_no_results:
+            logger.info("[SYNTHESIS v1] No results detected, returning None for frontend")
+            return None  # This will cause answer: null in API response
 
         # Only show confidence for positive results with high confidence
         confidence_str = ""
         show_confidence = False
-        if confidence and confidence > 0.8 and not is_no_results:
+        if confidence and confidence > 0.8:
             confidence_str = f" ({int(confidence * 100)}% confidence)"
             show_confidence = True
 
@@ -621,7 +640,7 @@ async def synthesize_answer_v2(
             citations=citations,
             cited_indices=cited_indices,
             synthesis_time_ms=synthesis_time_ms,
-            confidence=confidence if not is_no_results else None,
+            confidence=confidence,
             show_confidence=show_confidence
         )
 

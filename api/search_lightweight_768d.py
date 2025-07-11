@@ -510,7 +510,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                         )
                         logger.info(f"Synthesis successful: {len(synthesis_result.citations)} citations")
                     else:
-                        logger.warning("Synthesis returned None")
+                        # Synthesis returned None - this is a no-results scenario
+                        answer_object = None
+                        logger.info("Synthesis returned None - will return null answer to frontend")
                 except Exception as e:
                     logger.error(f"Synthesis failed: {str(e)}")
                     # Continue without answer - graceful degradation
