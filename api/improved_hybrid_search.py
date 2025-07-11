@@ -84,9 +84,9 @@ class ImprovedHybridSearch:
             logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=5000,  # Reduced from 10s to 5s
-                connectTimeoutMS=5000,  # Reduced from 10s to 5s
-                socketTimeoutMS=5000,  # Reduced from 10s to 5s
+                serverSelectionTimeoutMS=10000,  # Increased to 10s for better reliability
+                connectTimeoutMS=10000,  # Increased to 10s
+                socketTimeoutMS=10000,  # Increased to 10s
                 maxPoolSize=10,
                 retryWrites=True
             )
@@ -193,6 +193,17 @@ class ImprovedHybridSearch:
                 },
                 {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
                 {"$match": {"score": {"$gte": 0.5}}},  # Min threshold
+                # Add lookup to join episode_metadata for missing fields
+                {
+                    "$lookup": {
+                        "from": "episode_metadata",
+                        "localField": "episode_id",  # episode_id in chunks = guid in metadata
+                        "foreignField": "guid",
+                        "as": "metadata"
+                    }
+                },
+                # Unwind the metadata array (should be single document)
+                {"$unwind": {"path": "$metadata", "preserveNullAndEmptyArrays": True}},
                 {
                     "$project": {
                         "_id": 1,
@@ -203,9 +214,10 @@ class ImprovedHybridSearch:
                         "start_time": 1,
                         "end_time": 1,
                         "feed_slug": 1,
-                        "podcast_title": 1,
-                        "episode_title": 1,
-                        "published": 1
+                        # Extract metadata fields with proper paths
+                        "podcast_name": "$metadata.podcast_title",  # Map to podcast_name for API
+                        "episode_title": "$metadata.raw_entry_original_feed.episode_title",
+                        "published": "$metadata.raw_entry_original_feed.published_date_iso"
                     }
                 }
             ]
@@ -254,6 +266,17 @@ class ImprovedHybridSearch:
                 {"$match": {"text_matches": {"$gt": 0}}},
                 {"$sort": {"text_matches": -1}},
                 {"$limit": limit},
+                # Add lookup to join episode_metadata for missing fields
+                {
+                    "$lookup": {
+                        "from": "episode_metadata",
+                        "localField": "episode_id",
+                        "foreignField": "guid",
+                        "as": "metadata"
+                    }
+                },
+                # Unwind the metadata array
+                {"$unwind": {"path": "$metadata", "preserveNullAndEmptyArrays": True}},
                 {
                     "$project": {
                         "_id": 1,
@@ -264,9 +287,10 @@ class ImprovedHybridSearch:
                         "start_time": 1,
                         "end_time": 1,
                         "feed_slug": 1,
-                        "podcast_title": 1,
-                        "episode_title": 1,
-                        "published": 1
+                        # Extract metadata fields with proper paths
+                        "podcast_name": "$metadata.podcast_title",
+                        "episode_title": "$metadata.raw_entry_original_feed.episode_title",
+                        "published": "$metadata.raw_entry_original_feed.published_date_iso"
                     }
                 }
             ]
@@ -311,7 +335,7 @@ class ImprovedHybridSearch:
                     'start_time': vr.get('start_time'),
                     'end_time': vr.get('end_time'),
                     'feed_slug': vr.get('feed_slug'),
-                    'podcast_title': vr.get('podcast_title'),
+                    'podcast_name': vr.get('podcast_name'),  # Changed from podcast_title
                     'episode_title': vr.get('episode_title'),
                     'published': vr.get('published')
                 }
@@ -336,7 +360,7 @@ class ImprovedHybridSearch:
                         'start_time': tr.get('start_time'),
                         'end_time': tr.get('end_time'),
                         'feed_slug': tr.get('feed_slug'),
-                        'podcast_title': tr.get('podcast_title'),
+                        'podcast_name': tr.get('podcast_name'),  # Changed from podcast_title
                         'episode_title': tr.get('episode_title'),
                         'published': tr.get('published')
                     }
@@ -446,7 +470,7 @@ class ImprovedHybridSearch:
                 'start_time': result.metadata.get('start_time'),
                 'end_time': result.metadata.get('end_time'),
                 'feed_slug': result.metadata.get('feed_slug'),
-                'podcast_title': result.metadata.get('podcast_title'),
+                'podcast_name': result.metadata.get('podcast_name'),  # API expects podcast_name
                 'episode_title': result.metadata.get('episode_title'),
                 'published': result.metadata.get('published'),
                 # Additional hybrid search info

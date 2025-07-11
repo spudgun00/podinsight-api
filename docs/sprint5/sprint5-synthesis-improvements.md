@@ -394,3 +394,70 @@ Potential solutions:
 2. Deploy changes to Vercel
 3. Monitor Modal service performance
 4. Implement pre-warming if cold starts persist
+
+---
+
+## MongoDB Field Mapping Fix (July 11, 2025 - Current Session)
+
+### Issue Identified
+- **Problem**: All search results failing Pydantic validation due to missing fields
+- **Root Cause**:
+  1. `transcript_chunks_768d` collection doesn't contain `podcast_title` or `episode_title`
+  2. These fields exist in `episode_metadata` collection
+  3. Vector/text search pipelines were projecting non-existent fields
+
+### Solution Implemented
+Based on the database field mapping Rosetta Stone document:
+
+1. **Added $lookup to Vector Search Pipeline**:
+   - Join `episode_metadata` on `guid = episode_id`
+   - Extract `podcast_title` → `podcast_name`
+   - Extract `raw_entry_original_feed.episode_title` → `episode_title`
+   - Add proper published date mapping
+
+2. **Added $lookup to Text Search Pipeline**:
+   - Same join logic as vector search
+   - Consistent field mapping across both pipelines
+
+3. **Updated Field Names**:
+   - Changed `podcast_title` to `podcast_name` throughout (API compatibility)
+   - Properly extracted nested `episode_title` from metadata
+
+4. **Increased MongoDB Timeouts**:
+   - Changed from 5000ms to 10000ms for all timeouts
+   - Should help with ReplicaSetNoPrimary errors
+
+### Technical Details
+```javascript
+// Added lookup stage to both pipelines:
+{
+    "$lookup": {
+        "from": "episode_metadata",
+        "localField": "episode_id",
+        "foreignField": "guid",
+        "as": "metadata"
+    }
+},
+{"$unwind": {"path": "$metadata", "preserveNullAndEmptyArrays": true}},
+{
+    "$project": {
+        // ... other fields
+        "podcast_name": "$metadata.podcast_title",
+        "episode_title": "$metadata.raw_entry_original_feed.episode_title",
+        "published": "$metadata.raw_entry_original_feed.published_date_iso"
+    }
+}
+```
+
+### Expected Impact
+- Search results will now include proper metadata fields
+- Pydantic validation errors should be resolved
+- Users will see podcast names and episode titles
+- Search functionality should be fully operational
+
+### Files Modified
+- `api/improved_hybrid_search.py`:
+  - Added $lookup stages to both search pipelines
+  - Updated field mappings throughout
+  - Increased connection timeouts
+  - Fixed field names from `podcast_title` to `podcast_name`
