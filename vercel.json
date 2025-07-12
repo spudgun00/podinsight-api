@@ -4,6 +4,10 @@
     "api/index.py": {
       "memory": 1024,
       "maxDuration": 30
+    },
+    "api/search_lightweight_768d.py": {
+      "memory": 1024,
+      "maxDuration": 30
     }
   },
   "env": {
@@ -24,6 +28,10 @@
     {
       "source": "/api/sentiment_analysis_v2",
       "destination": "/api/sentiment_analysis_v2"
+    },
+    {
+      "source": "/api/search",
+      "destination": "/api/search_lightweight_768d"
     },
     {
       "source": "/api/(.*)",
