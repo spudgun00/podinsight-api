@@ -5,7 +5,8 @@ Triggers a lightweight embedding request to warm up the Modal endpoint
 
 import asyncio
 import logging
-from fastapi import APIRouter
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 # Ensure correct environment loading
 from lib.env_loader import load_env_safely
@@ -13,9 +14,10 @@ load_env_safely()
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+# Create FastAPI app for Vercel
+app = FastAPI()
 
-@router.post("/api/prewarm")
+@app.post("/api/prewarm")
 async def prewarm_modal():
     """
     Fire-and-forget endpoint to warm up Modal.
@@ -29,11 +31,11 @@ async def prewarm_modal():
         # Using a simple, cacheable query
         asyncio.create_task(_warm_modal())
 
-        return {"status": "warming", "message": "Modal pre-warming initiated"}
+        return JSONResponse({"status": "warming", "message": "Modal pre-warming initiated"})
     except Exception as e:
         logger.warning(f"Pre-warming failed to start: {e}")
         # Don't fail the request - pre-warming is optional
-        return {"status": "skipped", "message": "Pre-warming unavailable"}
+        return JSONResponse({"status": "skipped", "message": "Pre-warming unavailable"})
 
 async def _warm_modal():
     """Background task to actually warm Modal"""
@@ -55,3 +57,6 @@ async def _warm_modal():
     except Exception as e:
         # Log but don't raise - this is a best-effort operation
         logger.warning(f"Modal pre-warm failed: {e}")
+
+# Export handler for Vercel
+handler = app
