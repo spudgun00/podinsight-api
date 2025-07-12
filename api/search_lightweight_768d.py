@@ -94,8 +94,8 @@ async def generate_embedding_768d_local(text: str) -> List[float]:
     Generate 768D embedding using standardized function
     """
     try:
-        # Use standardized embedding function
-        embedding = embed_query(text)
+        # Use standardized embedding function - now with await
+        embedding = await embed_query(text)
 
         # Validate before returning
         if embedding and validate_embedding(embedding):

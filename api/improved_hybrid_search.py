@@ -221,8 +221,8 @@ class ImprovedHybridSearch:
                 {
                     "$lookup": {
                         "from": "episode_metadata",
-                        "localField": "episode_id",  # episode_id in chunks = guid in metadata
-                        "foreignField": "guid",
+                        "localField": "episode_id",
+                        "foreignField": "episode_id",  # Now using aligned field names
                         "as": "metadata"
                     }
                 },
@@ -299,7 +299,7 @@ class ImprovedHybridSearch:
                     "$lookup": {
                         "from": "episode_metadata",
                         "localField": "episode_id",
-                        "foreignField": "guid",
+                        "foreignField": "episode_id",  # Now using aligned field names
                         "as": "metadata"
                     }
                 },
@@ -353,7 +353,7 @@ class ImprovedHybridSearch:
                         "$lookup": {
                             "from": "episode_metadata",
                             "localField": "episode_id",
-                            "foreignField": "guid",
+                            "foreignField": "episode_id",  # Now using aligned field names
                             "as": "metadata"
                         }
                     },

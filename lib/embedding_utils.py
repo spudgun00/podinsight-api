@@ -5,7 +5,7 @@ from .embeddings_768d_modal import get_embedder
 
 logger = logging.getLogger(__name__)
 
-def embed_query(text: str) -> Optional[List[float]]:
+async def embed_query(text: str) -> Optional[List[float]]:
     """
     Standardized function to embed text.
     Always normalizes the query before embedding.
@@ -22,9 +22,9 @@ def embed_query(text: str) -> Optional[List[float]]:
     # Log for debugging
     logger.info(f"Embedding query: '{clean_text}'")
 
-    # Get embedder and encode
+    # Get embedder and directly call async method with retry
     embedder = get_embedder()
-    embedding = embedder.encode_query(clean_text)
+    embedding = await embedder._encode_query_async_with_retry(clean_text)
 
     # Validate
     if embedding and len(embedding) == 768:

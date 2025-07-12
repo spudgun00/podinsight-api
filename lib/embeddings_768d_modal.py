@@ -42,6 +42,31 @@ class ModalInstructorXLEmbedder:
             # No event loop, create one
             return asyncio.run(self._encode_query_async(query))
 
+    async def _encode_query_async_with_retry(self, query: str, retries: int = 1) -> Optional[List[float]]:
+        """
+        Async method with retry logic for cold starts
+
+        Args:
+            query: Search query text
+            retries: Number of retries (default 1)
+
+        Returns:
+            List of 768 float values or None if error
+        """
+        for attempt in range(retries + 1):
+            try:
+                result = await self._encode_query_async(query)
+                if result is not None:
+                    return result
+            except asyncio.TimeoutError:
+                if attempt < retries:
+                    logger.info(f"Modal timeout on attempt {attempt + 1}, retrying...")
+                    await asyncio.sleep(0.5)  # Short delay before retry
+                else:
+                    logger.error(f"Modal timeout after {retries + 1} attempts")
+                    raise
+        return None
+
     async def _encode_query_async(self, query: str) -> Optional[List[float]]:
         """
         Async method to encode search query to 768D vector using Modal
@@ -72,7 +97,7 @@ class ModalInstructorXLEmbedder:
                     embed_url,
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=25)  # 25s to give cold starts more room (Vercel limit is 30s)
+                    timeout=aiohttp.ClientTimeout(total=15)  # 15s timeout (leaves 15s for other operations)
                 ) as response:
                     elapsed = time.time() - start_time
                     logger.info(f"Modal API responded in {elapsed:.2f}s with status {response.status}")
