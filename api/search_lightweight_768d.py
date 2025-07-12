@@ -610,3 +610,26 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     #     status_code=503,
     #     detail="SEARCH_BACKEND_EMPTY - Both vector and text search returned no results"
     # )
+
+# Create FastAPI app with CORS for Vercel
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "https://app.podinsighthq.com", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register the search endpoint
+@app.post("/api/search")
+async def search_endpoint(request: SearchRequest) -> SearchResponse:
+    return await search_handler_lightweight_768d(request)
+
+# Export for Vercel
+handler = app
