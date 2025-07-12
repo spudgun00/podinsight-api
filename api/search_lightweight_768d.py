@@ -398,10 +398,13 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
 
                     # Expand context for better readability
                     try:
-                        # COMMENTED OUT: This is causing N+1 query problem
-                        # expanded_text = await expand_chunk_context(result, context_seconds=20.0)
-                        expanded_text = result.get("text", "")  # Temporary: use original text
-                        logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} to fix N+1 query issue")
+                        # Enable context expansion for top 3 results only to balance quality and performance
+                        if idx < 3:
+                            expanded_text = await expand_chunk_context(result, context_seconds=20.0)
+                            logger.info(f"Expanded context for top result {idx+1}/3")
+                        else:
+                            expanded_text = result.get("text", "")  # Use original text for remaining results
+                            logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} (only expanding top 3)")
                     except Exception as e:
                         logger.warning(f"Context expansion failed: {e} - using original text")
                         expanded_text = result.get("text", "")

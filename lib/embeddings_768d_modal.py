@@ -97,7 +97,7 @@ class ModalInstructorXLEmbedder:
                     embed_url,
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=15)  # 15s timeout (leaves 15s for other operations)
+                    timeout=aiohttp.ClientTimeout(total=25)  # 25s timeout to handle cold starts
                 ) as response:
                     elapsed = time.time() - start_time
                     logger.info(f"Modal API responded in {elapsed:.2f}s with status {response.status}")

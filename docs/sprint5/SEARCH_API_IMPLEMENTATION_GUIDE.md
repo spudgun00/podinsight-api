@@ -1,6 +1,18 @@
 # Search API Implementation Guide
 
-## Issue Summary
+## Current Status (Updated 2025-01-12)
+**Backend Status**: Partially working but not production-ready
+- ✅ Search returns results (no longer hangs indefinitely)
+- ❌ Response time: 28 seconds (target: <10s)
+- ❌ Modal cold starts causing timeouts
+- ❌ MongoDB replica issues causing delays
+- ⚠️ Context expansion disabled (affecting answer quality)
+
+**Frontend Status**: Waiting for configuration fix
+- Frontend expects proxy at `/api/search` but needs direct API call
+- One-line fix required: change to `https://podinsight-api.vercel.app/api/search`
+
+## Original Issue Summary
 The search functionality in the PodInsight dashboard is currently hanging when users submit queries. The user reports: "What are VCs saying about AI valuations? - and it just hangs...can't see anything in logs."
 
 ## Current Architecture
@@ -139,11 +151,35 @@ curl -X POST https://podinsight-api.vercel.app/api/search \
 4. Should see AI-generated answer with podcast citations
 
 ## Observed Behavior
+
+### Previous Behavior (Before Fix)
 When users submit a search query (e.g., "What are VCs saying about AI valuations?"):
 1. Frontend sends request to `/api/search` (local proxy)
 2. Proxy forwards to `https://podinsight-api.vercel.app/api/search` with 40-second timeout
 3. The request hangs with no visible errors in logs
 4. No response is received within the timeout period
+
+### Current Behavior (After Partial Fix - 2025-01-12)
+1. Frontend sends request to `/api/search` (gets 404 - no proxy exists)
+2. Backend API directly responds in ~28 seconds with:
+   - ✅ AI-generated answer with citations
+   - ✅ Hybrid search results (vector + text)
+   - ❌ Modal embedding timeout on first attempt (15.55s)
+   - ❌ MongoDB ReplicaSetNoPrimary warnings
+   - ⚠️ Context expansion disabled (N+1 query issue)
+
+### Test Results from Latest Run
+```
+Total Response Time: 28.226s
+- Modal embedding: 17.98s (timeout + retry)
+- Hybrid search: 8.76s (MongoDB delays)
+- Synthesis & other: ~1.5s
+
+Quality Issues:
+- Context expansion disabled
+- Only getting 30-second transcript chunks
+- Results feel "vague" without surrounding context
+```
 
 ## Possible Causes for Hanging
 

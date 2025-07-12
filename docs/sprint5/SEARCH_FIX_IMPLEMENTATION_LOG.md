@@ -115,18 +115,77 @@
 
 ### Current Status
 
-**Phase 1: Get Search Working (Backend) ✅ COMPLETE**
-- All three fixes implemented and tested
-- Backend responds successfully to search queries
-- No more hanging - completes within timeout
+**Phase 1: Get Search Working (Backend) ❌ NOT COMPLETE**
+- Search no longer hangs (responds in ~28 seconds)
+- Async implementation working correctly
+- BUT: Several critical issues remain
+
+**Latest Test Results (2025-01-12 5:38 PM)**
+- **Total Response Time**: 28.226s (unacceptable for production)
+- **Breakdown**:
+  - Modal embedding: 17.98s (includes 15.55s timeout + retry)
+  - Hybrid search: 8.76s (MongoDB delays)
+  - Other operations: ~1.5s
+
+**Critical Issues Preventing Phase 1 Completion**:
+
+1. **Modal Cold Start Timeouts** ❌
+   - First attempt times out at 15.55s (cold start)
+   - Retry succeeds in 2.35s (warm instance)
+   - Total embedding time: 17.98s (target: <5s)
+
+2. **MongoDB ReplicaSetNoPrimary Errors** ❌
+   - Connection delays while waiting for primary
+   - Causing ~8.8s delay in hybrid search
+   - Part of Phase 2 but blocking Phase 1 performance
+
+3. **Context Expansion Disabled** ⚠️
+   - All 10 chunks skipped to avoid N+1 queries
+   - Results in lower quality answers (only 30-second snippets)
+   - Users get "vague" responses without full conversation context
+
+4. **Response Time 28s vs Target <10s** ❌
+   - Current: 28.226s total
+   - Target: <10s for good UX
+   - 3x slower than acceptable
+
+**What IS Working**:
+- ✅ Async implementation (no more blocking)
+- ✅ Hybrid search algorithm (vector + text + domain scoring)
+- ✅ Results are returned (no infinite hang)
+- ✅ Answer synthesis functioning
 
 **Frontend Integration: 🔄 IN PROGRESS**
 - Issue identified and documented
 - Clear fix provided to frontend team
 - Waiting for frontend deployment
 
-### Next Steps
-1. Frontend team to implement direct API call (one-line change)
-2. Monitor search performance in production
-3. Begin Phase 2: Make it Reliable (handle MongoDB replica issues)
-4. Phase 3: Make it Fast (batch context expansion, caching)
+### Phase 1 Final Fixes (2025-01-12 - Evening)
+
+**Quick Wins Implemented:**
+
+1. **Modal Timeout Increased** ✅
+   - Changed from 15s to 25s in `lib/embeddings_768d_modal.py`
+   - Should prevent cold start timeouts
+
+2. **Context Expansion Partially Re-enabled** ✅
+   - Modified `api/search_lightweight_768d.py` to expand context for top 3 results only
+   - Balances quality improvement with performance
+   - Adds ~3 extra MongoDB queries instead of 10
+
+**Expected Improvements:**
+- Modal cold starts won't timeout (25s > typical 18-20s cold start)
+- Top 3 search results will have richer context (60s vs 30s snippets)
+- Estimated total response time: ~20-22s (down from 28s)
+- Better answer quality for most important results
+
+### Deployment Status
+- Code changes committed
+- Awaiting deployment to Vercel
+- Will monitor performance metrics after deployment
+
+### Next Steps (Phase 1.5 & 2)
+1. **Implement parallel context expansion** with asyncio.gather() - reduce 3 sequential queries to parallel
+2. **Add MongoDB retry logic** for ReplicaSetNoPrimary errors
+3. **Implement Modal pre-warming endpoint** to eliminate cold starts entirely
+4. Then proceed to Phase 2 & 3 for full reliability and performance optimization
