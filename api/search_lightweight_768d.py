@@ -388,30 +388,44 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             expansion_start = time.time()
             logger.info(f"Starting context expansion for {len(paginated_results)} results")
 
-            for idx, result in enumerate(paginated_results):
+            # Step 1: Prepare all expansion tasks (parallel for top 3)
+            import asyncio
+            expansion_tasks = []
+            for idx, result in enumerate(paginated_results[:3]):  # Only top 3
+                # Create async task for each expansion
+                task = expand_chunk_context(result, context_seconds=20.0)
+                expansion_tasks.append(task)
+
+            # Execute all expansion tasks in parallel
+            expanded_texts = []
+            if expansion_tasks:
                 try:
-                    # TEMPORARY: Skip expansion to fix performance issue
-                    # TODO: Implement batch expansion after confirming this is the bottleneck
+                    logger.info(f"Running {len(expansion_tasks)} context expansions in parallel")
+                    parallel_start = time.time()
+                    expanded_results = await asyncio.gather(*expansion_tasks, return_exceptions=True)
+                    parallel_time = time.time() - parallel_start
+                    logger.info(f"Parallel context expansion completed in {parallel_time:.2f}s")
 
-                    # Log timing for each expansion
-                    chunk_start = time.time()
-
-                    # Expand context for better readability
-                    try:
-                        # Enable context expansion for top 3 results only to balance quality and performance
-                        if idx < 3:
-                            expanded_text = await expand_chunk_context(result, context_seconds=20.0)
-                            logger.info(f"Expanded context for top result {idx+1}/3")
+                    # Process results
+                    for idx, result in enumerate(expanded_results):
+                        if isinstance(result, Exception):
+                            logger.warning(f"Context expansion failed for result {idx+1}: {result}")
+                            expanded_texts.append(paginated_results[idx].get("text", ""))
                         else:
-                            expanded_text = result.get("text", "")  # Use original text for remaining results
-                            logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} (only expanding top 3)")
-                    except Exception as e:
-                        logger.warning(f"Context expansion failed: {e} - using original text")
-                        expanded_text = result.get("text", "")
+                            logger.info(f"Expanded context for top result {idx+1}/3")
+                            expanded_texts.append(result)
+                except Exception as e:
+                    logger.error(f"Parallel expansion failed: {e} - falling back to original text")
+                    expanded_texts = [r.get("text", "") for r in paginated_results[:3]]
 
-                    chunk_time = time.time() - chunk_start
-                    if chunk_time > 0.5:  # Log if any single expansion takes > 500ms
-                        logger.warning(f"Chunk {idx+1} expansion took {chunk_time:.2f}s")
+            # Add non-expanded texts for remaining results
+            for idx in range(3, len(paginated_results)):
+                expanded_texts.append(paginated_results[idx].get("text", ""))
+                logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} (only expanding top 3)")
+
+            # Step 2: Format all results with expanded texts
+            for idx, (result, expanded_text) in enumerate(zip(paginated_results, expanded_texts)):
+                try:
 
                     # Vector search provides chunks with timestamps
                     # Handle published_at - it comes as string from Supabase
