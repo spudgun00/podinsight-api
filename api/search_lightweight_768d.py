@@ -17,7 +17,8 @@ logging.info("[BOOT-FILE] %s  commit=%s",
              __file__,
              os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
 
-from fastapi import HTTPException
+from fastapi import HTTPException, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 logging.getLogger(__name__).warning(
@@ -612,9 +613,6 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
     # )
 
 # Create FastAPI app with CORS for Vercel
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
 app = FastAPI()
 
 # Configure CORS
@@ -630,6 +628,11 @@ app.add_middleware(
 @app.post("/api/search")
 async def search_endpoint(request: SearchRequest) -> SearchResponse:
     return await search_handler_lightweight_768d(request)
+
+# Add OPTIONS handler for CORS preflight
+@app.options("/api/search")
+async def search_options():
+    return {"message": "OK"}
 
 # Export for Vercel
 handler = app
