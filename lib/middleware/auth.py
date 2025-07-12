@@ -23,31 +23,31 @@ _supabase_client: Optional[Client] = None
 def get_supabase_auth_client() -> Client:
     """Get or create Supabase client for auth verification"""
     global _supabase_client
-    
+
     if _supabase_client is None:
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
-        
+
         if not url or not key:
             raise ValueError("Supabase configuration not found")
-            
+
         _supabase_client = create_client(url, key)
-    
+
     return _supabase_client
 
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
     """
     Verify JWT token from Authorization header
-    
+
     Returns:
         Dict containing user info from the token
-    
+
     Raises:
         HTTPException: If token is invalid or expired
     """
     token = credentials.credentials
-    
+
     try:
         # Get Supabase JWT secret
         jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
@@ -57,7 +57,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
                 status_code=500,
                 detail="Authentication service misconfigured"
             )
-        
+
         # Decode and verify the JWT
         payload = jwt.decode(
             token,
@@ -65,7 +65,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             algorithms=["HS256"],
             options={"verify_exp": True}
         )
-        
+
         # Check if token is expired
         exp = payload.get("exp", 0)
         if exp < datetime.utcnow().timestamp():
@@ -73,7 +73,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
                 status_code=401,
                 detail="Token expired"
             )
-        
+
         # Extract user info
         user_info = {
             "user_id": payload.get("sub"),
@@ -81,10 +81,10 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             "role": payload.get("role", "authenticated"),
             "metadata": payload.get("user_metadata", {})
         }
-        
+
         logger.info(f"Authenticated user: {user_info['email']}")
         return user_info
-        
+
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=401,
@@ -107,7 +107,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
 async def require_auth(user: Dict[str, Any] = Depends(verify_token)) -> Dict[str, Any]:
     """
     Dependency to require authentication for an endpoint
-    
+
     Usage:
         @app.get("/protected")
         async def protected_endpoint(user = Depends(require_auth)):
@@ -118,7 +118,7 @@ async def require_auth(user: Dict[str, Any] = Depends(verify_token)) -> Dict[str
             status_code=401,
             detail="User ID not found in token"
         )
-    
+
     return user
 
 
@@ -134,7 +134,7 @@ async def get_current_user(user: Dict[str, Any] = Depends(verify_token)) -> Dict
 def require_role(required_role: str):
     """
     Dependency factory for role-based access control
-    
+
     Usage:
         @app.get("/admin")
         async def admin_endpoint(user = Depends(require_role("admin"))):
@@ -142,16 +142,16 @@ def require_role(required_role: str):
     """
     async def role_checker(user: Dict[str, Any] = Depends(verify_token)) -> Dict[str, Any]:
         user_role = user.get("role", "authenticated")
-        
+
         # Check if user has required role
         if user_role != required_role and user_role != "service_role":
             raise HTTPException(
                 status_code=403,
                 detail=f"Insufficient permissions. Required role: {required_role}"
             )
-        
+
         return user
-    
+
     return role_checker
 
 
