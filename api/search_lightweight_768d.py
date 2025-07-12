@@ -7,6 +7,11 @@ Tertiary: Supabase pgvector (384D)
 import os
 import logging
 from bson import ObjectId
+
+# Ensure correct environment loading BEFORE any other imports
+from lib.env_loader import load_env_safely
+load_env_safely()
+
 logging.basicConfig(level="INFO")
 logging.info("[BOOT-FILE] %s  commit=%s",
              __file__,

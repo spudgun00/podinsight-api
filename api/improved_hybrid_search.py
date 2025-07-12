@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from motor.motor_asyncio import AsyncIOMotorClient
 import numpy as np
 
+# Ensure correct environment loading
+from lib.env_loader import load_env_safely
+load_env_safely()
+
 logger = logging.getLogger(__name__)
 
 # Global instance for connection pooling
@@ -161,20 +165,40 @@ class ImprovedHybridSearch:
         # Important short words in VC domain
         important_short_words = {'ai', 'vc', 'vcs', 'ipo', 'arr', 'b2b', 'b2c', 'yc', 'sfr', 'mvp'}
 
+        # Stop words to skip
+        stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at', 'to', 'of'}
+
         # Weight terms based on domain importance
         terms = {}
         for word in words:
-            if word in self.domain_terms:
+            if word in stop_words:
+                continue
+            elif word in self.domain_terms:
                 terms[word] = self.domain_terms[word]
             elif word in important_short_words:
                 terms[word] = 1.5  # Boost important short words
-            elif len(word) > 3:  # Skip short common words
+            elif len(word) > 2:  # Include slightly shorter words
                 terms[word] = 1.0
 
-        # Add bigrams for phrase matching
+        # Add meaningful bigrams only
+        meaningful_bigram_patterns = [
+            ('ai', 'valuation'), ('ai', 'valuations'),
+            ('ai', 'agent'), ('ai', 'agents'),
+            ('series', 'a'), ('series', 'b'), ('series', 'c'),
+            ('venture', 'capital'), ('vc', 'funding'),
+            ('artificial', 'intelligence'), ('machine', 'learning'),
+            ('startup', 'valuation'), ('startup', 'funding'),
+            ('burn', 'rate'), ('growth', 'rate')
+        ]
+
         for i in range(len(words) - 1):
-            bigram = f"{words[i]} {words[i+1]}"
-            terms[bigram] = 1.5  # Boost phrase matches
+            word1, word2 = words[i].lower(), words[i+1].lower()
+            # Check if this bigram is meaningful
+            if (word1, word2) in meaningful_bigram_patterns or \
+               (word1 in self.domain_terms and word2 in self.domain_terms) or \
+               (word1 in important_short_words and word2 not in stop_words):
+                bigram = f"{word1} {word2}"
+                terms[bigram] = 2.0  # Higher boost for meaningful phrases
 
         return terms
 
@@ -232,16 +256,24 @@ class ImprovedHybridSearch:
     async def _text_search(self, collection, query_terms: Dict[str, float], limit: int) -> List[Dict]:
         """Perform text-based search using MongoDB text index"""
         # Build search string for MongoDB $text operator
-        # Include all terms, with phrases quoted
+        # Focus on important single words and meaningful phrases only
         search_terms = []
+
+        # Common stop words to exclude
+        stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at'}
 
         for term in query_terms:
             if ' ' in term:
-                # Multi-word terms should be quoted for phrase matching
-                search_terms.append(f'"{term}"')
+                # Only include multi-word terms if they're meaningful domain phrases
+                words_in_phrase = term.split()
+                if len(words_in_phrase) == 2:
+                    # Check if both words are meaningful (not stop words)
+                    if not any(w in stop_words for w in words_in_phrase):
+                        search_terms.append(f'"{term}"')
             else:
-                # Single words can be added directly
-                search_terms.append(term)
+                # Single words - only add if not a stop word and has weight > 1.0
+                if term not in stop_words and query_terms[term] >= 1.0:
+                    search_terms.append(term)
 
         # Join all terms with spaces (MongoDB $text uses OR logic by default)
         search_string = ' '.join(search_terms)
