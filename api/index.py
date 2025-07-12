@@ -2,6 +2,7 @@
 # It serves as the composition root, assembling all API features
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .topic_velocity import app as topic_velocity_app
 from .audio_clips import router as audio_clips_router
 from .intelligence import router as intelligence_router
@@ -12,6 +13,15 @@ app = FastAPI(
     title="PodInsightHQ API - Unified",
     description="Unified API for all PodInsight features",
     version="1.0.0"
+)
+
+# Configure CORS for the main app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include the new audio clips router with its own prefix

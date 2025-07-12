@@ -18,7 +18,7 @@ from dateutil import parser
 import os
 import logging
 from supabase import create_client, Client
-from .database import get_pool, SupabasePool
+from lib.database import get_pool, SupabasePool
 # Use lightweight version for Vercel deployment
 # from .search import search_handler, SearchRequest, SearchResponse
 from .search_lightweight_768d import search_handler_lightweight_768d as search_handler, SearchRequest, SearchResponse

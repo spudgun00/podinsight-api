@@ -30,12 +30,12 @@ import asyncio
 import aiohttp
 import time
 from pydantic import BaseModel, Field, validator
-from .database import get_pool
+from lib.database import get_pool
 from .mongodb_search import get_search_handler
 from .improved_hybrid_search import get_hybrid_search_handler
 # Import from root lib directory
 from lib.embedding_utils import embed_query, validate_embedding
-from .synthesis import synthesize_with_retry, Citation
+from lib.synthesis import synthesize_with_retry, Citation
 
 # Configure logging
 logger = logging.getLogger(__name__)
