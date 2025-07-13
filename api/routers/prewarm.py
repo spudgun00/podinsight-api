@@ -24,7 +24,7 @@ async def prewarm_modal():
     """
     try:
         # Import here to avoid circular imports
-        from .search_lightweight_768d import generate_embedding_768d_local
+        from ..search_lightweight_768d import generate_embedding_768d_local
 
         # Log prewarm initiation
         logger.info("🔥 Modal pre-warming initiated")
@@ -45,7 +45,7 @@ async def _warm_modal():
     start_time = time.time()
 
     try:
-        from .search_lightweight_768d import generate_embedding_768d_local
+        from ..search_lightweight_768d import generate_embedding_768d_local
 
         # Use a simple test query that Modal can cache
         test_query = "warm"

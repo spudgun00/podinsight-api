@@ -4,9 +4,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .topic_velocity import app as topic_velocity_app
-from .audio_clips import router as audio_clips_router
-from .intelligence import router as intelligence_router
-from .prewarm import router as prewarm_router
+from .routers.audio_clips import router as audio_clips_router
+from .routers.intelligence import router as intelligence_router
+from .routers.prewarm import router as prewarm_router
 
 # Create the main app that will compose all features
 app = FastAPI(
