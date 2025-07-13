@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 # Debug mode from environment
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
+# Search quality constants
+RELEVANCE_THRESHOLD = 0.6  # Minimum score for results to be considered relevant
+CANDIDATE_FETCH_LIMIT = 25  # Number of candidates to fetch from DB before filtering
+
 # Use same request/response models
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Search query")
@@ -322,11 +326,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             # Use hybrid search for better relevance
             logger.info(f"Using MongoDB hybrid search (vector + text): {clean_query}")
 
-            # Always fetch 10 chunks for synthesis, regardless of requested limit
-            # But also fetch enough for pagination
-            num_for_synthesis = 10
-            num_to_fetch = max(num_for_synthesis, request.limit + request.offset)
-            logger.info(f"Calling hybrid search with limit={num_to_fetch}")
+            # Fetch more candidates than needed to filter by quality
+            # This ensures we get enough high-quality results after filtering
+            num_to_fetch = CANDIDATE_FETCH_LIMIT
+            logger.info(f"Calling hybrid search with limit={num_to_fetch} (will filter by relevance >= {RELEVANCE_THRESHOLD})")
             logger.warning(
                 "[HYBRID_HANDLER] about to call %s from module %s",
                 hybrid_handler.__class__.__qualname__,
@@ -377,8 +380,20 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 else:
                     logger.info(f"[DEBUG] vector_results_top_score: N/A (no results)")
 
+            # Filter results by relevance threshold
+            high_quality_results = [
+                r for r in vector_results
+                if r.get('score', 0) >= RELEVANCE_THRESHOLD
+            ]
+            logger.info(f"Quality filtering: {len(vector_results)} candidates -> {len(high_quality_results)} quality results (threshold={RELEVANCE_THRESHOLD})")
+
+            # Log quality distribution
+            if vector_results:
+                scores = [r.get('score', 0) for r in vector_results]
+                logger.info(f"Score distribution: min={min(scores):.3f}, max={max(scores):.3f}, above_threshold={len(high_quality_results)}")
+
             # Apply offset - slice from offset to end, not offset+limit
-            paginated_results = vector_results[request.offset:]
+            paginated_results = high_quality_results[request.offset:]
             if len(paginated_results) > request.limit:
                 paginated_results = paginated_results[:request.limit]
             logger.info(f"After pagination: {len(paginated_results)} results (offset={request.offset}, limit={request.limit})")
@@ -388,10 +403,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             expansion_start = time.time()
             logger.info(f"Starting context expansion for {len(paginated_results)} results")
 
-            # Step 1: Prepare all expansion tasks (parallel for top 3)
+            # Step 1: Prepare all expansion tasks (parallel for all quality results)
             import asyncio
             expansion_tasks = []
-            for idx, result in enumerate(paginated_results[:3]):  # Only top 3
+            for idx, result in enumerate(paginated_results):  # All quality results get context
                 # Create async task for each expansion
                 task = expand_chunk_context(result, context_seconds=20.0)
                 expansion_tasks.append(task)
@@ -412,16 +427,11 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                             logger.warning(f"Context expansion failed for result {idx+1}: {result}")
                             expanded_texts.append(paginated_results[idx].get("text", ""))
                         else:
-                            logger.info(f"Expanded context for top result {idx+1}/3")
+                            logger.info(f"Expanded context for result {idx+1}/{len(expansion_tasks)}")
                             expanded_texts.append(result)
                 except Exception as e:
                     logger.error(f"Parallel expansion failed: {e} - falling back to original text")
-                    expanded_texts = [r.get("text", "") for r in paginated_results[:3]]
-
-            # Add non-expanded texts for remaining results
-            for idx in range(3, len(paginated_results)):
-                expanded_texts.append(paginated_results[idx].get("text", ""))
-                logger.info(f"Skipping expansion for chunk {idx+1}/{len(paginated_results)} (only expanding top 3)")
+                    expanded_texts = [r.get("text", "") for r in paginated_results]
 
             # Step 2: Format all results with expanded texts
             for idx, (result, expanded_text) in enumerate(zip(paginated_results, expanded_texts)):
@@ -513,10 +523,10 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 answer_object = None
                 synthesis_start = time.time()
                 try:
-                    # Use the first 10 raw vector results for synthesis (before pagination)
+                    # Use only high-quality results for synthesis
                     # Clean ObjectIds from chunks to avoid serialization issues
                     chunks_for_synthesis = []
-                    for chunk in vector_results[:num_for_synthesis]:
+                    for chunk in high_quality_results[:10]:  # Cap at 10 for synthesis
                         # Make a copy to avoid modifying original
                         clean_chunk = chunk.copy()
                         # Convert ObjectId to string if present

@@ -231,7 +231,7 @@ class ImprovedHybridSearch:
                     }
                 },
                 {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
-                {"$match": {"score": {"$gte": 0.4}}},  # Lowered threshold for better recall
+                # {"$match": {"score": {"$gte": 0.4}}},  # Removed - filtering done in application layer
                 # Add lookup to join episode_metadata for missing fields
                 {
                     "$lookup": {
