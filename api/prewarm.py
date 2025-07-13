@@ -23,7 +23,7 @@ async def prewarm_modal():
     """
     try:
         # Import here to avoid circular imports
-        from .search_lightweight_768d import generate_embedding_768d_local
+        from api.search_lightweight_768d import generate_embedding_768d_local
 
         # Create a background task to warm Modal
         # Using a simple, cacheable query
@@ -31,14 +31,14 @@ async def prewarm_modal():
 
         return {"status": "warming", "message": "Modal pre-warming initiated"}
     except Exception as e:
-        logger.warning(f"Pre-warming failed to start: {e}")
+        logger.error(f"Pre-warming failed to start: {e}", exc_info=True)
         # Don't fail the request - pre-warming is optional
-        return {"status": "skipped", "message": "Pre-warming unavailable"}
+        return {"status": "skipped", "message": f"Pre-warming unavailable: {str(e)}"}
 
 async def _warm_modal():
     """Background task to actually warm Modal"""
     try:
-        from .search_lightweight_768d import generate_embedding_768d_local
+        from api.search_lightweight_768d import generate_embedding_768d_local
 
         # Use a simple test query that Modal can cache
         test_query = "warm"
@@ -54,4 +54,4 @@ async def _warm_modal():
 
     except Exception as e:
         # Log but don't raise - this is a best-effort operation
-        logger.warning(f"Modal pre-warm failed: {e}")
+        logger.error(f"Modal pre-warm failed: {e}", exc_info=True)
