@@ -749,3 +749,73 @@ This section documents the critical decisions made during the investigation and 
 5. **Priority**: Get it working for demo, then optimize
 
 These decisions reflect a pragmatic approach balancing urgency with code quality, appropriate for a pre-production feature with an imminent demo deadline.
+
+---
+
+## 🔧 Vercel Function Discovery Issue (2025-01-13)
+
+### The Problem
+
+**Error**: "Missing variable handler or app in file api/prewarm.py"
+
+**Context**: Despite `vercel.json` explicitly configuring only `api/index.py` as a function, Vercel was still trying to execute `prewarm.py` as a standalone serverless function.
+
+### Root Cause Analysis
+
+1. **Vercel's File-System Routing**:
+   - Automatically treats every `.py` file in `/api/` root as a potential function
+   - The `functions` property in `vercel.json` configures settings but doesn't prevent discovery
+   - Creates "zombie" functions that fail at runtime
+
+2. **Architecture Mismatch**:
+   - `prewarm.py` exports a FastAPI router (for inclusion in main app)
+   - Vercel expects `handler` or `app` export for standalone functions
+   - Frontend proxy calls `/api/prewarm` expecting it to work through main app
+
+### Solution: Directory Restructuring
+
+**Approach**: Move router-based modules to a subdirectory where Vercel won't discover them.
+
+**Implementation**:
+```bash
+# Created new structure:
+api/
+├── routers/              # New subdirectory for router modules
+│   ├── __init__.py
+│   ├── prewarm.py       # Moved from api/
+│   ├── audio_clips.py   # Moved from api/
+│   └── intelligence.py  # Moved from api/
+├── index.py             # Main entry point (only function)
+├── topic_velocity.py    # Standalone endpoint
+├── search_lightweight_768d.py
+└── ... other standalone endpoints
+```
+
+**Code Changes**:
+1. Updated imports in `api/index.py`:
+   ```python
+   from .routers.audio_clips import router as audio_clips_router
+   from .routers.intelligence import router as intelligence_router
+   from .routers.prewarm import router as prewarm_router
+   ```
+
+2. Fixed relative imports in moved files:
+   ```python
+   # In api/routers/prewarm.py
+   from ..search_lightweight_768d import generate_embedding_768d_local
+   ```
+
+### Why This Works
+
+- Vercel only discovers `.py` files in the root of `/api/`
+- Subdirectory files are treated as modules, not functions
+- Main app at `api/index.py` includes all routers correctly
+- All rewrites in `vercel.json` continue to work
+- Frontend proxy pattern remains unchanged
+
+### Lessons Learned
+
+1. **Vercel's Discovery is Aggressive**: Can't be disabled via configuration
+2. **Directory Structure Matters**: Use subdirectories for non-entry modules
+3. **Router Pattern**: Keep routers separate from standalone functions
+4. **Frontend Proxy Pattern**: Works well regardless of backend structure

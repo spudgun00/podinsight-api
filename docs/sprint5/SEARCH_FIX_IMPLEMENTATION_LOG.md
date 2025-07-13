@@ -449,3 +449,40 @@ During Sprint 5 completion testing, we discovered quality issues that need immed
 3. **Implement fuzzy matching** for transcription errors
 4. **Show confidence scores** in UI
 5. **Consider different thresholds** for different query types
+
+---
+
+## 2025-01-13 - Prewarm Endpoint Fix (Redux)
+
+### Vercel Runtime Error Investigation
+**Time: 6:00 PM - 7:00 PM**
+
+**Issue**: "Missing variable handler or app in file api/prewarm.py"
+
+**Investigation with Gemini ThinkDeep**:
+1. Initially thought build was failing - it wasn't
+2. Real issue: Runtime error when Vercel tries to execute prewarm.py as standalone function
+3. Despite vercel.json limiting functions to index.py only, Vercel still discovers all .py files
+
+**Root Cause**:
+- Vercel's file-system routing treats every .py file in /api/ as a potential function
+- The `functions` property in vercel.json configures settings but doesn't prevent discovery
+- Frontend proxy at app/api/prewarm/route.ts expects backend at /api/prewarm
+
+**Solution Implemented**: Restructured API directory
+1. Created `api/routers/` directory
+2. Moved router-based files to prevent Vercel discovery:
+   - `api/prewarm.py` → `api/routers/prewarm.py`
+   - `api/audio_clips.py` → `api/routers/audio_clips.py`
+   - `api/intelligence.py` → `api/routers/intelligence.py`
+3. Updated imports in `api/index.py`
+4. Fixed relative imports in prewarm.py (`.search_lightweight_768d` → `..search_lightweight_768d`)
+5. Added `__init__.py` to make routers a proper Python package
+
+**Why This Works**:
+- Vercel only treats Python files in the root of `/api/` as serverless functions
+- Files in subdirectories are treated as modules, not functions
+- The main app at `api/index.py` still includes all routers correctly
+- Frontend proxy continues to work as expected
+
+**Status**: ✅ Successfully deployed - prewarm endpoint now working without runtime errors
