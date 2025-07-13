@@ -255,3 +255,4 @@ MIT License - see LICENSE file for details
 - [podinsight-etl](https://github.com/spudgun00/podinsight-etl) - ETL pipeline for processing podcast data
 - [podinsight-frontend](https://github.com/spudgun00/podinsight-frontend) - React frontend (coming soon)
 # Trigger deployment
+# Trigger Vercel deployment - Sun Jul 13 08:36:18 BST 2025
