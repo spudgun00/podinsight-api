@@ -183,6 +183,20 @@ class ImprovedHybridSearch:
         # Stop words to skip
         stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at', 'to', 'of'}
 
+        # Synonym mapping for common VC terms
+        synonyms = {
+            'ai': ['artificial intelligence', 'ml', 'machine learning', 'deep learning'],
+            'vcs': ['venture capitalists', 'investors', 'venture capital'],
+            'vc': ['venture capitalist', 'investor', 'venture capital'],
+            'valuations': ['valuation', 'valued', 'pricing', 'price', 'worth'],
+            'valuation': ['valuations', 'valued', 'pricing', 'price', 'worth'],
+            'startup': ['startups', 'company', 'companies'],
+            'startups': ['startup', 'company', 'companies'],
+            'funding': ['investment', 'raise', 'round', 'capital'],
+            'crypto': ['cryptocurrency', 'blockchain', 'web3'],
+            'saas': ['software as a service', 'subscription']
+        }
+
         # Weight terms based on domain importance
         terms = {}
         for word in words:
@@ -190,10 +204,22 @@ class ImprovedHybridSearch:
                 continue
             elif word in self.domain_terms:
                 terms[word] = self.domain_terms[word]
+                # Add synonyms for domain terms
+                if word.lower() in synonyms:
+                    for syn in synonyms[word.lower()]:
+                        terms[syn] = self.domain_terms[word] * 0.8  # Slightly lower weight for synonyms
             elif word in important_short_words:
                 terms[word] = 1.5  # Boost important short words
+                # Add synonyms for important terms
+                if word.lower() in synonyms:
+                    for syn in synonyms[word.lower()]:
+                        terms[syn] = 1.2
             elif len(word) > 2:  # Include slightly shorter words
                 terms[word] = 1.0
+                # Check for synonyms
+                if word.lower() in synonyms:
+                    for syn in synonyms[word.lower()]:
+                        terms[syn] = 0.8
 
         # Add meaningful bigrams only
         meaningful_bigram_patterns = [
@@ -480,11 +506,12 @@ class ImprovedHybridSearch:
                     0.2 * domain_boost
                 )
             else:
-                # Default: Vector: 40%, Text: 40%, Domain boost: 20%
+                # Adjusted weights: Vector: 60%, Text: 25%, Domain boost: 15%
+                # Increased vector weight since text search often fails in transcripts
                 hybrid_score = (
-                    0.4 * chunk_data['vector_score'] +
-                    0.4 * chunk_data['text_score'] +
-                    0.2 * domain_boost
+                    0.6 * chunk_data['vector_score'] +
+                    0.25 * chunk_data['text_score'] +
+                    0.15 * domain_boost
                 )
 
             # Boost if contains exact phrases
