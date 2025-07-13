@@ -26,6 +26,9 @@ async def prewarm_modal():
         # Import here to avoid circular imports
         from .search_lightweight_768d import generate_embedding_768d_local
 
+        # Log prewarm initiation
+        logger.info("🔥 Modal pre-warming initiated")
+
         # Create a background task to warm Modal
         # Using a simple, cacheable query
         asyncio.create_task(_warm_modal())
@@ -38,24 +41,37 @@ async def prewarm_modal():
 
 async def _warm_modal():
     """Background task to actually warm Modal"""
+    import time
+    start_time = time.time()
+
     try:
         from .search_lightweight_768d import generate_embedding_768d_local
 
         # Use a simple test query that Modal can cache
         test_query = "warm"
-        logger.info("Starting Modal pre-warm with test query")
+        logger.info("🚀 Starting Modal pre-warm with test query")
 
         # This will trigger Modal to load the model
+        embedding_start = time.time()
         result = await generate_embedding_768d_local(test_query)
+        embedding_time = time.time() - embedding_start
 
         if result:
-            logger.info("Modal pre-warm successful")
+            total_time = time.time() - start_time
+            logger.info(f"✅ Modal pre-warm successful! Total time: {total_time:.2f}s, Embedding time: {embedding_time:.2f}s")
+
+            # Log if it was a cold start vs warm instance
+            if embedding_time > 5.0:
+                logger.info(f"🥶 Modal cold start detected (took {embedding_time:.2f}s)")
+            else:
+                logger.info(f"🔥 Modal warm instance (took {embedding_time:.2f}s)")
         else:
-            logger.warning("Modal pre-warm returned no result")
+            logger.warning("⚠️ Modal pre-warm returned no result")
 
     except Exception as e:
         # Log but don't raise - this is a best-effort operation
-        logger.error(f"Modal pre-warm failed: {e}", exc_info=True)
+        total_time = time.time() - start_time
+        logger.error(f"❌ Modal pre-warm failed after {total_time:.2f}s: {e}", exc_info=True)
 
 # Export router for inclusion in main app
 # Note: The handler export is not needed when using router pattern

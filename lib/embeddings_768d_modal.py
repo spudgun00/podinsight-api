@@ -79,7 +79,7 @@ class ModalInstructorXLEmbedder:
         """
         import time
         start_time = time.time()
-        logger.info(f"Starting Modal embedding request for: '{query[:50]}...'")
+        logger.info(f"🔄 Starting Modal embedding request for: '{query[:50]}...'")
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -100,7 +100,12 @@ class ModalInstructorXLEmbedder:
                     timeout=aiohttp.ClientTimeout(total=25)  # 25s timeout to handle cold starts
                 ) as response:
                     elapsed = time.time() - start_time
-                    logger.info(f"Modal API responded in {elapsed:.2f}s with status {response.status}")
+
+                    # Log based on response time to identify cold/warm starts
+                    if elapsed > 5.0:
+                        logger.info(f"🥶 Modal API responded in {elapsed:.2f}s (cold start) with status {response.status}")
+                    else:
+                        logger.info(f"🔥 Modal API responded in {elapsed:.2f}s (warm) with status {response.status}")
 
                     if response.status == 200:
                         data = await response.json()
@@ -111,7 +116,7 @@ class ModalInstructorXLEmbedder:
                             logger.warning(f"Detected nested embedding array, flattening...")
                             embedding = embedding[0]
 
-                        logger.info(f"Generated 768D embedding via Modal for: {query[:50]}... (dim: {len(embedding) if embedding else 0})")
+                        logger.info(f"✅ Generated 768D embedding via Modal for: {query[:50]}... (dim: {len(embedding) if embedding else 0}, total time: {elapsed:.2f}s)")
                         return embedding
                     else:
                         error_text = await response.text()
