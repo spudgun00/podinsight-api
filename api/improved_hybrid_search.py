@@ -183,18 +183,18 @@ class ImprovedHybridSearch:
         # Stop words to skip
         stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at', 'to', 'of'}
 
-        # Synonym mapping for common VC terms
+        # Synonym mapping for common VC terms (limited to 2-3 per term to prevent query explosion)
         synonyms = {
-            'ai': ['artificial intelligence', 'ml', 'machine learning', 'deep learning'],
-            'vcs': ['venture capitalists', 'investors', 'venture capital'],
-            'vc': ['venture capitalist', 'investor', 'venture capital'],
-            'valuations': ['valuation', 'valued', 'pricing', 'price', 'worth'],
-            'valuation': ['valuations', 'valued', 'pricing', 'price', 'worth'],
-            'startup': ['startups', 'company', 'companies'],
-            'startups': ['startup', 'company', 'companies'],
-            'funding': ['investment', 'raise', 'round', 'capital'],
-            'crypto': ['cryptocurrency', 'blockchain', 'web3'],
-            'saas': ['software as a service', 'subscription']
+            'ai': ['artificial intelligence', 'ml'],  # Removed 'machine learning', 'deep learning'
+            'vcs': ['venture capitalists', 'investors'],  # Removed 'venture capital'
+            'vc': ['venture capitalist', 'investor'],  # Removed 'venture capital'
+            'valuations': ['valuation', 'pricing'],  # Removed 'valued', 'price', 'worth'
+            'valuation': ['valuations', 'pricing'],  # Removed 'valued', 'price', 'worth'
+            'startup': ['startups', 'company'],  # Removed 'companies'
+            'startups': ['startup', 'company'],  # Removed 'companies'
+            'funding': ['investment', 'raise'],  # Removed 'round', 'capital'
+            'crypto': ['cryptocurrency', 'blockchain'],  # Removed 'web3'
+            'saas': ['software as a service']  # Removed 'subscription'
         }
 
         # Weight terms based on domain importance
@@ -305,7 +305,13 @@ class ImprovedHybridSearch:
         # Common stop words to exclude
         stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at'}
 
+        # Limit total search terms to prevent query explosion
+        MAX_SEARCH_TERMS = 12
+
         for term in query_terms:
+            if len(search_terms) >= MAX_SEARCH_TERMS:
+                break  # Stop adding terms once we hit the limit
+
             if ' ' in term:
                 # Only include multi-word terms if they're meaningful domain phrases
                 words_in_phrase = term.split()
