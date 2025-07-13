@@ -44,8 +44,9 @@ logger = logging.getLogger(__name__)
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
 # Search quality constants
-RELEVANCE_THRESHOLD = 0.6  # Minimum score for results to be considered relevant
+RELEVANCE_THRESHOLD = 0.42  # Minimum score for results to be considered relevant (adjusted for hybrid scoring range)
 CANDIDATE_FETCH_LIMIT = 25  # Number of candidates to fetch from DB before filtering
+MAX_CONTEXT_EXPANSIONS = 8  # Maximum number of results to expand context for (performance cap)
 
 # Use same request/response models
 class SearchRequest(BaseModel):
@@ -403,13 +404,19 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
             expansion_start = time.time()
             logger.info(f"Starting context expansion for {len(paginated_results)} results")
 
-            # Step 1: Prepare all expansion tasks (parallel for all quality results)
+            # Step 1: Prepare all expansion tasks (parallel for quality results up to cap)
             import asyncio
             expansion_tasks = []
-            for idx, result in enumerate(paginated_results):  # All quality results get context
+            # Limit expansions to prevent performance issues with broad queries
+            results_to_expand = paginated_results[:MAX_CONTEXT_EXPANSIONS]
+            for idx, result in enumerate(results_to_expand):
                 # Create async task for each expansion
                 task = expand_chunk_context(result, context_seconds=20.0)
                 expansion_tasks.append(task)
+
+            # Track which results won't get expanded
+            if len(paginated_results) > MAX_CONTEXT_EXPANSIONS:
+                logger.info(f"Capping context expansion at {MAX_CONTEXT_EXPANSIONS} results (total: {len(paginated_results)})")
 
             # Execute all expansion tasks in parallel
             expanded_texts = []
@@ -431,7 +438,12 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                             expanded_texts.append(result)
                 except Exception as e:
                     logger.error(f"Parallel expansion failed: {e} - falling back to original text")
-                    expanded_texts = [r.get("text", "") for r in paginated_results]
+                    expanded_texts = [r.get("text", "") for r in results_to_expand]
+
+            # Add non-expanded texts for remaining results
+            for idx in range(len(results_to_expand), len(paginated_results)):
+                expanded_texts.append(paginated_results[idx].get("text", ""))
+                logger.info(f"Using original text for result {idx+1} (expansion cap reached)")
 
             # Step 2: Format all results with expanded texts
             for idx, (result, expanded_text) in enumerate(zip(paginated_results, expanded_texts)):

@@ -5,7 +5,8 @@ Triggers a lightweight embedding request to warm up the Modal endpoint
 
 import asyncio
 import logging
-from fastapi import APIRouter
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure correct environment loading
 from lib.env_loader import load_env_safely
@@ -13,9 +14,19 @@ load_env_safely()
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+# Create FastAPI app for Vercel
+app = FastAPI()
 
-@router.post("/api/prewarm")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.post("/api/prewarm")
 async def prewarm_modal():
     """
     Fire-and-forget endpoint to warm up Modal.
@@ -55,3 +66,6 @@ async def _warm_modal():
     except Exception as e:
         # Log but don't raise - this is a best-effort operation
         logger.error(f"Modal pre-warm failed: {e}", exc_info=True)
+
+# Export handler for Vercel
+handler = app

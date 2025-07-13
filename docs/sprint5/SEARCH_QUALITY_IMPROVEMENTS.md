@@ -5,6 +5,12 @@
 
 ## Changes Implemented
 
+### Critical Fix: Threshold Adjustment (2025-01-13)
+After deployment, discovered that 0.6 threshold was too high for the scoring mechanism.
+- Hybrid scores range from 0.385 to 0.425
+- Adjusted `RELEVANCE_THRESHOLD` from 0.6 to 0.42
+- Added `MAX_CONTEXT_EXPANSIONS = 8` to cap performance impact
+
 ### 1. Removed Database-Level Filtering
 **File**: `api/improved_hybrid_search.py`
 **Line**: 234
