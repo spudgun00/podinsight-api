@@ -189,3 +189,204 @@
 2. **Add MongoDB retry logic** for ReplicaSetNoPrimary errors
 3. **Implement Modal pre-warming endpoint** to eliminate cold starts entirely
 4. Then proceed to Phase 2 & 3 for full reliability and performance optimization
+
+---
+
+## CORS Issue Investigation (2025-01-13)
+
+### Failed Attempt Summary
+
+**Time: 7:00 AM - 8:30 AM**
+
+**Problem**: Frontend getting CORS errors when calling backend search API directly
+
+**Attempted Solutions That Failed**:
+
+1. **CORS Headers in vercel.json** ❌
+   - Already configured but not working
+   - Headers only apply when function responds successfully
+
+2. **Create search.py wrapper** ❌
+   - Created minimal wrapper to handle CORS
+   - Caused module import failures: `TypeError: issubclass() arg 1 must be a class`
+   - Broke entire backend (all endpoints returning 500)
+
+3. **Fix FastAPI app creation** ❌
+   - Found search_lightweight_768d.py was creating its own FastAPI app
+   - Removed app creation but backend still broken
+   - Multiple file imports were corrupted
+
+**Root Cause of Backend Failure**:
+- search_lightweight_768d.py was creating `app = FastAPI()` at module level
+- This broke the import chain when topic_velocity.py imported it
+- Removing it wasn't enough - other import issues remained
+
+**Frontend Proxy Solution** ✅:
+- Created `/app/api/search/route.ts` in frontend to proxy requests
+- This bypasses CORS entirely (same-origin request)
+- Working solution but backend still needs to be fixed
+
+**Current Status**:
+- Backend rolled back to commit a541bbb (10 hours ago)
+- All CORS fix attempts have been reverted
+- Backend is being redeployed to restore functionality
+- Frontend proxy has been removed (reverted to direct API calls)
+
+### Lessons Learned
+
+1. **CORS is a symptom, not the cause**
+   - When backend crashes, it can't send CORS headers
+   - This makes CORS errors appear when the real issue is backend failure
+
+2. **Module-level side effects are dangerous**
+   - Creating FastAPI apps at import time breaks modular architecture
+   - Files should export routers/handlers, not create apps
+
+3. **Frontend proxy is the simplest solution**
+   - Completely bypasses CORS complexity
+   - Already proven pattern (prewarm endpoint uses it)
+   - Should be implemented when backend is stable
+
+### Fresh Approach Needed
+
+**For CORS Issue**:
+1. ✅ Backend stabilized after rollback to commit a541bbb
+2. Frontend must implement proxy pattern (see CORS_POLICY.md)
+3. Backend CORS handling is correct - no modifications needed
+
+**Official Policy Created**: See `/docs/sprint5/CORS_POLICY.md` for the mandatory frontend proxy pattern.
+
+**For Search Performance**:
+1. Continue with Phase 2 optimizations
+2. Focus on Modal pre-warming
+3. Implement parallel context expansion
+
+### Action Items
+
+**Frontend Team**:
+- [ ] Create `/app/api/search/route.ts` proxy
+- [ ] Update `ai-search-modal-enhanced.tsx` to use `/api/search` instead of full URL
+- [ ] Test search functionality with proxy
+- [ ] Document completion in CORS_POLICY.md
+
+**Backend Team**:
+- [x] Backend restored and working
+- [x] Phase 2 performance optimizations COMPLETE
+- [x] DO NOT modify anything for CORS
+
+---
+
+## 2025-01-13 - Sprint 5 Completion
+
+### MongoDB Resilience Implementation (Phase 2)
+**Time: 9:00 AM - 10:00 AM**
+
+**Changes Made**:
+1. **Reduced MongoDB timeouts** from 20s to 5s in `improved_hybrid_search.py`
+2. **Added retry logic** with `with_mongodb_retry()` function
+3. **Wrapped all aggregate calls** with retry wrapper
+4. **Fixed import errors** - changed `NotMasterError` to `NotPrimaryError`
+
+**Results**:
+- MongoDB latency reduced from 5.8s to 2.15s (63% improvement)
+- Graceful handling of replica set elections
+- No more infinite waits during MongoDB issues
+
+### Prewarm Endpoint Fix
+**Time: 10:00 AM - 11:00 AM**
+
+**Issue**: Frontend proxy working but backend returning 500 errors
+**Root Cause**: Relative imports failing in Vercel environment
+**Fix**: Changed relative imports to absolute imports in `api/prewarm.py`
+
+**Results**:
+- Prewarm endpoint now working correctly
+- Modal stays warm between searches
+- Modal response time: 0.46s (down from 9.88s cold start)
+
+### Final Performance Testing
+**Time: 11:00 AM**
+
+**Test Results**:
+- **Total search time: 4.38s** ✅ (Target was 5s)
+- **Modal**: 0.46s (warm)
+- **MongoDB**: 2.15s (with retry logic)
+- **Context expansion**: 0.15s (parallel)
+- **OpenAI synthesis**: ~1.5s
+
+### Summary of All Changes
+
+**Files Modified**:
+1. `lib/embedding_utils.py` - Made async
+2. `api/search_lightweight_768d.py` - Added await calls
+3. `lib/embeddings_768d_modal.py` - Kept 25s timeout, added retry
+4. `api/improved_hybrid_search.py` - MongoDB resilience
+5. `api/prewarm.py` - Fixed imports
+
+**Total Improvement**: 14.3s → 4.38s (69% faster!)
+
+### What's Next
+
+**Remaining Optimizations (Optional)**:
+- Redis caching for common queries
+- Streaming results for progressive UI
+- Full batch context expansion (currently top 3 only)
+
+**Production Considerations**:
+- Monitor MongoDB "ReplicaSetNoPrimary" frequency
+- Consider increasing prewarm frequency during peak hours
+- Add monitoring for search performance metrics
+
+**Status**: Sprint 5 COMPLETE - Search optimization successful! 🎉
+
+---
+
+## Next Sprint Planning - Search Quality Improvements
+
+### Critical Issues Identified
+
+During Sprint 5 completion testing, we discovered quality issues that need immediate attention:
+
+**1. Relevance Threshold Set Too Low**
+- Current: 0.4 (40%) - accepts poor quality results
+- Location: `improved_hybrid_search.py` line 234
+- Impact: Users see 10 mediocre results instead of 3 great ones
+- Example: "AI valuations" query returns results with only 38.7% confidence
+
+**2. Fixed 10-Result Display**
+- Always shows 10 results regardless of quality
+- Even when only 2-3 are actually relevant
+- Wastes user time with low-quality padding
+
+**3. Context Expansion Limited**
+- Only top 3 results get expanded context
+- Results 4-10 (if relevant) lack conversation context
+- Should be based on relevance score, not rank
+
+### Sprint 6 Objectives
+
+**Priority 1: Improve Result Quality**
+- Raise relevance threshold to 0.6-0.7
+- Test impact on result counts
+- Ensure critical queries still return results
+
+**Priority 2: Dynamic Result Count**
+- Show only results above quality threshold
+- Min: 1 result, Max: 10 results
+- Add "no results found" handling
+
+**Priority 3: Smart Context Expansion**
+- Expand context for ALL results >0.6 relevance
+- Keep performance under 5 seconds
+- Monitor memory usage
+
+**Priority 4: UI Improvements**
+- Show confidence scores to users
+- Visual indicators for high/medium/low confidence
+- "Load more" option for edge cases
+
+### Success Metrics
+- Average result relevance >0.7
+- User satisfaction with result quality
+- Search time remains <5 seconds
+- Reduced "noise" in search results
