@@ -11,6 +11,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect, NotPrimaryError
 import numpy as np
 
 # Ensure correct environment loading
@@ -21,6 +22,20 @@ logger = logging.getLogger(__name__)
 
 # Global instance for connection pooling
 _hybrid_handler_instance = None
+
+
+async def with_mongodb_retry(func, max_retries=2):
+    """Retry MongoDB operations during replica set elections"""
+    for attempt in range(max_retries + 1):
+        try:
+            return await func()
+        except (ServerSelectionTimeoutError, AutoReconnect, NotPrimaryError) as e:
+            if attempt < max_retries:
+                logger.warning(f"MongoDB transient error: {type(e).__name__}, retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(1)  # Wait 1s before retry
+            else:
+                logger.error(f"MongoDB failed after {max_retries + 1} attempts: {e}")
+                raise
 
 
 @dataclass
@@ -88,9 +103,9 @@ class ImprovedHybridSearch:
             logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=20000,  # Increased to 20s for text search reliability
-                connectTimeoutMS=20000,  # Increased to 20s
-                socketTimeoutMS=20000,  # Increased to 20s
+                serverSelectionTimeoutMS=5000,  # Fail fast at 5s for better responsiveness
+                connectTimeoutMS=5000,  # Fail fast at 5s
+                socketTimeoutMS=5000,  # Fail fast at 5s
                 maxPoolSize=10,
                 retryWrites=True
             )
@@ -246,7 +261,9 @@ class ImprovedHybridSearch:
                 }
             ]
 
-            results = await collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+            results = await with_mongodb_retry(
+                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+            )
             return results
 
         except Exception as e:
@@ -323,7 +340,9 @@ class ImprovedHybridSearch:
                 }
             ]
 
-            results = await collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+            results = await with_mongodb_retry(
+                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+            )
             return results
 
         except Exception as e:
@@ -375,7 +394,9 @@ class ImprovedHybridSearch:
                     }
                 ]
 
-                results = await collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                results = await with_mongodb_retry(
+                    lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                )
                 logger.info(f"[TEXT_SEARCH] Regex fallback returned {len(results)} results")
                 return results
 
