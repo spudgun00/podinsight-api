@@ -819,3 +819,70 @@ api/
 2. **Directory Structure Matters**: Use subdirectories for non-entry modules
 3. **Router Pattern**: Keep routers separate from standalone functions
 4. **Frontend Proxy Pattern**: Works well regardless of backend structure
+
+---
+
+## 🏁 Prewarm Race Condition Fix (2025-01-14)
+
+### The Problem
+
+Even after implementing the prewarm endpoint, searches were still timing out with cold Modal instances.
+
+**Symptoms**:
+- Prewarm returned 200 OK immediately
+- Search request right after still hit 16.94s cold start
+- Resulted in 504 Gateway Timeout
+
+### Root Cause: Fire-and-Forget Pattern
+
+The prewarm endpoint used `asyncio.create_task()` which created a race condition:
+
+```python
+# OLD CODE - Race condition
+asyncio.create_task(_warm_modal())  # Returns immediately
+return {"status": "warming"}  # Frontend thinks it's ready!
+```
+
+Timeline:
+1. Frontend calls prewarm → Gets 200 OK instantly
+2. Frontend immediately calls search
+3. Modal is still cold-starting in background
+4. Search hits cold Modal → 17s delay → Timeout
+
+### Solution: Synchronous Prewarm
+
+Made the endpoint wait for Modal to actually warm up:
+
+```python
+# NEW CODE - No race condition
+result = await generate_embedding_768d_local("warm")  # Wait for completion
+return {"status": "warmed", "time": embedding_time}
+```
+
+### Implementation Details
+
+**Backend Changes**:
+- Changed from fire-and-forget to synchronous await
+- Removed background task function
+- Added status responses indicating cold vs warm state
+- Returns only after Modal is confirmed warm
+
+**Frontend Requirements**:
+- Timeout must be > 20 seconds (set to 25s)
+- Show "Warming up..." message during prewarm
+- Block searches while warming in progress
+- Maintain cooldown between prewarms
+
+### Results
+
+- ✅ No more race conditions
+- ✅ Guaranteed warm Modal for searches
+- ✅ No more 504 timeouts
+- ✅ Clear user feedback during warming
+
+### Lessons Learned
+
+1. **Fire-and-forget is risky** for operations that subsequent requests depend on
+2. **Explicit waiting** is better than hoping timing works out
+3. **User feedback** during long operations improves perceived performance
+4. **Modal's `min_containers`** would eliminate this issue entirely (future consideration)

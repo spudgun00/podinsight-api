@@ -486,3 +486,43 @@ During Sprint 5 completion testing, we discovered quality issues that need immed
 - Frontend proxy continues to work as expected
 
 **Status**: ✅ Successfully deployed - prewarm endpoint now working without runtime errors
+
+---
+
+## 2025-01-14 - Prewarm Race Condition Fix
+
+### Issue Discovery
+**Time: 11:00 PM - 11:30 PM**
+
+**Problem**: First search after prewarm still hitting cold Modal instances
+- Prewarm returned 200 immediately but Modal was still cold-starting
+- Search request sent right after prewarm hit cold instance (16.94s delay)
+- Resulted in 504 Gateway Timeout
+
+**Root Cause**: Fire-and-forget pattern in prewarm endpoint
+- Used `asyncio.create_task()` which returns immediately
+- Frontend got 200 OK while Modal was still warming in background
+- Classic race condition between prewarm completion and search start
+
+### Solution Implemented
+**Time: 11:30 PM - 12:00 AM**
+
+**Backend Changes**:
+1. Made prewarm endpoint synchronous - waits for Modal to actually warm up
+2. Removed `asyncio.create_task()` and `_warm_modal()` background function
+3. Added detailed status responses (cold start vs already warm)
+4. Now returns after Modal is confirmed warm
+
+**Frontend Changes** (implemented by frontend team):
+1. Increased prewarm timeout to 25 seconds
+2. Added "Warming up search engine..." loading state
+3. Blocks searches while warming is in progress
+4. Maintains 3-minute cooldown between prewarms
+
+**Results**:
+- Prewarm now takes ~17s on cold start but guarantees warm Modal
+- Subsequent searches hit warm instances (no more timeouts)
+- Better UX with clear warming status
+- No more 504 Gateway Timeout errors
+
+**Status**: ✅ Complete - Prewarm race condition resolved
