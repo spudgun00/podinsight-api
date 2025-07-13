@@ -390,3 +390,62 @@ During Sprint 5 completion testing, we discovered quality issues that need immed
 - User satisfaction with result quality
 - Search time remains <5 seconds
 - Reduced "noise" in search results
+
+---
+
+## Sprint 6 Implementation (2025-01-13)
+
+### Search Quality Improvements Completed
+**Time: 2:00 PM - 4:00 PM**
+
+**Changes Implemented**:
+1. **Removed database-level filtering** in `improved_hybrid_search.py:234`
+2. **Added application-side quality filtering**:
+   - `RELEVANCE_THRESHOLD = 0.42` (later adjusted to 0.50, then 0.55)
+   - `CANDIDATE_FETCH_LIMIT = 25`
+   - Dynamic result count (1-10 based on quality)
+3. **Modified context expansion** to process all quality results (up to 8)
+4. **Fixed prewarm endpoint** - added missing handler for Vercel
+
+**Critical Discovery**: Hybrid scoring produces low scores (0.38-0.43) because:
+- Text search often fails (0% match) in podcast transcripts
+- Vector search works great (96% match) but only contributes 40%
+- Original formula: 40% vector + 40% text + 20% domain
+
+### Text Search Improvements
+**Time: 4:00 PM - 5:00 PM**
+
+**Root Cause Analysis**:
+- Text search fails because transcripts don't match exact phrases
+- "AI valuations" misses "artificial intelligence pricing", "ML company valuations", etc.
+
+**Solutions Implemented**:
+1. **Added synonym expansion**:
+   - 'ai' → ['artificial intelligence', 'ml']
+   - 'valuations' → ['valuation', 'pricing']
+   - 'vcs' → ['venture capitalists', 'investors']
+2. **Adjusted scoring weights**:
+   - Vector: 40% → 60%
+   - Text: 40% → 25%
+   - Domain: 20% → 15%
+3. **Updated threshold** to 0.55 for new weights
+
+### Backend Crash Fix
+**Time: 5:00 PM - 5:30 PM**
+
+**Issue**: Backend returning 500 errors (manifesting as CORS errors)
+**Root Cause**: Synonym expansion created 20+ search terms, overwhelming MongoDB
+**Fix**: Limited synonyms to 2-3 per term and added `MAX_SEARCH_TERMS = 12`
+
+### Final Status
+- Search working at ~4.5s response time
+- Quality filtering prevents low-relevance noise
+- Text search now handles variations better
+- Backend stable with limited synonym expansion
+
+### Remaining Issues for Next Sprint
+1. **Fine-tune relevance threshold** based on user feedback
+2. **Add more domain-specific synonyms** carefully
+3. **Implement fuzzy matching** for transcription errors
+4. **Show confidence scores** in UI
+5. **Consider different thresholds** for different query types
