@@ -227,6 +227,11 @@ class ImprovedHybridSearch:
         logger.info(f"[HYBRID_SEARCH] Vector search returned {len(vector_results)} results")
         logger.info(f"[HYBRID_SEARCH] Text search returned {len(text_results)} results")
 
+        # Log warning if text search returns 0 results but vector search has results
+        if len(text_results) == 0 and len(vector_results) > 0:
+            logger.warning(f"[HYBRID_SEARCH] Text search returned 0 results while vector search found {len(vector_results)} - possible text index issue")
+            logger.warning(f"[HYBRID_SEARCH] Query: '{query}'")
+
         # Step 5: Merge and re-rank results
         final_results = self._merge_and_rerank(
             vector_results,
@@ -388,7 +393,7 @@ class ImprovedHybridSearch:
                 if len(words_in_phrase) == 2:
                     # Check if both words are meaningful (not stop words)
                     if not any(w in stop_words for w in words_in_phrase):
-                        search_terms.append(f'"{term}"')
+                        search_terms.append(term)
             else:
                 # Single words - only add if not a stop word and has weight > 1.0
                 if term not in stop_words and query_terms[term] >= 1.0:
@@ -397,6 +402,8 @@ class ImprovedHybridSearch:
         # Join all terms with spaces (MongoDB $text uses OR logic by default)
         search_string = ' '.join(search_terms)
         logger.info(f"[TEXT_SEARCH] Using search string: {search_string}")
+        logger.info(f"[TEXT_SEARCH] Number of search terms: {len(search_terms)}")
+        logger.info(f"[TEXT_SEARCH] Terms breakdown - Single words: {sum(1 for t in search_terms if ' ' not in t)}, Multi-word phrases: {sum(1 for t in search_terms if ' ' in t)}")
 
         try:
             # Use MongoDB text index for efficient searching
@@ -442,11 +449,23 @@ class ImprovedHybridSearch:
                 }
             ]
 
+            import time
+            text_search_start = time.time()
+
             results = await with_mongodb_retry(
                 lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit),
                 operation_name="text_search",
                 session_id=session_id
             )
+
+            text_search_time = time.time() - text_search_start
+            logger.info(f"[TEXT_SEARCH] Execution time: {text_search_time:.2f}s")
+            logger.info(f"[TEXT_SEARCH] Number of results: {len(results)}")
+
+            if len(results) == 0:
+                logger.warning(f"[TEXT_SEARCH] ZERO RESULTS for query: '{search_string}'")
+                logger.warning(f"[TEXT_SEARCH] Original query terms: {list(query_terms.keys())}")
+
             return results
 
         except Exception as e:
