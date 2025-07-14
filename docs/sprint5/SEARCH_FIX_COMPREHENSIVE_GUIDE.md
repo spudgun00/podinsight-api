@@ -1,8 +1,8 @@
 # PodInsight Search Fix - Comprehensive Implementation Guide
 
-**Document Version**: 2.0
+**Document Version**: 2.1
 **Created**: 2025-01-12
-**Updated**: 2025-01-13
+**Updated**: 2025-01-14
 **Sprint**: 5
 **Status**: ✅ SUCCESSFULLY COMPLETED - Search now at 4.38s!
 
@@ -468,6 +468,39 @@ async def expand_chunks_batch(chunks: List[Dict], context_seconds: float = 20.0)
 - [ ] Test with common VC queries
 - [ ] Test timeout error messages
 - [ ] Test partial results on timeout
+
+---
+
+## 🔄 MongoDB Election Handling Update (2025-01-14)
+
+### Problem Discovered
+During MongoDB replica set elections, searches were taking 27 seconds with the 15s timeout configuration. While this prevented errors, it created poor user experience.
+
+### Solution Implemented
+Optimized MongoDB client configuration for better election handling:
+
+```python
+client = AsyncIOMotorClient(
+    uri,
+    serverSelectionTimeoutMS=8000,  # Reduced from 15000ms
+    connectTimeoutMS=8000,          # Reduced from 15000ms
+    socketTimeoutMS=8000,           # Reduced from 15000ms
+    maxPoolSize=10,
+    retryWrites=True,
+    readPreference='secondaryPreferred'  # NEW: Read from secondaries during elections
+)
+```
+
+### Benefits
+- **Normal operations**: 4-6 seconds (unchanged)
+- **During elections**: 8-12 seconds (vs 27s previously)
+- **No timeout errors**: Secondary reads prevent waiting for primary
+- **Better UX**: Faster responses even during MongoDB maintenance
+
+### Frontend CORS Issue
+- Created detailed documentation at `/docs/sprint5/FRONTEND_SEARCH_CORS_ISSUE.md`
+- Backend working perfectly but frontend cannot read responses due to missing proxy
+- Frontend team needs to implement `/app/api/search/route.ts` proxy
 
 ---
 

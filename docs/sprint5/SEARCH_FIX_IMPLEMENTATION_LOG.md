@@ -297,6 +297,49 @@
 
 **Issue**: Frontend proxy working but backend returning 500 errors
 **Root Cause**: Relative imports failing in Vercel environment
+
+---
+
+## 2025-01-14 - MongoDB Timeout Optimization
+
+### MongoDB Election Handling Update
+**Time: 8:00 AM - 8:30 AM**
+
+**Problem Discovered**:
+- Search requests taking 27 seconds during MongoDB replica elections
+- Original 5s timeout was too aggressive, causing failures
+- Increased to 15s allowed elections but created unacceptably long response times
+- Frontend appearing to hang due to CORS issues (separate problem)
+
+**Solution Implemented**:
+1. **Optimized MongoDB timeouts** to 8000ms (balanced approach)
+2. **Added `readPreference='secondaryPreferred'`** to allow reads from secondary nodes
+3. **Created detailed CORS documentation** for frontend team
+
+**Changes Made**:
+```python
+# In api/improved_hybrid_search.py
+client = AsyncIOMotorClient(
+    uri,
+    serverSelectionTimeoutMS=8000,  # Reduced from 15000ms
+    connectTimeoutMS=8000,          # Reduced from 15000ms
+    socketTimeoutMS=8000,           # Reduced from 15000ms
+    maxPoolSize=10,
+    retryWrites=True,
+    readPreference='secondaryPreferred'  # NEW: Read from secondaries during elections
+)
+```
+
+**Expected Results**:
+- Normal searches: 4-6 seconds (unchanged)
+- During MongoDB elections: 8-12 seconds (instead of 27s)
+- No more timeout errors while still handling elections gracefully
+
+**Frontend CORS Issue**:
+- Created `/docs/sprint5/FRONTEND_SEARCH_CORS_ISSUE.md` with detailed evidence
+- Backend logs show search working perfectly (200 OK, results returned)
+- Frontend cannot read response due to missing proxy implementation
+- Solution documented: Frontend needs to create `/app/api/search/route.ts` proxy
 **Fix**: Changed relative imports to absolute imports in `api/prewarm.py`
 
 **Results**:

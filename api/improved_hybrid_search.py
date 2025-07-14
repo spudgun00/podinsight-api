@@ -103,11 +103,12 @@ class ImprovedHybridSearch:
             logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=15000,  # Allow time for replica elections (10-12s)
-                connectTimeoutMS=15000,  # Allow time for replica elections
-                socketTimeoutMS=15000,  # Allow time for replica elections
+                serverSelectionTimeoutMS=8000,  # Reduced from 15000ms
+                connectTimeoutMS=8000,  # Reduced from 15000ms
+                socketTimeoutMS=8000,  # Reduced from 15000ms
                 maxPoolSize=10,
-                retryWrites=True
+                retryWrites=True,
+                readPreference='secondaryPreferred'  # NEW: Read from secondaries during elections
             )
             ImprovedHybridSearch._client_per_loop[loop_id] = client
 
