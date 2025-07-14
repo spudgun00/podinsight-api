@@ -569,3 +569,116 @@ During Sprint 5 completion testing, we discovered quality issues that need immed
 - No more 504 Gateway Timeout errors
 
 **Status**: ✅ Complete - Prewarm race condition resolved
+
+---
+
+## 2025-01-14 - Phase 1 Implementation: Dynamic Timeout Plan
+
+### Implementation Summary
+**Time: Morning**
+
+Following the Modal Session Affinity & Dynamic Timeout Plan discussed yesterday, implemented Phase 1 with comprehensive analytics and timing tracking.
+
+**Phase 1.1: Modal Timing & Analytics ✅**
+- Added `return_timing` parameter to all embedding functions
+- Return tuple `(embedding, elapsed_time)` when timing is requested
+- Comprehensive analytics logging with:
+  - Cold start detection (>5s response = cold)
+  - Instance ID tracking from Modal response headers
+  - Session ID correlation across all requests
+  - Request type identification (embedding vs search)
+
+**Phase 1.2: Search Pipeline Timing ✅**
+- Updated search handler to capture Modal response time from embedding
+- Generate session IDs (`search_abc123_timestamp`) for request correlation
+- Pass timing data through entire search pipeline
+- Log overall search analytics with breakdown
+
+**Phase 1.3: Dynamic MongoDB Timeout ✅**
+- Calculate MongoDB timeout based on remaining time budget:
+  - Time budget: 28s (2s buffer from Vercel's 30s limit)
+  - Time used: Modal response time + 2s buffer for other operations
+  - Dynamic timeout: min 3s, max 8s based on remaining time
+- Added operation names to all MongoDB calls (vector_search, text_search, etc.)
+- Include session IDs in all MongoDB analytics for correlation
+- Per-event-loop client caching with dynamic timeout keys
+
+### Analytics Data Structure
+Three types of analytics logs are now generated:
+
+```json
+// Modal Analytics - Track embedding performance
+{
+  "timestamp": "2025-01-14T10:30:00Z",
+  "session_id": "search_abc123_1234567890",
+  "request_type": "embedding",
+  "modal": {
+    "response_time": 16.6,
+    "is_cold_start": true,
+    "status_code": 200,
+    "headers": {...},
+    "instance_id": "modal-container-xyz",
+    "connection_reused": false
+  }
+}
+
+// MongoDB Analytics - Track database performance
+{
+  "timestamp": "2025-01-14T10:30:02Z",
+  "session_id": "search_abc123_1234567890",
+  "operation": "vector_search",
+  "mongodb": {
+    "response_time": 2.15,
+    "attempts": 1,
+    "success": true,
+    "election_detected": false,
+    "dynamic_timeout_ms": 5000
+  }
+}
+
+// Search Analytics - Track overall request performance
+{
+  "timestamp": "2025-01-14T10:30:04Z",
+  "session_id": "search_abc123_1234567890",
+  "request_type": "search",
+  "query": "ai valuations",
+  "search": {
+    "total_time": 4.38,
+    "modal_time": 0.46,
+    "processing_time_ms": 4380,
+    "results_count": 10,
+    "search_method": "hybrid",
+    "cache_hit": false,
+    "answer_synthesized": true
+  }
+}
+```
+
+### Key Technical Changes
+
+1. **Timing Return Values**: All embedding functions now support returning tuples with timing data
+2. **Session ID Correlation**: Single session ID flows through Modal → MongoDB → Search analytics
+3. **Dynamic Timeout Calculation**: MongoDB timeout adjusts from 3-8s based on Modal response time
+4. **Operation Granularity**: MongoDB analytics track specific operations (vector_search vs text_search)
+5. **Client Key Uniqueness**: MongoDB clients cached by event loop + timeout combination
+
+### Expected Benefits
+
+- **Prevent Vercel timeouts**: When Modal takes 16s, MongoDB timeout reduces to 3s
+- **Comprehensive tracking**: Session IDs correlate Modal cold starts with search failures
+- **Performance insights**: Analytics reveal actual time breakdown across components
+- **Adaptive behavior**: System automatically adjusts based on Modal response time
+
+### Files Modified
+- `lib/embeddings_768d_modal.py` - Added timing return and analytics
+- `lib/embedding_utils.py` - Added timing support to standardized functions
+- `api/search_lightweight_768d.py` - Capture timing and pass session IDs
+- `api/improved_hybrid_search.py` - Dynamic timeout calculation and operation analytics
+
+### Next Steps (Phase 2 & 3)
+- Phase 2.1: Create Modal session manager for HTTP connection reuse
+- Phase 2.2: Update Modal embedder to use shared sessions
+- Phase 3: Implement multiple parallel prewarms
+- Monitor analytics to validate dynamic timeout effectiveness
+
+**Commit**: c5089b7 - "feat: Implement Phase 1 of Modal session affinity and dynamic timeout plan"
