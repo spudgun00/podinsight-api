@@ -18,7 +18,7 @@ logging.info("[BOOT-FILE] %s  commit=%s",
              os.getenv("VERCEL_GIT_COMMIT_SHA", "?"))
 
 from fastapi import HTTPException
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple, Union
 from datetime import datetime
 logging.getLogger(__name__).warning(
     "[BOOT] commit=%s  python=%s",                # <- shows up once per cold-start
@@ -94,20 +94,39 @@ class SearchResponse(BaseModel):
     raw_chunks: Optional[List[Dict[str, Any]]] = None  # Original chunks for debugging
 
 
-async def generate_embedding_768d_local(text: str) -> List[float]:
+async def generate_embedding_768d_local(text: str, session_id: Optional[str] = None,
+                                       return_timing: bool = False) -> Union[Optional[List[float]], Optional[Tuple[List[float], float]]]:
     """
     Generate 768D embedding using standardized function
+
+    Args:
+        text: Text to embed
+        session_id: Optional session ID for tracking
+        return_timing: If True, returns (embedding, elapsed_time) tuple
+
+    Returns:
+        Embedding or (embedding, elapsed_time) based on return_timing
     """
     try:
         # Use standardized embedding function - now with await
-        embedding = await embed_query(text)
+        result = await embed_query(text, session_id=session_id, return_timing=return_timing)
 
-        # Validate before returning
-        if embedding and validate_embedding(embedding):
-            return embedding
-        else:
-            logger.error(f"Embedding validation failed for: {text}")
+        if return_timing:
+            if result and isinstance(result, tuple):
+                embedding, elapsed = result
+                if embedding and validate_embedding(embedding):
+                    return embedding, elapsed
+                else:
+                    logger.error(f"Embedding validation failed for: {text}")
+                    return None
             return None
+        else:
+            embedding = result
+            if embedding and validate_embedding(embedding):
+                return embedding
+            else:
+                logger.error(f"Embedding validation failed for: {text}")
+                return None
     except Exception as e:
         logger.error(f"Error generating 768D embedding: {e}")
         return None
@@ -295,14 +314,28 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
         embedding_768d = None
         cache_hit = False
 
+        modal_response_time = 0.0  # Track Modal response time
+
         if not embedding_768d:
             # Generate new 768D embedding
             pre_embed = time.time()
             logger.info(f"[TIMING] Pre-embedding: {pre_embed - handler_start:.3f}s elapsed. Generating 768D embedding for: {clean_query}")
             embed_start = time.time()
-            embedding_768d = await generate_embedding_768d_local(clean_query)
-            embed_time = time.time() - embed_start
-            logger.info(f"[TIMING] Embedding generation took {embed_time:.2f}s, total elapsed: {time.time() - handler_start:.3f}s")
+
+            # Generate session ID for tracking
+            session_id = search_id  # Use search_id as session_id
+
+            # Get embedding with timing
+            result = await generate_embedding_768d_local(clean_query, session_id=session_id, return_timing=True)
+
+            if result and isinstance(result, tuple):
+                embedding_768d, modal_response_time = result
+                embed_time = time.time() - embed_start
+                logger.info(f"[TIMING] Embedding generation took {embed_time:.2f}s (Modal: {modal_response_time:.2f}s), total elapsed: {time.time() - handler_start:.3f}s")
+            else:
+                embedding_768d = None
+                embed_time = time.time() - embed_start
+                logger.info(f"[TIMING] Embedding generation failed after {embed_time:.2f}s")
 
             if DEBUG_MODE and embedding_768d:
                 logger.info(f"[DEBUG] Embedding length: {len(embedding_768d)}")
@@ -341,7 +374,9 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                 vector_results = await hybrid_handler.search(
                     clean_query,  # Pass original query
                     limit=num_to_fetch,
-                    query_embedding=embedding_768d  # Pass pre-computed embedding to avoid duplicate generation
+                    query_embedding=embedding_768d,  # Pass pre-computed embedding to avoid duplicate generation
+                    modal_response_time=modal_response_time,  # Pass Modal timing for dynamic MongoDB timeout
+                    session_id=session_id  # Pass session ID for correlation
                 )
                 logger.info("[HYBRID_LATENCY] %.1f ms", (time.time()-start)*1000)
             except Exception as ve:
@@ -594,7 +629,26 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                     logger.info(f"Answer synthesis included with {len(answer_object.citations)} citations")
 
                 # Final timing
-                logger.info(f"[TIMING] SEARCH HANDLER END - Total time: {time.time() - handler_start:.3f}s")
+                total_handler_time = time.time() - handler_start
+                logger.info(f"[TIMING] SEARCH HANDLER END - Total time: {total_handler_time:.3f}s")
+
+                # Log overall search analytics
+                search_analytics = {
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "session_id": session_id,
+                    "request_type": "search",
+                    "query": clean_query,
+                    "search": {
+                        "total_time": total_handler_time,
+                        "modal_time": modal_response_time,
+                        "processing_time_ms": total_time,
+                        "results_count": len(formatted_results),
+                        "search_method": "hybrid",
+                        "cache_hit": cache_hit,
+                        "answer_synthesized": answer_object is not None
+                    }
+                }
+                logger.info(f"SEARCH_ANALYTICS: {json.dumps(search_analytics)}")
 
                 # Return the response object (let FastAPI serialize it)
                 return response

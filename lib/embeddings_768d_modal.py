@@ -6,8 +6,11 @@ Replaces local model with Modal serverless function
 import os
 import logging
 import aiohttp
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 import asyncio
+import json
+import time
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +45,27 @@ class ModalInstructorXLEmbedder:
             # No event loop, create one
             return asyncio.run(self._encode_query_async(query))
 
-    async def _encode_query_async_with_retry(self, query: str, retries: int = 1) -> Optional[List[float]]:
+    async def _encode_query_async_with_retry(self, query: str, retries: int = 1,
+                                            session_id: Optional[str] = None,
+                                            return_timing: bool = False) -> Union[Optional[List[float]], Optional[Tuple[List[float], float]]]:
         """
         Async method with retry logic for cold starts
 
         Args:
             query: Search query text
             retries: Number of retries (default 1)
+            session_id: Optional session ID for tracking
+            return_timing: If True, returns (embedding, elapsed_time) tuple
 
         Returns:
             List of 768 float values or None if error
+            If return_timing=True, returns (embedding, elapsed_time) tuple or None
         """
+        total_start = time.time()
+
         for attempt in range(retries + 1):
             try:
-                result = await self._encode_query_async(query)
+                result = await self._encode_query_async(query, session_id, return_timing)
                 if result is not None:
                     return result
             except asyncio.TimeoutError:
@@ -63,21 +73,39 @@ class ModalInstructorXLEmbedder:
                     logger.info(f"Modal timeout on attempt {attempt + 1}, retrying...")
                     await asyncio.sleep(0.5)  # Short delay before retry
                 else:
-                    logger.error(f"Modal timeout after {retries + 1} attempts")
+                    total_elapsed = time.time() - total_start
+                    logger.error(f"Modal timeout after {retries + 1} attempts, total time: {total_elapsed:.2f}s")
+
+                    # Log failure analytics
+                    analytics_data = {
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "session_id": session_id,
+                        "request_type": "embedding",
+                        "modal": {
+                            "response_time": total_elapsed,
+                            "is_cold_start": True,  # Timeouts are usually cold starts
+                            "error": "timeout",
+                            "attempts": retries + 1
+                        }
+                    }
+                    logger.info(f"MODAL_ANALYTICS: {json.dumps(analytics_data)}")
                     raise
         return None
 
-    async def _encode_query_async(self, query: str) -> Optional[List[float]]:
+    async def _encode_query_async(self, query: str, session_id: Optional[str] = None,
+                                  return_timing: bool = False) -> Union[Optional[List[float]], Optional[Tuple[List[float], float]]]:
         """
         Async method to encode search query to 768D vector using Modal
 
         Args:
             query: Search query text
+            session_id: Optional session ID for tracking
+            return_timing: If True, returns (embedding, elapsed_time) tuple
 
         Returns:
             List of 768 float values or None if error
+            If return_timing=True, returns (embedding, elapsed_time) tuple or None
         """
-        import time
         start_time = time.time()
         logger.info(f"🔄 Starting Modal embedding request for: '{query[:50]}...'")
 
@@ -100,9 +128,33 @@ class ModalInstructorXLEmbedder:
                     timeout=aiohttp.ClientTimeout(total=25)  # 25s timeout to handle cold starts
                 ) as response:
                     elapsed = time.time() - start_time
+                    is_cold_start = elapsed > 5.0
+
+                    # Extract instance information from headers
+                    response_headers = dict(response.headers)
+                    instance_id = (response_headers.get('X-Modal-Container-ID') or
+                                 response_headers.get('X-Modal-Task-ID') or
+                                 response_headers.get('X-Instance-ID') or
+                                 response_headers.get('X-Served-By'))
+
+                    # Log analytics data
+                    analytics_data = {
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "session_id": session_id,
+                        "request_type": "embedding",
+                        "modal": {
+                            "response_time": elapsed,
+                            "is_cold_start": is_cold_start,
+                            "status_code": response.status,
+                            "headers": response_headers,
+                            "instance_id": instance_id,
+                            "connection_reused": False  # Will enhance this later
+                        }
+                    }
+                    logger.info(f"MODAL_ANALYTICS: {json.dumps(analytics_data)}")
 
                     # Log based on response time to identify cold/warm starts
-                    if elapsed > 5.0:
+                    if is_cold_start:
                         logger.info(f"🥶 Modal API responded in {elapsed:.2f}s (cold start) with status {response.status}")
                     else:
                         logger.info(f"🔥 Modal API responded in {elapsed:.2f}s (warm) with status {response.status}")
@@ -117,6 +169,9 @@ class ModalInstructorXLEmbedder:
                             embedding = embedding[0]
 
                         logger.info(f"✅ Generated 768D embedding via Modal for: {query[:50]}... (dim: {len(embedding) if embedding else 0}, total time: {elapsed:.2f}s)")
+
+                        if return_timing:
+                            return embedding, elapsed
                         return embedding
                     else:
                         error_text = await response.text()

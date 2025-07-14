@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect, NotPrimaryError
 import numpy as np
+import json
+import time
+from datetime import datetime
 
 # Ensure correct environment loading
 from lib.env_loader import load_env_safely
@@ -24,17 +27,53 @@ logger = logging.getLogger(__name__)
 _hybrid_handler_instance = None
 
 
-async def with_mongodb_retry(func, max_retries=2):
+async def with_mongodb_retry(func, max_retries=2, operation_name="mongodb_operation", session_id=None):
     """Retry MongoDB operations during replica set elections"""
+    start_time = time.time()
+
     for attempt in range(max_retries + 1):
         try:
-            return await func()
+            result = await func()
+            elapsed = time.time() - start_time
+
+            # Log successful operation analytics
+            analytics_data = {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "session_id": session_id,
+                "operation": operation_name,
+                "mongodb": {
+                    "response_time": elapsed,
+                    "attempts": attempt + 1,
+                    "success": True,
+                    "election_detected": attempt > 0  # If we needed retries, likely an election
+                }
+            }
+            logger.info(f"MONGODB_ANALYTICS: {json.dumps(analytics_data)}")
+
+            return result
         except (ServerSelectionTimeoutError, AutoReconnect, NotPrimaryError) as e:
             if attempt < max_retries:
                 logger.warning(f"MongoDB transient error: {type(e).__name__}, retry {attempt + 1}/{max_retries}")
                 await asyncio.sleep(1)  # Wait 1s before retry
             else:
+                elapsed = time.time() - start_time
                 logger.error(f"MongoDB failed after {max_retries + 1} attempts: {e}")
+
+                # Log failed operation analytics
+                analytics_data = {
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "session_id": session_id,
+                    "operation": operation_name,
+                    "mongodb": {
+                        "response_time": elapsed,
+                        "attempts": max_retries + 1,
+                        "success": False,
+                        "error": type(e).__name__,
+                        "election_detected": True
+                    }
+                }
+                logger.info(f"MONGODB_ANALYTICS: {json.dumps(analytics_data)}")
+
                 raise
 
 
@@ -86,7 +125,7 @@ class ImprovedHybridSearch:
             'dilution': 1.3
         }
 
-    def _get_collection(self):
+    def _get_collection(self, modal_response_time: float = 0.0):
         """Always return a collection bound to *this* event loop."""
         uri = os.getenv("MONGODB_URI")
         db_name = os.getenv("MONGODB_DATABASE", "podinsight")
@@ -95,28 +134,55 @@ class ImprovedHybridSearch:
             logger.warning("MONGODB_URI not set, hybrid search disabled")
             return None
 
+        # Calculate dynamic timeout based on Modal response time
+        time_budget = 28.0  # Conservative: 2s buffer from Vercel's 30s limit
+        time_used = modal_response_time + 2.0  # Buffer for other operations
+        time_remaining = time_budget - time_used
+
+        # Dynamic timeout: min 3s, max 8s
+        dynamic_timeout = max(3000, min(8000, int(time_remaining * 1000 * 0.5)))
+
+        # Log MongoDB configuration analytics
+        config_analytics = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "operation": "mongodb_config",
+            "mongodb": {
+                "modal_response_time": modal_response_time,
+                "time_budget": time_budget,
+                "time_used": time_used,
+                "time_remaining": time_remaining,
+                "dynamic_timeout_ms": dynamic_timeout,
+                "read_preference": "secondaryPreferred"
+            }
+        }
+        logger.info(f"MONGODB_ANALYTICS: {json.dumps(config_analytics)}")
+
         # Get client for current event loop
         loop_id = id(asyncio.get_running_loop())
-        client = ImprovedHybridSearch._client_per_loop.get(loop_id)
+
+        # Create unique key for this timeout configuration
+        client_key = f"{loop_id}_{dynamic_timeout}"
+        client = ImprovedHybridSearch._client_per_loop.get(client_key)
 
         if client is None:
-            logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}")
+            logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}, timeout {dynamic_timeout}ms")
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=8000,  # Reduced from 15000ms
-                connectTimeoutMS=8000,  # Reduced from 15000ms
-                socketTimeoutMS=8000,  # Reduced from 15000ms
+                serverSelectionTimeoutMS=dynamic_timeout,
+                connectTimeoutMS=dynamic_timeout,
+                socketTimeoutMS=dynamic_timeout,
                 maxPoolSize=10,
                 retryWrites=True,
-                readPreference='secondaryPreferred'  # NEW: Read from secondaries during elections
+                readPreference='secondaryPreferred'  # Read from secondaries during elections
             )
-            ImprovedHybridSearch._client_per_loop[loop_id] = client
+            ImprovedHybridSearch._client_per_loop[client_key] = client
 
         # Never cache the collection – it inherits the loop from its client
         db = client[db_name]
         return db["transcript_chunks_768d"]
 
-    async def search(self, query: str, limit: int = 50, query_embedding: Optional[List[float]] = None) -> List[Dict[str, Any]]:
+    async def search(self, query: str, limit: int = 50, query_embedding: Optional[List[float]] = None,
+                    modal_response_time: float = 0.0, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Perform hybrid search combining vector and text matching
         Returns dict format compatible with existing API
@@ -125,11 +191,12 @@ class ImprovedHybridSearch:
             query: The search query string
             limit: Maximum number of results to return
             query_embedding: Pre-computed query embedding (optional) to avoid duplicate generation
+            modal_response_time: Time taken by Modal to respond (for dynamic timeout calculation)
         """
         logger.info(f"[HYBRID_SEARCH] Starting search for: '{query}' with limit={limit}")
 
-        # Get collection
-        collection = self._get_collection()
+        # Get collection with dynamic timeout based on Modal response time
+        collection = self._get_collection(modal_response_time)
         if collection is None:
             logger.error("MongoDB not connected for hybrid search")
             return []
@@ -153,8 +220,8 @@ class ImprovedHybridSearch:
 
         # Step 3 & 4: Run vector and text searches in parallel to save time
         import asyncio
-        vector_task = self._vector_search(collection, query_vector, limit * 2)
-        text_task = self._text_search(collection, query_terms, limit * 2)
+        vector_task = self._vector_search(collection, query_vector, limit * 2, session_id)
+        text_task = self._text_search(collection, query_terms, limit * 2, session_id)
 
         vector_results, text_results = await asyncio.gather(vector_task, text_task)
         logger.info(f"[HYBRID_SEARCH] Vector search returned {len(vector_results)} results")
@@ -244,7 +311,7 @@ class ImprovedHybridSearch:
 
         return terms
 
-    async def _vector_search(self, collection, query_vector: List[float], limit: int) -> List[Dict]:
+    async def _vector_search(self, collection, query_vector: List[float], limit: int, session_id: Optional[str] = None) -> List[Dict]:
         """Perform vector similarity search using MongoDB Atlas Vector Search"""
         try:
             pipeline = [
@@ -289,7 +356,9 @@ class ImprovedHybridSearch:
             ]
 
             results = await with_mongodb_retry(
-                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit),
+                operation_name="vector_search",
+                session_id=session_id
             )
             return results
 
@@ -297,7 +366,7 @@ class ImprovedHybridSearch:
             logger.error(f"Vector search error: {e}")
             return []
 
-    async def _text_search(self, collection, query_terms: Dict[str, float], limit: int) -> List[Dict]:
+    async def _text_search(self, collection, query_terms: Dict[str, float], limit: int, session_id: Optional[str] = None) -> List[Dict]:
         """Perform text-based search using MongoDB text index"""
         # Build search string for MongoDB $text operator
         # Focus on important single words and meaningful phrases only
@@ -374,7 +443,9 @@ class ImprovedHybridSearch:
             ]
 
             results = await with_mongodb_retry(
-                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit),
+                operation_name="text_search",
+                session_id=session_id
             )
             return results
 
@@ -428,7 +499,9 @@ class ImprovedHybridSearch:
                 ]
 
                 results = await with_mongodb_retry(
-                    lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit)
+                    lambda: collection.aggregate(pipeline, allowDiskUse=True).to_list(limit),
+                    operation_name="text_search_fallback",
+                    session_id=session_id
                 )
                 logger.info(f"[TEXT_SEARCH] Regex fallback returned {len(results)} results")
                 return results
