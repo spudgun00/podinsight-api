@@ -392,7 +392,7 @@ class ImprovedHybridSearch:
         stop_words = {'what', 'are', 'is', 'the', 'a', 'an', 'about', 'saying', 'doing', 'with', 'for', 'on', 'in', 'at'}
 
         # Limit total search terms to prevent query explosion
-        MAX_SEARCH_TERMS = 12
+        MAX_SEARCH_TERMS = 6  # Reduced from 12 for better performance
 
         for term in query_terms:
             if len(search_terms) >= MAX_SEARCH_TERMS:
@@ -760,7 +760,7 @@ async def warm_mongodb_connection():
         # Get collection to force connection establishment
         collection = handler._get_collection(modal_response_time=0.0)
 
-        if collection:
+        if collection is not None:
             # Ping to verify connection
             await collection.database.client.admin.command('ping')
 
