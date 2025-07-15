@@ -341,8 +341,22 @@ class ImprovedHybridSearch:
                     }
                 },
                 {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
-                # {"$match": {"score": {"$gte": 0.4}}},  # Removed - filtering done in application layer
-                # Add lookup to join episode_metadata for missing fields
+                # Project only essential fields first to reduce document size
+                {
+                    "$project": {
+                        "_id": 1,
+                        "text": 1,
+                        "episode_id": 1,
+                        "vector_score": "$score",
+                        "chunk_index": 1,
+                        "start_time": 1,
+                        "end_time": 1,
+                        "feed_slug": 1
+                    }
+                },
+                # Limit BEFORE lookup to reduce join operations
+                {"$limit": limit},
+                # Now lookup only for the limited results
                 {
                     "$lookup": {
                         "from": "episode_metadata",
