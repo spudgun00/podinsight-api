@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
 # Search quality constants
-RELEVANCE_THRESHOLD = 0.55  # Minimum score for results to be considered relevant (adjusted for new 60/25/15 weights)
+RELEVANCE_THRESHOLD = 0.15  # Minimum score for results to be considered relevant (lowered due to hybrid scoring)
 CANDIDATE_FETCH_LIMIT = 25  # Number of candidates to fetch from DB before filtering
 MAX_CONTEXT_EXPANSIONS = 8  # Maximum number of results to expand context for (performance cap)
 

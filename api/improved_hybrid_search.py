@@ -372,7 +372,7 @@ class ImprovedHybridSearch:
                         "_id": 1,
                         "text": 1,
                         "episode_id": 1,
-                        "vector_score": "$score",
+                        "vector_score": "$vector_score",  # Reference the already projected field
                         "chunk_index": 1,
                         "start_time": 1,
                         "end_time": 1,
