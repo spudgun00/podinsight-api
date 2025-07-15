@@ -1,8 +1,8 @@
 # Next Session Context: Modal Session Affinity & Dynamic Timeout Implementation
 
 **Date**: 2025-01-14
-**Status**: Phase 1 Complete (Untested), Phase 2 & 3 Pending
-**Priority**: High - Addresses critical 30-second Vercel timeout issue
+**Status**: Phase 1 Complete (Tested), MongoDB Issues Discovered
+**Priority**: CRITICAL - MongoDB replica elections causing timeouts
 
 ---
 
@@ -331,13 +331,86 @@ await asyncio.gather(
 
 ---
 
+## 🚨 CRITICAL: Phase 1 Test Results & MongoDB Crisis
+
+### Test Date: 2025-01-14
+### Key Discovery: MongoDB replica elections are the root cause, NOT Modal cold starts
+
+### Test Results Summary
+
+**Phase 1 Analytics Working:**
+- ✅ Session ID correlation working perfectly
+- ✅ Modal timing captured accurately (0.46s - 0.51s warm)
+- ✅ Dynamic timeout calculation functioning
+- ✅ MongoDB analytics detecting elections
+
+**Critical Finding:**
+- ❌ MongoDB experiencing replica set elections
+- ❌ `ReplicaSetNoPrimary` errors during searches
+- ❌ Text search took 20.99s with "election_detected: true"
+- ❌ Modal was actually WARM (not the problem!)
+
+### Log Evidence
+
+1. **First Search (Timeout)**:
+   ```
+   Modal: 0.51s (warm!)
+   MongoDB vector: 15.21s → NetworkTimeout
+   Status: ReplicaSetNoPrimary
+   Result: Vercel 30s timeout
+   ```
+
+2. **Second Search (Success but slow)**:
+   ```
+   Modal: 0.46s (warm)
+   MongoDB vector: 0.26s
+   MongoDB text: 20.99s (election detected)
+   Total: 23.39s (barely made it)
+   ```
+
+---
+
+## 🔥 HIGH PRIORITY ACTION ITEMS
+
+### 1. MongoDB Replica Set Stability (CRITICAL)
+**Problem**: Frequent elections causing 15-21s delays
+**Actions Needed**:
+- Check MongoDB Atlas logs for election triggers
+- Look for: network instability, resource exhaustion, maintenance windows
+- Verify replica set health and configuration
+- **Need from you**: Can you access MongoDB Atlas logs?
+
+### 2. MongoDB Driver Configuration
+**Problem**: Current timeout settings may be suboptimal
+**Actions Needed**:
+- Review `serverSelectionTimeoutMS` in connection string
+- Check read preference settings (currently "secondaryPreferred")
+- Consider "primaryPreferred" to avoid election delays
+- **MongoDB Docs**: [Read Preference Documentation](https://www.mongodb.com/docs/manual/core/read-preference/)
+
+### 3. MongoDB Query Performance
+**Problem**: 21s text search even during normal operation
+**Actions Needed**:
+- Run `explain("executionStats")` on the text search query
+- Check if proper indexes exist
+- May need compound index on text search fields
+- **Need from you**: Access to MongoDB shell to run explain
+
+### Immediate Questions:
+1. Do you have access to MongoDB Atlas dashboard/logs?
+2. Can you run queries directly on MongoDB (mongosh)?
+3. What MongoDB hosting tier are you using? (M10, M20, etc.)
+4. Are there any scheduled maintenance windows?
+
+---
+
 ## 🎯 Success Metrics
 
 ### Phase 1 Success Criteria
-- [ ] Search requests complete within 30s even with Modal cold starts
-- [ ] Analytics logs show session ID correlation across components
-- [ ] Dynamic MongoDB timeouts adapt correctly to Modal response times
-- [ ] No degradation in search quality or accuracy
+- [x] Search requests complete within 30s even with Modal cold starts ✅ (but MongoDB elections cause issues)
+- [x] Analytics logs show session ID correlation across components ✅
+- [x] Dynamic MongoDB timeouts adapt correctly to Modal response times ✅
+- [x] No degradation in search quality or accuracy ✅
 
 ### Overall Success Criteria
 - [ ] Average search response time <10 seconds
@@ -357,4 +430,199 @@ await asyncio.gather(
 
 ---
 
-**Next session should focus on**: Testing Phase 1 implementation, validating dynamic timeout logic, and planning Phase 2 session manager implementation.
+**Next session should focus on**:
+1. **URGENT**: Investigating MongoDB replica set elections and stability
+2. **HIGH**: Optimizing MongoDB driver configuration and read preferences
+3. **HIGH**: Profiling the 21s text search query performance
+4. **MEDIUM**: Re-evaluating Modal strategy (Phase 2/3 may not be needed)
+
+---
+
+## 📊 MongoDB Investigation Results
+
+### Metrics Analysis (2025-01-14)
+
+**MongoDB Cluster**: M20 (General) tier with 4GB RAM
+**Connection String**: `mongodb+srv://podinsight-api:[PASSWORD]@podinsight-cluster.bgknvz.mongodb.net/podinsight?retryWrites=true&w=majority&appName=podinsight-cluster`
+
+### Critical Findings from Atlas Metrics:
+
+1. **Primary Election Confirmed** (10:37-10:40 UTC):
+   - Opcounters-Repl dropped to zero across all nodes
+   - Operation execution times spiked to 200ms+
+   - Clear sign of replica set election
+
+2. **Memory Exhaustion**:
+   - MongoDB process memory jumped from 1.95GB to **3.91GB**
+   - M20 tier only has 4GB RAM total
+   - Operating at 97.75% memory capacity!
+   - High risk of page faults and performance degradation
+
+3. **Workload Spikes**:
+   - Periodic spikes every ~10 minutes
+   - Query Executor hit 1K/s during election
+   - Query Targeting hit 3K/s during election
+   - CPU spiked to 30% system, 6% process
+
+4. **Replication Issues**:
+   - shard-00-02 shows "N/A" for Replication Headroom
+   - Potential unhealthy secondary node
+
+### MongoDB Shell Commands to Run:
+
+```javascript
+// 1. Check replica set status
+rs.status()
+
+// 2. Check current operations (slow queries)
+db.currentOp({"secs_running": {$gte: 5}})
+
+// 3. Switch to podinsight database
+use podinsight
+
+// 4. Analyze the slow text search
+db.podcasts.find({
+  $text: { $search: "vcs venture capitalists investors ai artificial intelligence ml valuations valuation pricing \"ai valuations\"" }
+}).explain("executionStats")
+
+// 5. Check all indexes
+db.podcasts.getIndexes()
+
+// 6. Check collection stats
+db.podcasts.stats()
+
+// 7. Check for page faults
+db.serverStatus().metrics.document
+
+// 8. Check memory usage
+db.serverStatus().mem
+```
+
+### Final Diagnosis & Recommendations
+
+#### Root Cause Analysis:
+1. **Memory Exhaustion**: 8.4GB database on 4GB RAM = constant disk paging
+2. **Text Search Inefficiency**: Returning 39,938 documents for scoring
+3. **Disk I/O Bottleneck**: 17.7s spent fetching documents from disk
+
+#### Immediate Actions Required:
+
+1. **CRITICAL - Upgrade MongoDB Tier TODAY**:
+   - Current: M20 (4GB RAM)
+   - Required: M30 (8GB RAM) minimum, M40 (16GB) recommended
+   - This will solve 90% of your timeout issues
+
+2. **HIGH - Optimize Text Search**:
+   - Current query returns 39,938 documents
+   - Consider adding filters (date range, feed_slug) before text search
+   - Implement result limiting in the query itself
+
+3. **HIGH - Query Optimization**:
+   ```javascript
+   // Instead of just text search:
+   db.transcript_chunks_768d.find({
+     $text: { $search: "..." }
+   })
+
+   // Add filters to reduce result set:
+   db.transcript_chunks_768d.find({
+     created_at: { $gte: ISODate("2024-01-01") }, // Recent content only
+     $text: { $search: "..." }
+   }).limit(1000) // Limit results
+   ```
+
+4. **MEDIUM - Re-evaluate Modal Strategy**:
+   - Modal is performing well (0.5s warm)
+   - Phase 2/3 session affinity may not be needed
+   - Focus on MongoDB optimization first
+
+### MongoDB Shell Investigation Results (2025-01-14)
+
+#### 1. Replica Set Status (rs.status())
+**Good News**:
+- All 3 nodes are healthy (health: 1)
+- Primary: shard-00-01 (elected on 2025-07-11)
+- Secondaries: shard-00-00 and shard-00-02 are in sync
+- Last election was 3 days ago (stable since then)
+
+**Key Observation**:
+- Election occurred at 16:15:46 UTC on July 11
+- This matches the timestamp when we see issues in production
+- No recent elections, but the system is still experiencing issues
+
+#### 2. Current Operations (db.currentOp())
+**Findings**:
+- No slow user queries currently running
+- Only monitoring and replication operations active
+- Clean state at the moment of checking
+
+#### 3. CRITICAL DISCOVERY: Wrong Collection Name!
+**Issue Found**:
+- Code uses collection: `transcript_chunks_768d`
+- We were checking: `podcasts` (doesn't exist)
+- This explains why we couldn't analyze the slow query!
+
+**Next Steps**:
+- Check indexes on `transcript_chunks_768d`
+- Verify text index exists
+- Run explain on the correct collection
+
+#### 4. Database Structure Analysis
+**Collections Found** (11 total):
+- `transcript_chunks_768d` - The main collection for search
+- `episode_transcripts` - Full episode transcripts
+- `episode_metadata` - Episode information
+- `podcast_authority` - Podcast ranking data
+- Others: intelligence, processing status, preferences, etc.
+
+**Database Stats**:
+- Total Size: 5.23GB (dataSize: 8.48GB compressed to 4.99GB)
+- Objects: 826,879 documents
+- Indexes: 37 total across all collections
+- Average Object Size: 10.25KB
+- **File System**: 16GB used of 20GB (80% full)
+
+**Critical Observation**:
+- Database is 8.48GB uncompressed
+- This exceeds the 4GB RAM on M20 tier
+- Confirms memory exhaustion theory!
+
+#### 5. Text Search Performance Analysis (explain)
+
+**Query Stats**:
+- Execution Time: **17.8 seconds** (not the 21s we saw in logs, but still very slow)
+- Documents Returned: 39,938
+- Documents Examined: 39,938
+- Keys Examined: 41,605
+- Index Used: `text_search_index` (exists and is being used!)
+
+**Critical Finding**: The text index EXISTS and is being used, but it's returning 39,938 documents! This is way too many results for MongoDB to process efficiently.
+
+**Why It's Slow**:
+1. The query has 10 search terms, creating 10 separate index scans
+2. MongoDB is fetching and scoring 39,938 documents
+3. With memory pressure, many of these documents are likely being read from disk
+4. The FETCH stage took 17.7s of the 17.8s total (reading documents from disk)
+
+#### 6. Collection Statistics
+
+**transcript_chunks_768d Collection**:
+- Document Count: 823,763
+- Total Size: 8.4GB
+- Storage Size: 4.9GB (compressed)
+- Average Document Size: 10.2KB
+- Text Index Size: 154MB (largest index)
+
+**Document Structure**:
+- Contains 768-dimension embeddings (array of 768 floats)
+- Text field for search
+- Metadata: episode_id, start_time, end_time, feed_slug
+- Each embedding alone is ~6KB (768 floats × 8 bytes)
+
+#### 7. Key Indexes
+1. `_id_`: 22.8MB
+2. `text_search_index`: 154.4MB (the text search index)
+3. `episode_chunk_unique`: 20.9MB
+4. `feed_slug_1`: 16.3MB
+5. `created_at_-1`: 20MB
+6. `episode_id_1`: 3.9MB

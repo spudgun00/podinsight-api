@@ -15,7 +15,7 @@ from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect, NotPrimar
 import numpy as np
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Ensure correct environment loading
 from lib.env_loader import load_env_safely
@@ -38,7 +38,7 @@ async def with_mongodb_retry(func, max_retries=2, operation_name="mongodb_operat
 
             # Log successful operation analytics
             analytics_data = {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "session_id": session_id,
                 "operation": operation_name,
                 "mongodb": {
@@ -61,7 +61,7 @@ async def with_mongodb_retry(func, max_retries=2, operation_name="mongodb_operat
 
                 # Log failed operation analytics
                 analytics_data = {
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "session_id": session_id,
                     "operation": operation_name,
                     "mongodb": {
@@ -134,25 +134,25 @@ class ImprovedHybridSearch:
             logger.warning("MONGODB_URI not set, hybrid search disabled")
             return None
 
-        # Calculate dynamic timeout based on Modal response time
-        time_budget = 28.0  # Conservative: 2s buffer from Vercel's 30s limit
-        time_used = modal_response_time + 2.0  # Buffer for other operations
-        time_remaining = time_budget - time_used
-
-        # Dynamic timeout: min 3s, max 8s
-        dynamic_timeout = max(3000, min(8000, int(time_remaining * 1000 * 0.5)))
+        # Use pragmatic fixed timeouts for serverless environment
+        # 10s allows for normal replica set failovers while leaving 20s for actual operations
+        # This is better than 30s which would consume the entire Vercel timeout
+        # Time budget: Connection (10s) + Query (15s) + Buffer (5s) = 30s total
+        connection_timeout = 10000  # 10 seconds for server selection (handles most failovers)
+        connect_timeout = 5000      # 5 seconds for initial socket connection
+        socket_timeout = 45000      # 45 seconds for long-running queries (can span multiple requests)
 
         # Log MongoDB configuration analytics
         config_analytics = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "operation": "mongodb_config",
             "mongodb": {
                 "modal_response_time": modal_response_time,
-                "time_budget": time_budget,
-                "time_used": time_used,
-                "time_remaining": time_remaining,
-                "dynamic_timeout_ms": dynamic_timeout,
-                "read_preference": "secondaryPreferred"
+                "connection_timeout_ms": connection_timeout,
+                "connect_timeout_ms": connect_timeout,
+                "socket_timeout_ms": socket_timeout,
+                "read_preference": "secondaryPreferred",
+                "strategy": "fail-fast with time budget"
             }
         }
         logger.info(f"MONGODB_ANALYTICS: {json.dumps(config_analytics)}")
@@ -161,21 +161,32 @@ class ImprovedHybridSearch:
         loop_id = id(asyncio.get_running_loop())
 
         # Create unique key for this timeout configuration
-        client_key = f"{loop_id}_{dynamic_timeout}"
+        client_key = f"{loop_id}_{connection_timeout}"
         client = ImprovedHybridSearch._client_per_loop.get(client_key)
 
         if client is None:
-            logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}, timeout {dynamic_timeout}ms")
+            logger.info(f"Creating MongoDB client for hybrid search, event loop {loop_id}, connection timeout {connection_timeout}ms")
+            connection_start = time.time()
             client = AsyncIOMotorClient(
                 uri,
-                serverSelectionTimeoutMS=dynamic_timeout,
-                connectTimeoutMS=dynamic_timeout,
-                socketTimeoutMS=dynamic_timeout,
-                maxPoolSize=10,
+                serverSelectionTimeoutMS=connection_timeout,  # 10s for server selection
+                connectTimeoutMS=connect_timeout,             # 5s for initial connection
+                socketTimeoutMS=socket_timeout,               # 45s for long queries
+                maxPoolSize=100,                              # Increased from 10 for better concurrency
+                minPoolSize=10,                               # Keep connections warm
+                maxIdleTimeMS=60000,                          # Keep idle connections for 1 minute
                 retryWrites=True,
-                readPreference='secondaryPreferred'  # Read from secondaries during elections
+                retryReads=True,                              # Add retry for read operations
+                readPreference='secondaryPreferred',          # Read from secondaries during elections
+                w='majority'                                  # Ensure write durability
             )
             ImprovedHybridSearch._client_per_loop[client_key] = client
+
+            connection_time = time.time() - connection_start
+            if connection_time > 5:
+                logger.warning(f"Slow MongoDB client creation: {connection_time:.2f}s")
+            else:
+                logger.info(f"MongoDB client created in {connection_time:.2f}s")
 
         # Never cache the collection – it inherits the loop from its client
         db = client[db_name]
@@ -732,3 +743,58 @@ async def get_hybrid_search_handler() -> ImprovedHybridSearch:
     if _hybrid_handler_instance is None:
         _hybrid_handler_instance = ImprovedHybridSearch()
     return _hybrid_handler_instance
+
+
+async def warm_mongodb_connection():
+    """
+    Warm up MongoDB connection on startup to avoid cold start penalties.
+    This should be called during application initialization.
+    """
+    try:
+        logger.info("Starting MongoDB connection warming...")
+        start_time = time.time()
+
+        # Get the hybrid search handler to initialize connection
+        handler = await get_hybrid_search_handler()
+
+        # Get collection to force connection establishment
+        collection = handler._get_collection(modal_response_time=0.0)
+
+        if collection:
+            # Ping to verify connection
+            await collection.database.client.admin.command('ping')
+
+            # Do a simple query to warm up the connection pool
+            await collection.find_one()
+
+            elapsed = time.time() - start_time
+            logger.info(f"✅ MongoDB connection warmed up successfully in {elapsed:.2f}s")
+
+            # Log warming analytics
+            analytics = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "operation": "connection_warming",
+                "mongodb": {
+                    "warming_time": elapsed,
+                    "success": True
+                }
+            }
+            logger.info(f"MONGODB_ANALYTICS: {json.dumps(analytics)}")
+        else:
+            logger.warning("⚠️ MongoDB connection warming skipped - no collection available")
+
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.warning(f"⚠️ MongoDB warmup failed after {elapsed:.2f}s (non-critical): {e}")
+
+        # Log warming failure analytics
+        analytics = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "operation": "connection_warming",
+            "mongodb": {
+                "warming_time": elapsed,
+                "success": False,
+                "error": str(e)
+            }
+        }
+        logger.info(f"MONGODB_ANALYTICS: {json.dumps(analytics)}")
