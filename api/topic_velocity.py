@@ -60,12 +60,22 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 #     await warmup_connections()
 
 # Configure CORS
+# Get CORS origins from environment variable
+ALLOWED_ORIGINS = os.getenv(
+    'CORS_ORIGINS',
+    'http://localhost:3000,http://localhost:5173'  # Default for local dev
+).split(',')
+
+# Strip whitespace from each origin
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],  # Explicit methods
     allow_headers=["*"],
+    expose_headers=["Content-Length", "X-Request-ID"],
 )
 
 # Initialize Supabase client (kept for backward compatibility)
