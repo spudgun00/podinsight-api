@@ -368,27 +368,52 @@ After reading docs and testing, I should ask:
 **Fix**: Changed to always return top 5 chunks as citations (lines 482-504, 637-659)
 **Status**: ✅ Resolved - API now returns 5 source citations
 
-### Issue #3: "Load More" Shows "5 of 25" (Should Show "5 of 5")
-**Root Cause**: **FRONTEND ISSUE** - Mixing citations count with total_results
+### Issue #3: Only Showing 5 Citations Instead of All Results
+**Root Cause**: **FRONTEND ISSUE** - Displaying citations array instead of results array
 **Details**:
-- API returns TWO different values:
-  - `answer.citations.length` = 5 (sources used for AI answer)
-  - `total_results` = 25 (all episodes matching search)
-- Frontend showing: `{citations.length} of {total_results}` = "5 of 25" ❌
-- Correct: `{citations.length} of {citations.length}` = "5 of 5" ✅
-**Fix Required**: Frontend code needs to fix the "Load More" button logic
-**Options**:
-1. Show "5 of 5 sources" (then hide button since all shown)
-2. Hide "Load More" button entirely when `citationsDisplayed === citations.length`
-3. If showing search results separately, use `results.length of total_results`
+- API returns TWO separate arrays:
+  - `answer.citations` = 5 items (top sources for AI synthesis)
+  - `results` = 10 items (paginated search results, filtered by relevancy >= 0.15)
+  - `total_results` = 18 (total results above relevancy threshold)
+- **Frontend is ONLY showing `answer.citations` (5 items)** ❌
+- **Should be showing `results` array (10 items)** ✅
+- "Load More" mixing counts: `{citations.length} of {total_results}` = "5 of 18" ❌
+
+**Fix Required**:
+```typescript
+// WRONG - Only showing citations
+{answer.citations.map(citation => <SourceCard />)}
+Button: "{citations.length} of {total_results}"  // 5 of 18
+
+// CORRECT - Show all results
+{results.map(result => <ResultCard />)}
+Button: "{results.length} of {total_results}"  // 10 of 18
+
+// Load More logic:
+if (displayedResults < total_results) {
+  // Fetch more: offset += limit
+  // Show button: "10 of 18 results"
+} else {
+  // Hide button (all shown)
+}
+```
+
+**Expected Behavior**:
+1. Initial load: Show 10 results (from `results` array)
+2. Button shows: "10 of 18 results"
+3. Click "Load More": Fetch with `offset=10, limit=10`
+4. Display 8 more results (total 18 shown)
+5. Hide button (all results displayed)
 
 ## ✅ Success Criteria
 
 When troubleshooting is complete:
 - ✅ Search results show actual podcast names (not "Unknown Podcast") - **BACKEND FIXED**
 - ✅ Relevancy scores show correct percentages (not 0%)
-- ✅ All 5 sources display (not just 2-3) - **BACKEND FIXED**
-- ⚠️ "Load More" button shows correct count ("5 of 5" not "5 of 25") - **FRONTEND FIX NEEDED**
+- ✅ Citations array has 5 sources (not just 2-3) - **BACKEND FIXED**
+- ⚠️ Display ALL relevant results (10+), not just citations (5) - **FRONTEND FIX NEEDED**
+- ⚠️ "Load More" shows correct count ("10 of 18 results") - **FRONTEND FIX NEEDED**
+- ⚠️ Pagination works (fetch more with offset parameter) - **FRONTEND FIX NEEDED**
 - ✅ All fields display consistently
 - ✅ TypeScript types match actual API response
 - ✅ Console shows no undefined values
