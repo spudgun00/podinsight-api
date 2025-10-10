@@ -53,7 +53,8 @@ async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
     try:
         # Fetch metadata from Supabase
         supabase = get_supabase_client()
-        metadata_response = supabase.table("episodes").select("*").eq("episode_id", episode_id).execute()
+        # Try episode_id field first, fallback to id field
+        metadata_response = supabase.table("episodes").select("*").eq("id", episode_id).execute()
 
         if not metadata_response.data or len(metadata_response.data) == 0:
             raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
