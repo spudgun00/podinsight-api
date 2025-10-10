@@ -370,40 +370,37 @@ After reading docs and testing, I should ask:
 
 ### Issue #3: Only Showing 5 Citations Instead of All Results
 **Root Cause**: **FRONTEND ISSUE** - Displaying citations array instead of results array
-**Details**:
-- API returns TWO separate arrays:
-  - `answer.citations` = 5 items (top sources for AI synthesis)
-  - `results` = 10 items (paginated search results, filtered by relevancy >= 0.15)
-  - `total_results` = 18 (total results above relevancy threshold)
-- **Frontend is ONLY showing `answer.citations` (5 items)** ❌
-- **Should be showing `results` array (10 items)** ✅
-- "Load More" mixing counts: `{citations.length} of {total_results}` = "5 of 18" ❌
 
-**Fix Required**:
+**Quick Summary**:
+- Frontend mapping over `answer.citations` (5 items) ❌
+- Should map over `results` array (10+ items) ✅
+- Button mixing `citations.length` with `total_results` ❌
+
+**📖 COMPREHENSIVE FIX GUIDE**:
+`/Users/jamesgill/PodInsights/podinsight-api/documentation/FRONTEND_FIX_SEARCH_RESULTS.md`
+
+**This guide contains**:
+- Complete before/after code examples
+- TypeScript types for both arrays
+- Step-by-step pagination implementation
+- Load More button logic
+- Testing checklist
+- API response examples
+
+**Quick Fix**:
 ```typescript
 // WRONG - Only showing citations
-{answer.citations.map(citation => <SourceCard />)}
-Button: "{citations.length} of {total_results}"  // 5 of 18
+{data.answer.citations.map(citation => <SourceCard />)}
 
 // CORRECT - Show all results
-{results.map(result => <ResultCard />)}
-Button: "{results.length} of {total_results}"  // 10 of 18
-
-// Load More logic:
-if (displayedResults < total_results) {
-  // Fetch more: offset += limit
-  // Show button: "10 of 18 results"
-} else {
-  // Hide button (all shown)
-}
+{data.results.map(result => <ResultCard />)}
 ```
 
-**Expected Behavior**:
-1. Initial load: Show 10 results (from `results` array)
-2. Button shows: "10 of 18 results"
-3. Click "Load More": Fetch with `offset=10, limit=10`
-4. Display 8 more results (total 18 shown)
-5. Hide button (all results displayed)
+**Expected Result**:
+- Initial: 10 results displayed
+- Button: "10 of 18 results"
+- Load More: Fetches next page with offset parameter
+- Final: All 18 results shown, button hidden
 
 ## ✅ Success Criteria
 
