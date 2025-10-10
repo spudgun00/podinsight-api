@@ -368,12 +368,27 @@ After reading docs and testing, I should ask:
 **Fix**: Changed to always return top 5 chunks as citations (lines 482-504, 637-659)
 **Status**: ✅ Resolved - API now returns 5 source citations
 
+### Issue #3: "Load More" Shows "5 of 25" (Should Show "5 of 5")
+**Root Cause**: **FRONTEND ISSUE** - Mixing citations count with total_results
+**Details**:
+- API returns TWO different values:
+  - `answer.citations.length` = 5 (sources used for AI answer)
+  - `total_results` = 25 (all episodes matching search)
+- Frontend showing: `{citations.length} of {total_results}` = "5 of 25" ❌
+- Correct: `{citations.length} of {citations.length}` = "5 of 5" ✅
+**Fix Required**: Frontend code needs to fix the "Load More" button logic
+**Options**:
+1. Show "5 of 5 sources" (then hide button since all shown)
+2. Hide "Load More" button entirely when `citationsDisplayed === citations.length`
+3. If showing search results separately, use `results.length of total_results`
+
 ## ✅ Success Criteria
 
 When troubleshooting is complete:
 - ✅ Search results show actual podcast names (not "Unknown Podcast") - **BACKEND FIXED**
 - ✅ Relevancy scores show correct percentages (not 0%)
-- ✅ All 5 results display (not just 2) - **FRONTEND FIX NEEDED**
+- ✅ All 5 sources display (not just 2-3) - **BACKEND FIXED**
+- ⚠️ "Load More" button shows correct count ("5 of 5" not "5 of 25") - **FRONTEND FIX NEEDED**
 - ✅ All fields display consistently
 - ✅ TypeScript types match actual API response
 - ✅ Console shows no undefined values
