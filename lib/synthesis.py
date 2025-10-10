@@ -61,6 +61,12 @@ class Citation(BaseModel):
     start_seconds: float
     chunk_index: int
     chunk_text: str
+    similarity_score: float = 0.0  # Relevance score from search (0.0-1.0)
+    # Optional metadata fields
+    published_date: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    word_count: Optional[int] = None
+    topics: Optional[List[str]] = None
 
 class SynthesizedAnswer(BaseModel):
     """Result of answer synthesis"""
@@ -473,21 +479,29 @@ async def synthesize_answer(
         # Calculate confidence based on actual value
         confidence = calculate_smart_confidence(has_specific_data, deduplicated_chunks)
 
-        # Build citation objects for cited sources
+        # Build citation objects for TOP 5 sources (not just cited ones)
+        # This ensures dashboard always shows 5 source cards
         citations = []
-        for idx in cited_indices:
-            if 1 <= idx <= len(deduplicated_chunks):
-                chunk = deduplicated_chunks[idx - 1]  # Convert to 0-based index
-                citations.append(Citation(
-                    index=idx,
-                    episode_id=chunk.get("episode_id", "unknown"),
-                    episode_title=chunk.get("episode_title", "Unknown Episode"),
-                    podcast_name=chunk.get("podcast_title", "Unknown Podcast"),
-                    timestamp=format_timestamp(chunk.get("start_time", 0)),
-                    start_seconds=chunk.get("start_time", 0),
-                    chunk_index=chunk.get("chunk_index", 0),
-                    chunk_text=chunk.get("text", "")
-                ))
+        num_citations = min(5, len(deduplicated_chunks))  # Top 5 or all if fewer
+        for idx in range(1, num_citations + 1):
+            chunk = deduplicated_chunks[idx - 1]  # Convert to 0-based index
+            citations.append(Citation(
+                index=idx,
+                episode_id=chunk.get("episode_id", "unknown"),
+                episode_title=chunk.get("episode_title", "Unknown Episode"),
+                podcast_name=chunk.get("podcast_name", "Unknown Podcast"),  # Fixed: was podcast_title
+                timestamp=format_timestamp(chunk.get("start_time", 0)),
+                start_seconds=chunk.get("start_time", 0),
+                chunk_index=chunk.get("chunk_index", 0),
+                chunk_text=chunk.get("text", ""),
+                similarity_score=float(chunk.get("score", 0.0)),
+                published_date=chunk.get("published_at"),
+                duration_seconds=chunk.get("duration_seconds"),
+                word_count=chunk.get("word_count"),
+                topics=chunk.get("topics")
+            ))
+
+        logger.info(f"Returning {len(citations)} citations (top {num_citations} sources)")
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
@@ -620,21 +634,29 @@ async def synthesize_answer_v2(
         # Calculate confidence based on actual value
         confidence = calculate_smart_confidence(has_specific_data, deduplicated_chunks)
 
-        # Build citation objects
+        # Build citation objects for TOP 5 sources (not just cited ones)
+        # This ensures dashboard always shows 5 source cards
         citations = []
-        for idx in cited_indices:
-            if 1 <= idx <= len(deduplicated_chunks):
-                chunk = deduplicated_chunks[idx - 1]
-                citations.append(Citation(
-                    index=idx,
-                    episode_id=chunk.get("episode_id", "unknown"),
-                    episode_title=chunk.get("episode_title", "Unknown Episode"),
-                    podcast_name=chunk.get("podcast_title", "Unknown Podcast"),
-                    timestamp=format_timestamp(chunk.get("start_time", 0)),
-                    start_seconds=chunk.get("start_time", 0),
-                    chunk_index=chunk.get("chunk_index", 0),
-                    chunk_text=chunk.get("text", "")
-                ))
+        num_citations = min(5, len(deduplicated_chunks))  # Top 5 or all if fewer
+        for idx in range(1, num_citations + 1):
+            chunk = deduplicated_chunks[idx - 1]
+            citations.append(Citation(
+                index=idx,
+                episode_id=chunk.get("episode_id", "unknown"),
+                episode_title=chunk.get("episode_title", "Unknown Episode"),
+                podcast_name=chunk.get("podcast_name", "Unknown Podcast"),  # Fixed: was podcast_title
+                timestamp=format_timestamp(chunk.get("start_time", 0)),
+                start_seconds=chunk.get("start_time", 0),
+                chunk_index=chunk.get("chunk_index", 0),
+                chunk_text=chunk.get("text", ""),
+                similarity_score=float(chunk.get("score", 0.0)),
+                published_date=chunk.get("published_at"),
+                duration_seconds=chunk.get("duration_seconds"),
+                word_count=chunk.get("word_count"),
+                topics=chunk.get("topics")
+            ))
+
+        logger.info(f"[v2] Returning {len(citations)} citations (top {num_citations} sources)")
 
         synthesis_time_ms = int((time.time() - start_time) * 1000)
 
