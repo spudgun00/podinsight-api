@@ -521,7 +521,7 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
 
                     formatted_results.append(SearchResult(
                         episode_id=result.get("episode_id", "unknown"),
-                        podcast_name=result.get("podcast_title", "Unknown Podcast"),
+                        podcast_name=result.get("podcast_name", "Unknown Podcast"),  # Fixed: was podcast_title
                         episode_title=episode_title,
                         published_at=published_iso,
                         published_date=published_date,
