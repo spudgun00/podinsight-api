@@ -78,11 +78,14 @@ async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
         word_count = sum(len(chunk.text.split()) for chunk in transcript_chunks)
         duration_seconds = int(transcript_chunks[-1].end_time) if transcript_chunks else 0
 
+        # Extract nested metadata fields
+        raw_entry = metadata.get("raw_entry_original_feed", {})
+
         return TranscriptResponse(
             episode_id=episode_id,
-            podcast_name=metadata.get("podcast_name", "Unknown"),
-            episode_title=metadata.get("title", "Unknown Episode"),
-            published_at=metadata.get("published_at", ""),
+            podcast_name=metadata.get("podcast_title", "Unknown"),
+            episode_title=raw_entry.get("episode_title", "Unknown Episode"),
+            published_at=raw_entry.get("published_date_iso", ""),
             full_text=full_text,
             chunks=transcript_chunks,
             duration_seconds=duration_seconds,
