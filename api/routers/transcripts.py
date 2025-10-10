@@ -8,20 +8,10 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorClient
 from async_lru import alru_cache
-from supabase import create_client, Client
+from lib.database import get_pool
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/transcript", tags=["transcripts"])
-
-def get_supabase_client() -> Client:
-    """Get Supabase client for episode metadata"""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
-
-    if not url or not key:
-        raise ValueError("Supabase configuration not found")
-
-    return create_client(url, key)
 
 class TranscriptChunk(BaseModel):
     text: str
@@ -51,10 +41,13 @@ def get_mongodb_client():
 async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
     """Get full transcript for an episode (cached)"""
     try:
-        # Fetch metadata from Supabase
-        supabase = get_supabase_client()
-        # Try episode_id field first, fallback to id field
-        metadata_response = supabase.table("episodes").select("*").eq("id", episode_id).execute()
+        # Fetch metadata from Supabase using connection pool
+        pool = get_pool()
+
+        def query_episode(client):
+            return client.table("episodes").select("*").eq("id", episode_id).execute()
+
+        metadata_response = await pool.execute_with_retry(query_episode)
 
         if not metadata_response.data or len(metadata_response.data) == 0:
             raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
