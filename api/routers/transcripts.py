@@ -97,8 +97,10 @@ async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching transcript: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch transcript")
+        logger.error(f"Error fetching transcript: {e}", exc_info=True)
+        # Return more detailed error for debugging
+        error_detail = f"Failed to fetch transcript: {str(e)}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 @router.get("/{episode_id}", response_model=TranscriptResponse)
 async def get_transcript(episode_id: str):
