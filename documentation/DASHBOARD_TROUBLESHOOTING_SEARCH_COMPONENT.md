@@ -359,15 +359,14 @@ After reading docs and testing, I should ask:
 **Fix**: Changed to `result.get("podcast_name")` - deployed to production
 **Status**: ✅ Resolved - API now returns actual podcast names
 
-### Issue #2: Only 2 Sources Showing (When Expecting 5)
-**Root Cause**: **FRONTEND ISSUE** - Backend IS returning 5 results
-**Evidence**: `curl` test shows `returned_count: 5`
-**Fix Required**: Dashboard code limiting display to 2 results
-**Check For**:
-- `.slice(0, 2)` or `.take(2)` in results mapping
-- CSS hiding results 3-5 (overflow, height limits)
-- Conditional rendering showing only first 2
-- Loop or map only iterating twice
+### Issue #2: Only 2-3 Sources Showing (When Expecting 5) ✅ FIXED
+**Root Cause**: **BACKEND ISSUE** - Synthesis only returning citations AI mentioned in text
+**Details**:
+- AI generated answer citing only 2-3 sources in its response text
+- `lib/synthesis.py` only returned those cited sources as citations
+- Dashboard correctly displayed all received citations
+**Fix**: Changed to always return top 5 chunks as citations (lines 482-504, 637-659)
+**Status**: ✅ Resolved - API now returns 5 source citations
 
 ## ✅ Success Criteria
 
