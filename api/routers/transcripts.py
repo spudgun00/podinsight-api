@@ -8,9 +8,20 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorClient
 from async_lru import alru_cache
+from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/transcript", tags=["transcripts"])
+
+def get_supabase_client() -> Client:
+    """Get Supabase client for episode metadata"""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+
+    if not url or not key:
+        raise ValueError("Supabase configuration not found")
+
+    return create_client(url, key)
 
 class TranscriptChunk(BaseModel):
     text: str
@@ -40,17 +51,20 @@ def get_mongodb_client():
 async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
     """Get full transcript for an episode (cached)"""
     try:
-        client = get_mongodb_client()
-        db = client["podinsight"]
-        chunks_collection = db["transcript_chunks_768d"]
-        metadata_collection = db["episode_metadata"]
+        # Fetch metadata from Supabase
+        supabase = get_supabase_client()
+        metadata_response = supabase.table("episodes").select("*").eq("episode_id", episode_id).execute()
 
-        # Fetch metadata
-        metadata = await metadata_collection.find_one({"episode_id": episode_id})
-        if not metadata:
+        if not metadata_response.data or len(metadata_response.data) == 0:
             raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
 
-        # Fetch chunks
+        metadata = metadata_response.data[0]
+
+        # Fetch transcript chunks from MongoDB
+        mongo_client = get_mongodb_client()
+        db = mongo_client["podinsight"]
+        chunks_collection = db["transcript_chunks_768d"]
+
         cursor = chunks_collection.find(
             {"episode_id": episode_id}
         ).sort("chunk_index", 1).limit(5000)
