@@ -352,11 +352,29 @@ After reading docs and testing, I should ask:
 
 ---
 
+## 🔧 FIXED: Backend Issues (2025-10-10)
+
+### Issue #1: "Unknown Podcast" ✅ FIXED
+**Root Cause**: `search_lightweight_768d.py` line 524 was using `podcast_title` but hybrid search returns `podcast_name`
+**Fix**: Changed to `result.get("podcast_name")` - deployed to production
+**Status**: ✅ Resolved - API now returns actual podcast names
+
+### Issue #2: Only 2 Sources Showing (When Expecting 5)
+**Root Cause**: **FRONTEND ISSUE** - Backend IS returning 5 results
+**Evidence**: `curl` test shows `returned_count: 5`
+**Fix Required**: Dashboard code limiting display to 2 results
+**Check For**:
+- `.slice(0, 2)` or `.take(2)` in results mapping
+- CSS hiding results 3-5 (overflow, height limits)
+- Conditional rendering showing only first 2
+- Loop or map only iterating twice
+
 ## ✅ Success Criteria
 
 When troubleshooting is complete:
-- ✅ Search results show actual podcast names (not "Unknown Podcast")
+- ✅ Search results show actual podcast names (not "Unknown Podcast") - **BACKEND FIXED**
 - ✅ Relevancy scores show correct percentages (not 0%)
+- ✅ All 5 results display (not just 2) - **FRONTEND FIX NEEDED**
 - ✅ All fields display consistently
 - ✅ TypeScript types match actual API response
 - ✅ Console shows no undefined values
