@@ -67,7 +67,7 @@ interface SearchResult {
   similarity_score: number;
   excerpt: string;
   word_count: number;
-  duration_seconds: number;
+  duration_seconds?: number | null;  // Optional - field missing in MongoDB
   timestamp: {
     start_time: number;
     end_time: number;
@@ -371,3 +371,130 @@ If you have issues:
 
 **Backend team**: All fixes deployed and working ✅
 **Frontend team**: Need to switch from citations to results array ⚠️
+
+---
+
+## ⚠️ Handling Optional Fields
+
+### duration_seconds Field Missing
+
+**Issue**: The `duration_seconds` field does not exist in MongoDB (0 out of 1,236 episodes have it).
+
+**Why This Happens**:
+- Transcript endpoint can calculate duration from last chunk's `end_time`
+- Search endpoint only fetches matching chunks (not all chunks)
+- Cannot determine total episode duration from partial chunks
+
+**Solution**: Handle missing duration gracefully in UI
+
+### Option 1: Display "Duration unavailable"
+```typescript
+const ResultCard = ({ result }: { result: SearchResult }) => {
+  return (
+    <div className="result-card">
+      <h3>{result.episode_title}</h3>
+      <p>{result.podcast_name}</p>
+
+      {/* Handle missing duration */}
+      <div className="metadata">
+        {result.duration_seconds ? (
+          <span>{formatDuration(result.duration_seconds)}</span>
+        ) : (
+          <span className="text-gray-400 text-sm">Duration unavailable</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Helper function to format duration
+const formatDuration = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+```
+
+### Option 2: Hide duration field entirely
+```typescript
+const ResultCard = ({ result }: { result: SearchResult }) => {
+  return (
+    <div className="result-card">
+      <h3>{result.episode_title}</h3>
+      <p>{result.podcast_name}</p>
+
+      {/* Only show duration if available */}
+      <div className="metadata">
+        <span>{result.published_date}</span>
+        {result.duration_seconds && (
+          <>
+            <span className="separator">•</span>
+            <span>{formatDuration(result.duration_seconds)}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+### Option 3: Fetch duration from transcript endpoint (lazy load)
+```typescript
+const ResultCard = ({ result }: { result: SearchResult }) => {
+  const [duration, setDuration] = useState<number | null>(result.duration_seconds || null);
+  const [loadingDuration, setLoadingDuration] = useState(false);
+
+  const fetchDuration = async () => {
+    if (duration || loadingDuration) return;
+
+    setLoadingDuration(true);
+    try {
+      const response = await fetch(`/api/transcript/${result.episode_id}`);
+      const data = await response.json();
+      setDuration(data.duration_seconds);
+    } catch (error) {
+      console.error('Failed to fetch duration:', error);
+    } finally {
+      setLoadingDuration(false);
+    }
+  };
+
+  return (
+    <div className="result-card" onClick={fetchDuration}>
+      <h3>{result.episode_title}</h3>
+      <p>{result.podcast_name}</p>
+
+      <div className="metadata">
+        {duration ? (
+          <span>{formatDuration(duration)}</span>
+        ) : loadingDuration ? (
+          <span className="text-gray-400">Loading...</span>
+        ) : (
+          <span className="text-gray-400">Click to load duration</span>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+### Recommended Approach
+
+**Use Option 2** (hide duration if missing) for best UX:
+- Avoids showing "unavailable" text that clutters UI
+- No additional API calls needed
+- Simple and performant
+- Users won't miss what they don't see
+
+**TypeScript Interface** (already updated above):
+```typescript
+interface SearchResult {
+  duration_seconds?: number | null;  // Optional field
+  // ... other fields
+}
+```
+
+**Note**: The transcript modal will still show duration correctly because it uses the transcript endpoint which fetches all chunks and calculates duration.

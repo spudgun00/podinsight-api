@@ -402,6 +402,61 @@ After reading docs and testing, I should ask:
 - Load More: Fetches next page with offset parameter
 - Final: All 18 results shown, button hidden
 
+### Issue #4: duration_seconds Field Empty in Search Results
+**Root Cause**: **DATA LIMITATION** - Field does not exist in MongoDB episode_metadata collection
+
+**Status**: ⚠️ **LIMITATION DOCUMENTED** (Not fixing via ETL - deferred)
+
+**Details**:
+- MongoDB has **0 out of 1,236 episodes** with `duration_seconds` field (0.0% coverage)
+- Field is completely missing from `episode_metadata` collection
+- Transcript modal shows duration because transcript endpoint calculates it from chunks
+
+**Why Transcript Endpoint Works**:
+```python
+# File: api/routers/transcripts.py, line 79
+duration_seconds = int(transcript_chunks[-1].end_time) if transcript_chunks else 0
+```
+- Fetches ALL chunks for an episode
+- Uses last chunk's `end_time` as total duration
+- Works perfectly for transcript modal
+
+**Why Search Endpoint Cannot Provide Duration**:
+- Search endpoint only fetches matching chunks (not all chunks)
+- Cannot determine total episode duration from partial chunks
+- Would require expensive additional MongoDB query per result
+
+**Solution for Dashboard**:
+1. **Mark field as optional** in TypeScript interfaces:
+   ```typescript
+   interface SearchResult {
+     duration_seconds?: number | null;  // Optional - may be missing
+     // ... other fields
+   }
+   ```
+
+2. **Handle missing duration gracefully**:
+   ```typescript
+   // Display "Duration unavailable" or hide duration if missing
+   {result.duration_seconds ? (
+     <span>{formatDuration(result.duration_seconds)}</span>
+   ) : (
+     <span className="text-gray-400">Duration unavailable</span>
+   )}
+   ```
+
+3. **Alternative**: Fetch duration from transcript endpoint if needed:
+   ```typescript
+   // Only if user clicks to view details
+   const transcript = await fetch(`/api/transcript/${episode_id}`);
+   const { duration_seconds } = await transcript.json();
+   ```
+
+**Updated Documentation**:
+- See `FRONTEND_FIX_SEARCH_RESULTS.md` for complete optional field handling
+- Field marked as optional in all API response schemas
+- No ETL fix planned at this time
+
 ## ✅ Success Criteria
 
 When troubleshooting is complete:
@@ -411,8 +466,9 @@ When troubleshooting is complete:
 - ⚠️ Display ALL relevant results (10+), not just citations (5) - **FRONTEND FIX NEEDED**
 - ⚠️ "Load More" shows correct count ("10 of 18 results") - **FRONTEND FIX NEEDED**
 - ⚠️ Pagination works (fetch more with offset parameter) - **FRONTEND FIX NEEDED**
+- ⚠️ Handle missing duration_seconds gracefully - **FRONTEND FIX NEEDED**
 - ✅ All fields display consistently
-- ✅ TypeScript types match actual API response
+- ✅ TypeScript types match actual API response (including optional fields)
 - ✅ Console shows no undefined values
 - ✅ Understanding of root cause documented
 
