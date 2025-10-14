@@ -380,7 +380,8 @@ class ImprovedHybridSearch:
                         # Extract metadata fields with proper paths
                         "podcast_name": "$metadata.podcast_title",  # Map to podcast_name for API
                         "episode_title": "$metadata.raw_entry_original_feed.episode_title",
-                        "published": "$metadata.raw_entry_original_feed.published_date_iso"
+                        "published": "$metadata.raw_entry_original_feed.published_date_iso",
+                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
                     }
                 }
             ]
@@ -469,7 +470,8 @@ class ImprovedHybridSearch:
                         # Extract metadata fields with proper paths
                         "podcast_name": "$metadata.podcast_title",
                         "episode_title": "$metadata.raw_entry_original_feed.episode_title",
-                        "published": "$metadata.raw_entry_original_feed.published_date_iso"
+                        "published": "$metadata.raw_entry_original_feed.published_date_iso",
+                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
                     }
                 }
             ]
@@ -537,7 +539,8 @@ class ImprovedHybridSearch:
                             "feed_slug": 1,
                             "podcast_name": "$metadata.podcast_title",
                             "episode_title": "$metadata.raw_entry_original_feed.episode_title",
-                            "published": "$metadata.raw_entry_original_feed.published_date_iso"
+                            "published": "$metadata.raw_entry_original_feed.published_date_iso",
+                            "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
                         }
                     }
                 ]
@@ -581,7 +584,8 @@ class ImprovedHybridSearch:
                     'feed_slug': vr.get('feed_slug'),
                     'podcast_name': vr.get('podcast_name'),  # Changed from podcast_title
                     'episode_title': vr.get('episode_title'),
-                    'published': vr.get('published')
+                    'published': vr.get('published'),
+                    'duration_seconds': vr.get('duration_seconds', 0)
                 }
             }
 
@@ -607,7 +611,8 @@ class ImprovedHybridSearch:
                         'feed_slug': tr.get('feed_slug'),
                         'podcast_name': tr.get('podcast_name'),  # Changed from podcast_title
                         'episode_title': tr.get('episode_title'),
-                        'published': tr.get('published')
+                        'published': tr.get('published'),
+                        'duration_seconds': tr.get('duration_seconds', 0)
                     }
                 }
 
@@ -734,6 +739,7 @@ class ImprovedHybridSearch:
                 'podcast_name': result.metadata.get('podcast_name'),  # API expects podcast_name
                 'episode_title': result.metadata.get('episode_title'),
                 'published': result.metadata.get('published'),
+                'duration_seconds': result.metadata.get('duration_seconds', 0),
                 # Additional hybrid search info
                 'vector_score': result.vector_score,
                 'text_score': result.text_score,

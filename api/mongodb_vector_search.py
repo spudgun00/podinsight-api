@@ -124,7 +124,8 @@ class MongoVectorSearchHandler:
                     "podcast_title": {"$ifNull": ["$meta.podcast_title", "$meta.raw_entry_original_feed.podcast_title", "Unknown Podcast"]},
                     "episode_title": {"$ifNull": ["$meta.raw_entry_original_feed.episode_title", "$meta.episode_title", "(Untitled episode)"]},
                     "episode_number": {"$ifNull": ["$meta.raw_entry_original_feed.episode_number", "$meta.episode_number", None]},
-                    "published": {"$ifNull": ["$meta.raw_entry_original_feed.published_date_iso", "$meta.published_date_iso", None]}
+                    "published": {"$ifNull": ["$meta.raw_entry_original_feed.published_date_iso", "$meta.published_date_iso", None]},
+                    "duration_seconds": {"$ifNull": ["$meta.duration_seconds", 0]}
                 }},
 
                 {"$limit": limit}

@@ -403,13 +403,14 @@ After reading docs and testing, I should ask:
 - Final: All 18 results shown, button hidden
 
 ### Issue #4: duration_seconds Field Empty in Search Results
-**Root Cause**: **DATA LIMITATION** - Field does not exist in MongoDB episode_metadata collection
+**Root Cause**: **DATA LIMITATION** - Field was not populated during initial ETL
 
-**Status**: ⚠️ **LIMITATION DOCUMENTED** (Not fixing via ETL - deferred)
+**Status**: ✅ **FIXED** (Migration completed on 2025-10-12)
 
 **Details**:
-- MongoDB has **0 out of 1,236 episodes** with `duration_seconds` field (0.0% coverage)
-- Field is completely missing from `episode_metadata` collection
+- MongoDB now has **1,171 out of 1,236 episodes** with `duration_seconds` field (94.7% coverage)
+- Field populated via migration script (`scripts/populate_duration_seconds.py`)
+- 65 episodes (5.3%) remain without duration due to missing transcript chunks (data quality issue)
 - Transcript modal shows duration because transcript endpoint calculates it from chunks
 
 **Why Transcript Endpoint Works**:
@@ -421,23 +422,23 @@ duration_seconds = int(transcript_chunks[-1].end_time) if transcript_chunks else
 - Uses last chunk's `end_time` as total duration
 - Works perfectly for transcript modal
 
-**Why Search Endpoint Cannot Provide Duration**:
-- Search endpoint only fetches matching chunks (not all chunks)
-- Cannot determine total episode duration from partial chunks
-- Would require expensive additional MongoDB query per result
+**Migration Completed**:
+- ✅ Script: `scripts/populate_duration_seconds.py`
+- ✅ Coverage: 1,171/1,236 episodes (94.7%)
+- ✅ Method: Calculates from last chunk's `end_time` (same as transcript endpoint)
 
 **Solution for Dashboard**:
-1. **Mark field as optional** in TypeScript interfaces:
+1. **Mark field as optional** in TypeScript interfaces (for the 5.3% without data):
    ```typescript
    interface SearchResult {
-     duration_seconds?: number | null;  // Optional - may be missing
+     duration_seconds?: number | null;  // Optional - missing for 65 episodes
      // ... other fields
    }
    ```
 
-2. **Handle missing duration gracefully**:
+2. **Handle missing duration gracefully** (only needed for 5.3%):
    ```typescript
-   // Display "Duration unavailable" or hide duration if missing
+   // Display duration or fallback for episodes with no transcript chunks
    {result.duration_seconds ? (
      <span>{formatDuration(result.duration_seconds)}</span>
    ) : (
@@ -445,17 +446,14 @@ duration_seconds = int(transcript_chunks[-1].end_time) if transcript_chunks else
    )}
    ```
 
-3. **Alternative**: Fetch duration from transcript endpoint if needed:
-   ```typescript
-   // Only if user clicks to view details
-   const transcript = await fetch(`/api/transcript/${episode_id}`);
-   const { duration_seconds } = await transcript.json();
-   ```
+3. **Expected Behavior**:
+   - 94.7% of search results will have duration
+   - 5.3% will show "Duration unavailable" (episodes without transcript chunks)
 
 **Updated Documentation**:
 - See `FRONTEND_FIX_SEARCH_RESULTS.md` for complete optional field handling
-- Field marked as optional in all API response schemas
-- No ETL fix planned at this time
+- Field still optional due to 65 episodes with missing data
+- Migration script can be re-run if new episodes are added
 
 ## ✅ Success Criteria
 
