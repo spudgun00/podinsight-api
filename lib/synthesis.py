@@ -84,7 +84,20 @@ def format_timestamp(seconds: float) -> str:
     return f"{minutes}:{secs:02d}"
 
 def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bool:
-    """Determine if chunks contain specific actionable data"""
+    """
+    Determine if chunks contain specific actionable data OR relevant content about the query
+
+    Returns True if:
+    1. Traditional VC metrics found (funding, valuation, etc.)
+    2. Query terms are substantially discussed in chunks
+    3. High relevance scores from search indicate good matches
+    """
+    if not chunks:
+        return False
+
+    combined_text = " ".join([c.get("text", "") for c in chunks])
+
+    # Traditional VC/funding metrics
     specific_indicators = [
         r'\$[\d,]+[MBK]?\s*(ARR|revenue|valuation)',  # Dollar amounts
         r'\d+[xX]\s*(return|multiple|growth)',         # Multiples
@@ -93,18 +106,53 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
         r'(acquired|raised|closed|launched)',           # Action verbs
     ]
 
-    combined_text = " ".join([c.get("text", "") for c in chunks])
-
     # Check if any specific pattern matches
     for pattern in specific_indicators:
         if re.search(pattern, combined_text, re.IGNORECASE):
+            logger.info("[SPECIFICS] Found VC metric pattern - treating as specific data")
             return True
 
     # Check if specific companies are named (not generic)
     company_pattern = r'[A-Z][a-zA-Z]+\.ai|[A-Z][a-zA-Z]+\s+(AI|Labs|Tech|Bio)'
     if re.search(company_pattern, combined_text):
+        logger.info("[SPECIFICS] Found company names - treating as specific data")
         return True
 
+    # NEW: Check if chunks are actually relevant to the query
+    # Extract key terms from query (remove stop words)
+    stop_words = {'what', 'are', 'is', 'the', 'about', 'how', 'who', 'when', 'where', 'why', 'saying', 'doing', 'with', 'for', 'in', 'on', 'at'}
+    query_terms = [word.lower() for word in query.split() if word.lower() not in stop_words and len(word) > 2]
+
+    if not query_terms:
+        logger.warning("[SPECIFICS] No meaningful query terms extracted")
+        return False
+
+    # Check if query terms appear in chunks
+    combined_lower = combined_text.lower()
+    term_matches = sum(1 for term in query_terms if term in combined_lower)
+    term_coverage = term_matches / len(query_terms) if query_terms else 0
+
+    logger.info(f"[SPECIFICS] Query terms: {query_terms}, matches: {term_matches}/{len(query_terms)} ({term_coverage:.1%})")
+
+    # If most query terms are present, consider it relevant content
+    if term_coverage >= 0.5:  # At least 50% of query terms found
+        logger.info("[SPECIFICS] Good query term coverage - treating as specific data")
+        return True
+
+    # NEW: Check relevance scores from search
+    # If we have high-scoring chunks, trust the search results
+    high_score_chunks = [c for c in chunks if c.get('score', 0) >= 0.6]
+    if len(high_score_chunks) >= 2:  # At least 2 chunks with score >= 0.6
+        logger.info(f"[SPECIFICS] Found {len(high_score_chunks)} high-score chunks - treating as specific data")
+        return True
+
+    # Check for substantive content (not just one-liners)
+    avg_chunk_length = sum(len(c.get("text", "")) for c in chunks) / max(len(chunks), 1)
+    if avg_chunk_length > 100 and term_coverage > 0.3:  # Substantive chunks with some query term matches
+        logger.info(f"[SPECIFICS] Substantive content (avg {avg_chunk_length:.0f} chars) with query terms - treating as specific data")
+        return True
+
+    logger.info("[SPECIFICS] No specific data found - returning False")
     return False
 
 def extract_key_terms(query: str) -> List[str]:
