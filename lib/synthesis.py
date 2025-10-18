@@ -98,9 +98,14 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
         logger.info("[SPECIFICS] No chunks provided - returning False")
         return False
 
+    # DEBUG: Log what we received
+    logger.info(f"[SPECIFICS DEBUG] Received {len(chunks)} chunks for query: '{query}'")
+    logger.info(f"[SPECIFICS DEBUG] Chunk keys: {list(chunks[0].keys()) if chunks else 'N/A'}")
+
     # PRIORITY #1: Trust the search algorithm!
     # If we have high-scoring chunks, trust that they're relevant
     scores = [c.get('score', 0) for c in chunks if 'score' in c]
+    logger.info(f"[SPECIFICS DEBUG] Extracted {len(scores)} scores from chunks")
     if scores:
         max_score = max(scores)
         avg_score = sum(scores) / len(scores)
