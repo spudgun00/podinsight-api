@@ -88,16 +88,39 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
     Determine if chunks contain specific actionable data OR relevant content about the query
 
     Returns True if:
-    1. Traditional VC metrics found (funding, valuation, etc.)
-    2. Query terms are substantially discussed in chunks
-    3. High relevance scores from search indicate good matches
+    1. High relevance scores from search indicate good matches (PRIORITIZED - trust the search!)
+    2. Traditional VC metrics found (funding, valuation, etc.)
+    3. Query terms are substantially discussed in chunks
+
+    UPDATED: Trust search scores more - if search returned high-scoring chunks, they ARE relevant!
     """
     if not chunks:
+        logger.info("[SPECIFICS] No chunks provided - returning False")
         return False
+
+    # PRIORITY #1: Trust the search algorithm!
+    # If we have high-scoring chunks, trust that they're relevant
+    scores = [c.get('score', 0) for c in chunks if 'score' in c]
+    if scores:
+        max_score = max(scores)
+        avg_score = sum(scores) / len(scores)
+        high_score_chunks = [c for c in chunks if c.get('score', 0) >= 0.5]  # Lowered from 0.6
+
+        logger.info(f"[SPECIFICS] Score analysis: max={max_score:.3f}, avg={avg_score:.3f}, high_score_count={len(high_score_chunks)}")
+
+        # If we have ANY chunk with score >= 0.5, that's relevant content worth synthesizing
+        if len(high_score_chunks) >= 1:  # Changed from 2 to 1
+            logger.info(f"[SPECIFICS] Found {len(high_score_chunks)} chunks with score >= 0.5 - TRUSTING SEARCH, treating as specific data")
+            return True
+
+        # Even with lower scores, if average is decent, trust it
+        if avg_score >= 0.4:
+            logger.info(f"[SPECIFICS] Average score {avg_score:.3f} >= 0.4 - treating as specific data")
+            return True
 
     combined_text = " ".join([c.get("text", "") for c in chunks])
 
-    # Traditional VC/funding metrics
+    # Traditional VC/funding metrics (secondary check)
     specific_indicators = [
         r'\$[\d,]+[MBK]?\s*(ARR|revenue|valuation)',  # Dollar amounts
         r'\d+[xX]\s*(return|multiple|growth)',         # Multiples
@@ -118,13 +141,13 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
         logger.info("[SPECIFICS] Found company names - treating as specific data")
         return True
 
-    # NEW: Check if chunks are actually relevant to the query
+    # Check if chunks are actually relevant to the query
     # Extract key terms from query (remove stop words)
     stop_words = {'what', 'are', 'is', 'the', 'about', 'how', 'who', 'when', 'where', 'why', 'saying', 'doing', 'with', 'for', 'in', 'on', 'at'}
     query_terms = [word.lower() for word in query.split() if word.lower() not in stop_words and len(word) > 2]
 
     if not query_terms:
-        logger.warning("[SPECIFICS] No meaningful query terms extracted")
+        logger.warning("[SPECIFICS] No meaningful query terms extracted - but already checked scores above")
         return False
 
     # Check if query terms appear in chunks
@@ -134,25 +157,18 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
 
     logger.info(f"[SPECIFICS] Query terms: {query_terms}, matches: {term_matches}/{len(query_terms)} ({term_coverage:.1%})")
 
-    # If most query terms are present, consider it relevant content
-    if term_coverage >= 0.5:  # At least 50% of query terms found
+    # Lowered threshold from 0.5 to 0.4
+    if term_coverage >= 0.4:  # At least 40% of query terms found
         logger.info("[SPECIFICS] Good query term coverage - treating as specific data")
-        return True
-
-    # NEW: Check relevance scores from search
-    # If we have high-scoring chunks, trust the search results
-    high_score_chunks = [c for c in chunks if c.get('score', 0) >= 0.6]
-    if len(high_score_chunks) >= 2:  # At least 2 chunks with score >= 0.6
-        logger.info(f"[SPECIFICS] Found {len(high_score_chunks)} high-score chunks - treating as specific data")
         return True
 
     # Check for substantive content (not just one-liners)
     avg_chunk_length = sum(len(c.get("text", "")) for c in chunks) / max(len(chunks), 1)
-    if avg_chunk_length > 100 and term_coverage > 0.3:  # Substantive chunks with some query term matches
+    if avg_chunk_length > 80 and term_coverage > 0.25:  # Lowered thresholds
         logger.info(f"[SPECIFICS] Substantive content (avg {avg_chunk_length:.0f} chars) with query terms - treating as specific data")
         return True
 
-    logger.info("[SPECIFICS] No specific data found - returning False")
+    logger.info("[SPECIFICS] No specific data found after all checks - returning False")
     return False
 
 def extract_key_terms(query: str) -> List[str]:
