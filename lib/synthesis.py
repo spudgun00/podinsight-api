@@ -102,6 +102,10 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
     logger.info(f"[SPECIFICS DEBUG] Received {len(chunks)} chunks for query: '{query}'")
     logger.info(f"[SPECIFICS DEBUG] Chunk keys: {list(chunks[0].keys()) if chunks else 'N/A'}")
 
+    # TEMPORARY DEBUG: Force TRUE to test if synthesis works at all
+    logger.warning("[SPECIFICS DEBUG] FORCING TRUE FOR ALL QUERIES - TEMPORARY DEBUG MODE")
+    return True
+
     # PRIORITY #1: Trust the search algorithm!
     # If we have high-scoring chunks, trust that they're relevant
     scores = [c.get('score', 0) for c in chunks if 'score' in c]
