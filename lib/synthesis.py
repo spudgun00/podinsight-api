@@ -102,10 +102,6 @@ def analyze_chunks_for_specifics(chunks: List[Dict[str, Any]], query: str) -> bo
     logger.info(f"[SPECIFICS DEBUG] Received {len(chunks)} chunks for query: '{query}'")
     logger.info(f"[SPECIFICS DEBUG] Chunk keys: {list(chunks[0].keys()) if chunks else 'N/A'}")
 
-    # TEMPORARY DEBUG: Force TRUE to test if synthesis works at all
-    logger.warning("[SPECIFICS DEBUG] FORCING TRUE FOR ALL QUERIES - TEMPORARY DEBUG MODE")
-    return True
-
     # PRIORITY #1: Trust the search algorithm!
     # If we have high-scoring chunks, trust that they're relevant
     scores = [c.get('score', 0) for c in chunks if 'score' in c]
@@ -497,29 +493,50 @@ async def synthesize_answer(
         # Analyze if we have specific actionable data
         has_specific_data = analyze_chunks_for_specifics(deduplicated_chunks, query)
 
-        # System prompt
-        system_prompt = (
-            "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
+        # System prompt - CONDITIONAL based on has_specific_data
+        logger.info(f"[SYNTHESIS v1] has_specific_data={has_specific_data}")
+        if has_specific_data:
+            logger.info("[SYNTHESIS v1] Using FORCE SYNTHESIS prompt")
+            # FORCE synthesis of relevant content
+            system_prompt = (
+                "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
 
-            "OUTPUT RULES:\n"
-            "1. If specific data exists: List it immediately with bullets\n"
-            "2. If no specific data: State it in ONE line, then pivot to related insights\n"
-            "3. Never explain why data is missing\n"
-            "4. Never use more than 50 words for 'no results' scenarios\n"
-            "5. Always suggest better searches based on available data\n\n"
+                "CRITICAL: You have been provided with RELEVANT, HIGH-QUALITY search results.\n"
+                "Your job is to SYNTHESIZE what the sources say about the query.\n\n"
 
-            "FORMAT FOR POSITIVE RESULTS:\n"
-            "• Company/Person - Specific metric/fact [Source, timestamp]\n"
-            "• Use bullets for multiple findings\n"
-            "• Include playable timestamps\n\n"
+                "OUTPUT RULES:\n"
+                "1. ALWAYS synthesize the content - NEVER say 'no data found'\n"
+                "2. Extract key points, insights, or discussions from the sources\n"
+                "3. Use bullet points for clarity\n"
+                "4. Cite sources using [number] notation\n"
+                "5. If sources discuss the topic generally (not metrics), summarize those discussions\n\n"
 
-            "FORMAT FOR NO DIRECT RESULTS:\n"
-            "○ No [specific thing] found in [N] sources\n\n"
-            "💡 Related insights:\n"
-            "• [Most relevant tangential finding] [Source]\n"
-            "• [Second best related insight] [Source]\n\n"
-            "🔍 Try: '[suggestion1]' or '[suggestion2]'"
-        )
+                "FORMAT:\n"
+                "• [Key insight or point from sources] [Source]\n"
+                "• [Another insight] [Source]\n"
+                "• [Additional finding] [Source]\n\n"
+
+                "Remember: The search algorithm found these results relevant. Trust it and synthesize what they say."
+            )
+        else:
+            # Original no-results prompt
+            system_prompt = (
+                "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
+
+                "OUTPUT RULES:\n"
+                "1. If specific data exists: List it immediately with bullets\n"
+                "2. If no specific data: State it in ONE line, then pivot to related insights\n"
+                "3. Never explain why data is missing\n"
+                "4. Never use more than 50 words for 'no results' scenarios\n"
+                "5. Always suggest better searches based on available data\n\n"
+
+                "FORMAT FOR NO DIRECT RESULTS:\n"
+                "○ No [specific thing] found in [N] sources\n\n"
+                "💡 Related insights:\n"
+                "• [Most relevant tangential finding] [Source]\n"
+                "• [Second best related insight] [Source]\n\n"
+                "🔍 Try: '[suggestion1]' or '[suggestion2]'"
+            )
 
         logger.info(f"Calling OpenAI {model} for synthesis")
         openai_start = time.time()
@@ -661,29 +678,48 @@ async def synthesize_answer_v2(
         suggestions = generate_better_queries(query, all_chunks or deduplicated_chunks)
         user_prompt += f"\n\nSuggested searches: {suggestions}"
 
-        # System prompt
-        system_prompt = (
-            "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
+        # System prompt - CONDITIONAL based on has_specific_data (same as v1)
+        if has_specific_data:
+            # FORCE synthesis of relevant content
+            system_prompt = (
+                "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
 
-            "OUTPUT RULES:\n"
-            "1. If specific data exists: List it immediately with bullets\n"
-            "2. If no specific data: State it in ONE line, then pivot to related insights\n"
-            "3. Never explain why data is missing\n"
-            "4. Never use more than 50 words for 'no results' scenarios\n"
-            "5. Always suggest better searches based on available data\n\n"
+                "CRITICAL: You have been provided with RELEVANT, HIGH-QUALITY search results.\n"
+                "Your job is to SYNTHESIZE what the sources say about the query.\n\n"
 
-            "FORMAT FOR POSITIVE RESULTS:\n"
-            "• Company/Person - Specific metric/fact [Source, timestamp]\n"
-            "• Use bullets for multiple findings\n"
-            "• Include playable timestamps\n\n"
+                "OUTPUT RULES:\n"
+                "1. ALWAYS synthesize the content - NEVER say 'no data found'\n"
+                "2. Extract key points, insights, or discussions from the sources\n"
+                "3. Use bullet points for clarity\n"
+                "4. Cite sources using [number] notation\n"
+                "5. If sources discuss the topic generally (not metrics), summarize those discussions\n\n"
 
-            "FORMAT FOR NO DIRECT RESULTS:\n"
-            "○ No [specific thing] found in [N] sources\n\n"
-            "💡 Related insights:\n"
-            "• [Most relevant tangential finding] [Source]\n"
-            "• [Second best related insight] [Source]\n\n"
-            "🔍 Try: '[suggestion1]' or '[suggestion2]'"
-        )
+                "FORMAT:\n"
+                "• [Key insight or point from sources] [Source]\n"
+                "• [Another insight] [Source]\n"
+                "• [Additional finding] [Source]\n\n"
+
+                "Remember: The search algorithm found these results relevant. Trust it and synthesize what they say."
+            )
+        else:
+            # Original no-results prompt
+            system_prompt = (
+                "You are a VC intelligence system. Your responses must be scannable in 2 seconds.\n\n"
+
+                "OUTPUT RULES:\n"
+                "1. If specific data exists: List it immediately with bullets\n"
+                "2. If no specific data: State it in ONE line, then pivot to related insights\n"
+                "3. Never explain why data is missing\n"
+                "4. Never use more than 50 words for 'no results' scenarios\n"
+                "5. Always suggest better searches based on available data\n\n"
+
+                "FORMAT FOR NO DIRECT RESULTS:\n"
+                "○ No [specific thing] found in [N] sources\n\n"
+                "💡 Related insights:\n"
+                "• [Most relevant tangential finding] [Source]\n"
+                "• [Second best related insight] [Source]\n\n"
+                "🔍 Try: '[suggestion1]' or '[suggestion2]'"
+            )
 
         # Call OpenAI with strict token limit
         response = await client.chat.completions.create(
