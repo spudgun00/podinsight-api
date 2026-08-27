@@ -28,6 +28,7 @@ from .routers.briefings import router as briefings_router
 from .routers.feed import router as feed_router
 from .routers.companies import router as companies_router
 from .routers.intelligence_brief import router as intelligence_brief_router
+from .routers.signals import router as signals_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -100,6 +101,9 @@ app.include_router(companies_router)
 
 # The Intelligence Brief: one cached document for the period (phase E).
 app.include_router(intelligence_brief_router)
+
+# Notable Signals: the honest strip (phase E).
+app.include_router(signals_router)
 
 
 # Mount the existing topic_velocity app at the root
