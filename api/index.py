@@ -25,6 +25,7 @@ from .routers.topic_mentions import router as topic_mentions_router
 from .routers.topic_correlations import router as topic_correlations_router
 from .routers.topic_drilldown import router as topic_drilldown_router
 from .routers.briefings import router as briefings_router
+from .routers.feed import router as feed_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -88,6 +89,9 @@ app.include_router(topic_drilldown_router)
 
 # Pre-generated episode briefs (phase D).
 app.include_router(briefings_router)
+
+# The Narrative Feed: the same brief store in date order (phase D).
+app.include_router(feed_router)
 
 
 # Mount the existing topic_velocity app at the root
