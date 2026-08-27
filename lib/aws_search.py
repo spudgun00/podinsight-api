@@ -158,23 +158,45 @@ def _norm(s: str) -> str:
 
 
 def locate_quote(hit: Dict[str, Any], quote: str) -> float:
-    """Recover the exact second by matching a quote to the nested segments.
+    """Recover the second at which a quote STARTS, from the nested segments.
 
-    The chunk start is roughly 72 seconds before the middle of the chunk, so
-    citing it sends Play clip to the wrong moment. Falls back to the chunk
-    start only when no segment matches.
+    Resolution order, most reliable first:
+      1. a segment containing the whole quote
+      2. the segment containing the quote's opening words - a quote often spans
+         two or three segments, and the place to play from is where it begins,
+         not the longest segment somewhere inside it
+      3. the earliest segment contained in the quote and long enough to be
+         distinctive
+
+    The length floor on (3) matters: without it a segment of "100%." normalises
+    to "100", a substring of "...that's a 10,000X", so a two-word fragment won
+    the match and Play clip landed half an hour from the sentence quoted.
     """
+    MIN_SEGMENT_CHARS = 20
     q = _norm(quote)
     if not q:
         return float(hit.get("start_time", 0.0))
-    best_t, best_len = None, 0
-    for seg in hit.get("segments") or []:
-        s = _norm(seg.get("text", ""))
-        if not s:
+    segs = sorted((hit.get("segments") or []), key=lambda s: float(s.get("t", 0)))
+
+    for seg in segs:                                   # 1. whole quote inside a segment
+        if q in _norm(seg.get("text", "")):
+            return float(seg["t"])
+
+    words = q.split()
+    for n in (8, 6, 4):                                # 2. where the quote starts
+        head = " ".join(words[:n])
+        if len(head) < MIN_SEGMENT_CHARS:
             continue
-        if (s in q or q in s) and len(s) > best_len:
-            best_t, best_len = float(seg["t"]), len(s)
-    return best_t if best_t is not None else float(hit.get("start_time", 0.0))
+        for seg in segs:
+            if head in _norm(seg.get("text", "")):
+                return float(seg["t"])
+
+    for seg in segs:                                   # 3. earliest distinctive overlap
+        s = _norm(seg.get("text", ""))
+        if s and len(s) >= MIN_SEGMENT_CHARS and s in q:
+            return float(seg["t"])
+
+    return float(hit.get("start_time", 0.0))
 
 
 def search(query: str, top_n: int = RERANK_K, cutoff: float = None) -> Dict[str, Any]:

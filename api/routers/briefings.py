@@ -1,0 +1,109 @@
+"""Priority Briefings, served from pre-generated episode briefs.
+
+Phase D, 2026-08-27. The mock ranked episodes by an invented "Score: 97", framed
+everything as "3h ago", and labelled stances (CONSENSUS FORMING, DIVERGENCE)
+that nothing in the corpus measures. All of that is gone.
+
+Briefs are generated once by podinsight-aws-pilot/generate_briefs.py and read
+from the episode_briefs index. Nothing is generated per view.
+
+Every number on a card is an input to the ranking, not an output of it:
+mentions, words, and the density derived from them.
+"""
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+from lib import aws_search
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api", tags=["briefings"])
+
+BRIEFS_INDEX = "episode_briefs"
+
+RANKING_SENTENCE = (
+    "Ranked by how densely each episode discusses the five tracked topics — "
+    "mentions per 1,000 words — over episodes of at least 5,000 words, with at "
+    "most two per podcast."
+)
+
+
+class Claim(BaseModel):
+    claim: str
+    quote: str
+    start_seconds: Optional[float] = None
+    timestamp: Optional[str] = None
+    located: bool = False
+
+
+class Brief(BaseModel):
+    episode_id: str
+    podcast_name: str
+    episode_title: str
+    published_at: Optional[str] = None
+    summary: str
+    claims: List[Claim]
+    guests: List[str] = []
+    rank_position: int
+    rank_mentions: int
+    rank_words: int
+    rank_density: float
+
+
+class BriefingsResponse(BaseModel):
+    briefs: List[Brief]
+    count: int
+    ranking: str
+    period: str
+    generated_by: Optional[str] = None
+    source: str = "opensearch"
+
+
+def _to_brief(s: Dict[str, Any]) -> Brief:
+    return Brief(
+        episode_id=s["episode_id"], podcast_name=s.get("podcast_name") or "Unknown Podcast",
+        episode_title=s.get("episode_title") or "(Untitled episode)",
+        published_at=s.get("published_at"), summary=s.get("summary") or "",
+        claims=[Claim(**c) for c in (s.get("claims") or [])],
+        guests=s.get("guests") or [], rank_position=s.get("rank_position", 0),
+        rank_mentions=s.get("rank_mentions", 0), rank_words=s.get("rank_words", 0),
+        rank_density=s.get("rank_density", 0.0))
+
+
+@router.get("/briefings", response_model=BriefingsResponse)
+async def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
+    try:
+        os_ = aws_search.client()
+        r = os_.search(index=BRIEFS_INDEX, body={
+            "size": limit, "sort": [{"rank_position": "asc"}]})
+        rng = os_.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
+            "min": {"min": {"field": "published_at"}},
+            "max": {"max": {"field": "published_at"}}}})["aggregations"]
+    except Exception as e:                                   # noqa: BLE001
+        logger.error("briefings failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"Briefings unavailable: {e}")
+
+    hits = r["hits"]["hits"]
+    first = (rng["min"]["value_as_string"] or "")[:10]
+    last = (rng["max"]["value_as_string"] or "")[:10]
+    return BriefingsResponse(
+        briefs=[_to_brief(h["_source"]) for h in hits],
+        count=r["hits"]["total"]["value"] if isinstance(r["hits"]["total"], dict) else len(hits),
+        ranking=RANKING_SENTENCE,
+        period=f"{first} to {last}",
+        generated_by=(hits[0]["_source"].get("model") if hits else None))
+
+
+@router.get("/briefings/{episode_id}", response_model=Brief)
+async def briefing(episode_id: str) -> Brief:
+    try:
+        r = aws_search.client().search(index=BRIEFS_INDEX, body={
+            "size": 1, "query": {"term": {"episode_id": episode_id}}})
+    except Exception as e:                                   # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Briefing unavailable: {e}")
+    hits = r["hits"]["hits"]
+    if not hits:
+        raise HTTPException(status_code=404, detail="No brief for this episode")
+    return _to_brief(hits[0]["_source"])

@@ -24,6 +24,7 @@ from .routers.entities import router as entities_router
 from .routers.topic_mentions import router as topic_mentions_router
 from .routers.topic_correlations import router as topic_correlations_router
 from .routers.topic_drilldown import router as topic_drilldown_router
+from .routers.briefings import router as briefings_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -84,6 +85,9 @@ app.include_router(topic_correlations_router)
 
 # The episodes behind a topic-mentions number (phase D).
 app.include_router(topic_drilldown_router)
+
+# Pre-generated episode briefs (phase D).
+app.include_router(briefings_router)
 
 
 # Mount the existing topic_velocity app at the root
