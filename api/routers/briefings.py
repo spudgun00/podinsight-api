@@ -38,12 +38,28 @@ class Claim(BaseModel):
     located: bool = False
 
 
+class EntityMention(BaseModel):
+    name: str
+    count: int
+
+
 class Brief(BaseModel):
     episode_id: str
     podcast_name: str
     episode_title: str
     published_at: Optional[str] = None
     summary: str
+    # One line, at most ~15 words, for the card. The long summary stays in the
+    # full brief.
+    hook: str = ""
+    duration_minutes: Optional[int] = None
+    # Tags and entity counts come from the corpus, not from the model: tags are
+    # the tracked topics the episode actually mentions, entities are counted
+    # from the 2025 extraction under the same filter and stoplist as
+    # /api/entities.
+    topic_tags: List[str] = []
+    top_entities: List[EntityMention] = []
+    no_playable_claims: bool = False
     claims: List[Claim]
     guests: List[str] = []
     rank_position: int
@@ -57,6 +73,8 @@ class BriefingsResponse(BaseModel):
     count: int
     ranking: str
     period: str
+    prompt_version: Optional[int] = None
+    validation_rules: Optional[str] = None
     generated_by: Optional[str] = None
     source: str = "opensearch"
 
@@ -66,6 +84,10 @@ def _to_brief(s: Dict[str, Any]) -> Brief:
         episode_id=s["episode_id"], podcast_name=s.get("podcast_name") or "Unknown Podcast",
         episode_title=s.get("episode_title") or "(Untitled episode)",
         published_at=s.get("published_at"), summary=s.get("summary") or "",
+        hook=s.get("hook") or "", duration_minutes=s.get("duration_minutes"),
+        topic_tags=s.get("topic_tags") or [],
+        top_entities=[EntityMention(**e) for e in (s.get("top_entities") or [])],
+        no_playable_claims=bool(s.get("no_playable_claims")),
         claims=[Claim(**c) for c in (s.get("claims") or [])],
         guests=s.get("guests") or [], rank_position=s.get("rank_position", 0),
         rank_mentions=s.get("rank_mentions", 0), rank_words=s.get("rank_words", 0),
@@ -93,7 +115,9 @@ async def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
         count=r["hits"]["total"]["value"] if isinstance(r["hits"]["total"], dict) else len(hits),
         ranking=RANKING_SENTENCE,
         period=f"{first} to {last}",
-        generated_by=(hits[0]["_source"].get("model") if hits else None))
+        generated_by=(hits[0]["_source"].get("model") if hits else None),
+        prompt_version=(hits[0]["_source"].get("prompt_version") if hits else None),
+        validation_rules=(hits[0]["_source"].get("validation_rules") if hits else None))
 
 
 @router.get("/briefings/{episode_id}", response_model=Brief)

@@ -154,7 +154,16 @@ def rerank(query: str, hits: List[Dict[str, Any]], top_n: int = RERANK_K):
 
 
 def _norm(s: str) -> str:
-    return re.sub(r"[^a-z0-9 ]", "", s.lower())
+    """Normalise for comparison, keeping CJK.
+
+    The character class must not be [a-z0-9 ] alone: that strips every Chinese,
+    Japanese and Korean character, so a CJK quote normalises to the empty
+    string. An empty string is a substring of everything, which made the brief
+    generator's verbatim and playable checks pass without checking anything and
+    sent locate_quote straight to the chunk start.
+    """
+    return re.sub(r"[^a-z0-9 \u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]",
+                  "", (s or "").lower())
 
 
 def locate_quote(hit: Dict[str, Any], quote: str) -> float:
