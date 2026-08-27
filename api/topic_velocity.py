@@ -27,7 +27,9 @@ from lib.database import get_pool, SupabasePool
 # endpoint and OpenAI gpt-4o-mini. It is deliberately no longer imported, so
 # nothing on the live request path reaches Modal or OpenAI.
 from .search_aws import search_handler_aws as search_handler, SearchRequest, SearchResponse
-from .mongodb_search import get_search_handler
+# .mongodb_search was imported here and never used - a leftover from the old
+# search path, and after phase 2 the last thing pulling pymongo onto the live
+# import graph. Removed 2026-08-27.
 import asyncio
 import time
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -109,64 +111,18 @@ async def root():
         "service": "PodInsightHQ API",
         "version": "1.0.0",
         "deployment_time": datetime.now().isoformat(),  # Cache busting verification
+        # Phase 2, 2026-08-27: this reported SUPABASE_*, MONGODB_URI and
+        # HUGGINGFACE_API_KEY as if the service depended on them. Supabase was
+        # deleted in 2025 and MongoDB left the request path in phase 2, so
+        # reporting them was answering a question about the wrong system.
         "env_check": {
-            "SUPABASE_URL": bool(os.environ.get("SUPABASE_URL")),
-            "SUPABASE_KEY": bool(os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")),
-            "HUGGINGFACE_API_KEY": bool(os.environ.get("HUGGINGFACE_API_KEY")),
-            "MONGODB_URI": bool(os.environ.get("MONGODB_URI")),
+            "AWS_SEARCH_REGION": os.environ.get("AWS_SEARCH_REGION", "eu-central-1"),
+            "AOSS_INDEX": os.environ.get("AOSS_INDEX", "chunks_full"),
+            "AUDIO_LAMBDA_URL": bool(os.environ.get("AUDIO_LAMBDA_URL")),
             "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "not set")
         },
         "connection_pool": pool_health
     }
-
-@app.get("/api/debug/mongodb")
-async def debug_mongodb():
-    """Debug MongoDB connection and search capabilities"""
-
-    mongodb_uri_set = bool(os.environ.get('MONGODB_URI'))
-
-    try:
-        handler = await get_search_handler()
-
-        if handler.db is None:
-            return {
-                "status": "error",
-                "mongodb_uri_set": mongodb_uri_set,
-                "connection": "failed",
-                "message": "MongoDB handler not connected"
-            }
-
-        # Test multiple search queries
-        test_queries = ["bitcoin", "AI", "AI agents", "crypto"]
-        test_results = {}
-
-        for query in test_queries:
-            try:
-                results = await handler.search_transcripts(query, limit=1)
-                test_results[query] = {
-                    "count": len(results),
-                    "score": results[0]["relevance_score"] if results else 0,
-                    "has_highlights": "**" in results[0]["excerpt"] if results else False
-                }
-            except Exception as e:
-                test_results[query] = {"error": str(e)}
-
-        return {
-            "status": "success",
-            "mongodb_uri_set": mongodb_uri_set,
-            "connection": "connected",
-            "database_name": "podinsight",
-            "collection_name": "transcripts",
-            "test_searches": test_results
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "mongodb_uri_set": mongodb_uri_set,
-            "connection": "error",
-            "error": str(e)
-        }
 
 @app.get("/api/topic-velocity")
 async def get_topic_velocity(
@@ -813,89 +769,11 @@ async def search_episodes_endpoint(
 # from .debug_search import router as debug_router
 # app.include_router(debug_router)
 
-@app.get("/__diag")
-async def diag():
-    """
-    Diagnostic endpoint to check environment variables and index configuration
-    """
-    from pymongo import MongoClient
-
-    uri = os.getenv("MONGODB_URI")
-    db_name = os.getenv("MONGODB_DATABASE", "podinsight")
-
-    try:
-        c = MongoClient(uri, serverSelectionTimeoutMS=3000)
-        col = c[db_name].transcript_chunks_768d
-
-        # List indexes
-        idx = list(col.list_indexes())
-
-        # Quick vector search with dummy embedding
-        try:
-            hit = col.aggregate([
-                {"$vectorSearch": {
-                    "index": "vector_index_768d",
-                    "path": "embedding_768d",
-                    "queryVector": [0]*768,
-                    "numCandidates": 10,
-                    "limit": 1
-                }},
-                {"$project": {"_id": 0, "episode_id": 1}}
-            ]).try_next()
-        except Exception as e:
-            hit = None
-            logger.error(f"Vector search test failed: {e}")
-
-        # Get collection stats
-        try:
-            count = col.estimated_document_count()
-        except:
-            count = -1
-
-        return {
-            "db_name": db_name,
-            "collection_count": count,
-            "indexes": [i["name"] for i in idx],
-            "vector_index_found": any(i["name"] == "vector_index_768d" for i in idx),
-            "vector_dummy_hit": hit is not None,
-            "env_vars_present": {
-                "MONGODB_URI": bool(uri),
-                "MONGODB_DATABASE": bool(db_name),
-            }
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "db_name": db_name,
-            "env_vars_present": {
-                "MONGODB_URI": bool(uri),
-                "MONGODB_DATABASE": bool(db_name),
-            }
-        }
-
 # ------------------------------------  diagnostics  ------------------------------------
-from motor.motor_asyncio import AsyncIOMotorClient
-import math, traceback, requests, os, time, logging
-
-@app.get("/diag", tags=["diag"])
-async def diag_root():
-    """Very small health ping – proves Atlas connection"""
-    t0 = time.time()
-    uri = os.getenv("MONGODB_URI")
-    db  = os.getenv("MONGODB_DATABASE", "podinsight")
-    client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
-    cnt = await client[db].transcript_chunks_768d.estimated_document_count()
-    return {
-        "count": cnt,
-        "elapsed_ms": round((time.time()-t0)*1e3),
-        "db": db,
-        "env_ok": {k: bool(os.getenv(k)) for k in
-                   ["MONGODB_URI","MONGODB_DATABASE"]}
-    }
-
-# /diag/vc removed 2026-08-27 (phase 1 switchover). It POSTed to
-# MODAL_EMBEDDING_URL to prove the old instructor-xl vector path end to end.
-# Modal is no longer on any request path; this was the last route that called it.
+# The MongoDB diagnostics (/api/debug/mongodb, /__diag, /diag) were removed in
+# phase 2, 2026-08-27. They existed to prove the Atlas connection; nothing on
+# the request path connects to Atlas any more.
+import math, traceback, os, time, logging
 
 # ----------------------------------------------------------------------------------------
 

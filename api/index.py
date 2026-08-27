@@ -18,7 +18,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .topic_velocity import app as topic_velocity_app
 from .routers.audio_clips import router as audio_clips_router
-from .routers.intelligence import router as intelligence_router
 from .routers.transcripts import router as transcript_router
 from .routers.episodes import router as episodes_router
 from .routers.entities import router as entities_router
@@ -55,9 +54,9 @@ app.add_middleware(
 # This keeps audio endpoints completely separate at /api/v1/audio_clips/*
 app.include_router(audio_clips_router)
 
-# Include the intelligence router for episode intelligence endpoints
-# This adds all intelligence endpoints at /api/intelligence/*
-app.include_router(intelligence_router)
+# The intelligence router was removed in phase 2, 2026-08-27. Its 18 routes were
+# DEAD everywhere (SOURCE_OF_TRUTH 2.9) - they depend on collections that were
+# never built - and it was the last live import of pymongo.
 
 # Prewarm removed 2026-08-27: it existed only to mask the Modal cold start,
 # and Modal is no longer on the request path.

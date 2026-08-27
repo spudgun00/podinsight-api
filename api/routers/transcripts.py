@@ -1,23 +1,40 @@
+"""Transcript retrieval, served from the AWS search index.
+
+Phase 2, 2026-08-27. Previously read episode_metadata and
+transcript_chunks_768d from MongoDB. The AWS index holds both the chunk text
+and the original Whisper segments nested inside each chunk, so a transcript
+reassembles from it directly.
+
+One shape change worth knowing about: chunks are now ~300-word passages rather
+than the old ~18-word fragments, so `chunks` is roughly 15x shorter per episode.
+The finer granularity has not been lost - it is in `segments` on each chunk,
+which is what the citation timestamps resolve against.
 """
-Transcript retrieval endpoint
-"""
-import os
 import logging
-from fastapi import APIRouter, HTTPException
 from typing import Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from motor.motor_asyncio import AsyncIOMotorClient
-from async_lru import alru_cache
+
+from lib import aws_search
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/transcript", tags=["transcripts"])
+
+
+class TranscriptSegment(BaseModel):
+    text: str
+    start_time: float
+
 
 class TranscriptChunk(BaseModel):
     text: str
     start_time: float
     end_time: float
     chunk_index: int
-    speaker: Optional[str] = None
+    speaker: Optional[str] = None       # never populated; no diarisation in the corpus
+    segments: List[TranscriptSegment] = []
+
 
 class TranscriptResponse(BaseModel):
     episode_id: str
@@ -29,78 +46,49 @@ class TranscriptResponse(BaseModel):
     duration_seconds: int
     word_count: int
     total_chunks: int
+    source: str = "opensearch"
 
-def get_mongodb_client():
-    mongo_uri = os.environ.get("MONGODB_URI")
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI not configured")
-    return AsyncIOMotorClient(mongo_uri)
-
-@alru_cache(maxsize=100)
-async def get_transcript_cached(episode_id: str) -> TranscriptResponse:
-    """Get full transcript for an episode (cached)"""
-    try:
-        # Get MongoDB client
-        mongo_client = get_mongodb_client()
-        db = mongo_client["podinsight"]
-
-        # Fetch metadata from MongoDB episode_metadata collection
-        metadata_collection = db["episode_metadata"]
-        metadata = await metadata_collection.find_one({"episode_id": episode_id})
-
-        if not metadata:
-            raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
-
-        # Fetch transcript chunks from MongoDB
-        chunks_collection = db["transcript_chunks_768d"]
-
-        cursor = chunks_collection.find(
-            {"episode_id": episode_id}
-        ).sort("chunk_index", 1).limit(5000)
-
-        chunks_list = await cursor.to_list(length=5000)
-        if not chunks_list:
-            raise HTTPException(status_code=404, detail=f"No transcript found")
-
-        # Build response
-        transcript_chunks = [
-            TranscriptChunk(
-                text=chunk.get("text", ""),
-                start_time=chunk.get("start_time", 0.0),
-                end_time=chunk.get("end_time", 0.0),
-                chunk_index=chunk.get("chunk_index", 0),
-                speaker=chunk.get("speaker")
-            )
-            for chunk in chunks_list
-        ]
-
-        full_text = "\n\n".join(chunk.text for chunk in transcript_chunks)
-        word_count = sum(len(chunk.text.split()) for chunk in transcript_chunks)
-        duration_seconds = int(transcript_chunks[-1].end_time) if transcript_chunks else 0
-
-        # Extract nested metadata fields
-        raw_entry = metadata.get("raw_entry_original_feed", {})
-
-        return TranscriptResponse(
-            episode_id=episode_id,
-            podcast_name=metadata.get("podcast_title", "Unknown"),
-            episode_title=raw_entry.get("episode_title", "Unknown Episode"),
-            published_at=raw_entry.get("published_date_iso", ""),
-            full_text=full_text,
-            chunks=transcript_chunks,
-            duration_seconds=duration_seconds,
-            word_count=word_count,
-            total_chunks=len(transcript_chunks)
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching transcript: {e}", exc_info=True)
-        # Return more detailed error for debugging
-        error_detail = f"Failed to fetch transcript: {str(e)}"
-        raise HTTPException(status_code=500, detail=error_detail)
 
 @router.get("/{episode_id}", response_model=TranscriptResponse)
-async def get_transcript(episode_id: str):
-    """Get full transcript for an episode"""
-    return await get_transcript_cached(episode_id)
+async def get_transcript(episode_id: str) -> TranscriptResponse:
+    try:
+        os_ = aws_search.client()
+        hits, after = [], None
+        while True:
+            body = {"size": 1000, "sort": [{"chunk_index": "asc"}],
+                    "_source": {"excludes": ["embedding"]},
+                    "query": {"term": {"episode_id": episode_id}}}
+            if after:
+                body["search_after"] = after
+            page = os_.search(index=aws_search.INDEX, body=body)["hits"]["hits"]
+            if not page:
+                break
+            hits.extend(page)
+            after = page[-1]["sort"]
+    except HTTPException:
+        raise
+    except Exception as e:                                   # noqa: BLE001
+        logger.error("transcript lookup failed for %s: %s", episode_id, e)
+        raise HTTPException(status_code=503, detail=f"Transcript unavailable: {e}")
+
+    if not hits:
+        raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
+
+    src = [h["_source"] for h in hits]
+    first = src[0]
+    chunks = [TranscriptChunk(
+        text=c.get("text", ""), start_time=float(c.get("start_time", 0.0)),
+        end_time=float(c.get("end_time", 0.0)), chunk_index=int(c.get("chunk_index", 0)),
+        segments=[TranscriptSegment(text=s.get("text", ""), start_time=float(s.get("t", 0.0)))
+                  for s in (c.get("segments") or [])]) for c in src]
+
+    return TranscriptResponse(
+        episode_id=episode_id,
+        podcast_name=first.get("podcast_name") or "Unknown Podcast",
+        episode_title=first.get("episode_title") or "(Untitled episode)",
+        published_at=first.get("published_at") or "",
+        full_text=" ".join(c.text for c in chunks),
+        chunks=chunks,
+        duration_seconds=int(max((c.end_time for c in chunks), default=0)),
+        word_count=sum(int(c.get("word_count", 0)) for c in src),
+        total_chunks=len(chunks))

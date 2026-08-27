@@ -9,12 +9,12 @@ from typing import Optional
 import httpx
 import os
 import logging
-from bson import ObjectId
-from pymongo import MongoClient
 import time
 import json
 
 # Configure logging
+from lib import aws_search
+
 logger = logging.getLogger(__name__)
 
 # Create router
@@ -23,7 +23,6 @@ router = APIRouter(prefix="/api/v1/audio_clips", tags=["audio"])
 # Environment variables
 LAMBDA_FUNCTION_URL = os.environ.get("AUDIO_LAMBDA_URL")
 LAMBDA_API_KEY = os.environ.get("AUDIO_LAMBDA_API_KEY")
-MONGODB_URI = os.environ.get("MONGODB_URI")
 
 # Response models
 class AudioClipResponse(BaseModel):
@@ -42,7 +41,8 @@ async def health_check():
         "status": "healthy",
         "service": "audio_clips",
         "lambda_configured": bool(LAMBDA_FUNCTION_URL),
-        "mongodb_configured": bool(MONGODB_URI)
+        "index": aws_search.INDEX,
+        "region": aws_search.REGION,
     }
 
 @router.get("/{episode_id}")
@@ -55,7 +55,7 @@ async def get_audio_clip(
     Generate or retrieve an audio clip for a specific episode.
 
     Args:
-        episode_id: MongoDB ObjectId of the episode
+        episode_id: episode guid, resolved against the AWS search index
         start_time_ms: Start time of the clip in milliseconds
         duration_ms: Duration of the clip in milliseconds (default: 30000)
 
@@ -77,33 +77,13 @@ async def get_audio_clip(
             # These are valid GUIDs in our system
             guid = episode_id
             logger.info(f"Using special format ID: {guid}")
-        # For backward compatibility, check if it's an ObjectId and convert
-        elif len(episode_id) == 24:
-            try:
-                ObjectId(episode_id)
-                # It's an ObjectId - need to look up the GUID
-                if not MONGODB_URI:
-                    logger.error("MONGODB_URI not configured")
-                    raise HTTPException(status_code=503, detail="Database service not configured")
-
-                client = MongoClient(MONGODB_URI)
-                db = client.podinsight
-
-                episode = db.episode_metadata.find_one(
-                    {"_id": ObjectId(episode_id)},
-                    {"guid": 1}
-                )
-
-                if not episode or not episode.get("guid"):
-                    raise HTTPException(status_code=404, detail="Episode not found or missing GUID")
-
-                # Use the GUID from here on
-                guid = episode["guid"]
-                logger.info(f"Converted ObjectId {episode_id} to GUID {guid}")
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid episode ID format")
-        else:
-            raise HTTPException(status_code=400, detail="Invalid episode ID format - must be GUID, ObjectId, or special format (substack:, flightcast:)")
+        # Phase 2, 2026-08-27: every id is treated as an opaque GUID and
+        # resolved against the AWS index. The old code had a special branch for
+        # 24-hex ids, converting them from a MongoDB ObjectId to a guid - which
+        # broke the one legitimate episode whose guid is itself 24 hex
+        # characters (SOURCE_OF_TRUTH 6.3). Resolving against the index has no
+        # such ambiguity: an id either has chunks or it does not.
+        guid = episode_id
 
         # Validate parameters
         if start_time_ms < 0:
@@ -111,31 +91,25 @@ async def get_audio_clip(
         if duration_ms <= 0 or duration_ms > 60000:  # Max 60 seconds
             raise HTTPException(status_code=400, detail="Duration must be between 1 and 60000 milliseconds")
 
-        # Look up feed_slug from MongoDB using GUID
-        logger.info(f"Looking up GUID {guid} in MongoDB")
+        # feed_slug from the AWS index. The Lambda needs it to build the S3 key.
+        logger.info(f"Resolving feed_slug for {guid} from the AWS index")
+        try:
+            hit = aws_search.client().search(
+                index=aws_search.INDEX,
+                body={"size": 1, "_source": ["feed_slug", "episode_title"],
+                      "query": {"term": {"episode_id": guid}}})["hits"]["hits"]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Index lookup failed for {guid}: {e}")
+            raise HTTPException(status_code=503, detail="Search index unavailable")
 
-        if not MONGODB_URI:
-            logger.error("MONGODB_URI not configured")
-            raise HTTPException(status_code=503, detail="Database service not configured")
-
-        client = MongoClient(MONGODB_URI)
-        db = client.podinsight
-
-        # Find feed_slug from transcript_chunks using GUID
-        chunk = db.transcript_chunks_768d.find_one(
-            {"episode_id": guid},
-            {"feed_slug": 1}
-        )
-
-        if not chunk:
-            logger.warning(f"GUID {guid} has no transcript data")
+        if not hit:
+            logger.warning(f"GUID {guid} has no indexed transcript")
             raise HTTPException(status_code=422, detail="Episode does not have transcript data available")
 
-        if not chunk.get("feed_slug"):
-            logger.error(f"Could not find feed_slug for GUID {guid}")
+        feed_slug = hit[0]["_source"].get("feed_slug")
+        if not feed_slug:
+            logger.error(f"Could not determine feed_slug for GUID {guid}")
             raise HTTPException(status_code=500, detail="Could not determine podcast feed")
-
-        feed_slug = chunk["feed_slug"]
 
         # Check if Lambda URL is configured
         if not LAMBDA_FUNCTION_URL:
@@ -157,7 +131,9 @@ async def get_audio_clip(
         if LAMBDA_API_KEY:
             headers["x-api-key"] = LAMBDA_API_KEY
 
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        # 25s was not enough for long episodes: a 5-hour Acquired episode times
+        # out while the Lambda fetches and seeks the source audio.
+        async with httpx.AsyncClient(timeout=55.0) as client:
             response = await client.post(
                 LAMBDA_FUNCTION_URL,
                 json=lambda_payload,
@@ -191,7 +167,7 @@ async def get_audio_clip(
     except HTTPException:
         raise
     except httpx.TimeoutException:
-        logger.error("Lambda timeout after 25 seconds")
+        logger.error("Lambda timeout after 55 seconds")
         raise HTTPException(status_code=504, detail="Audio generation timed out")
     except Exception as e:
         logger.error(f"Unexpected error in audio clip generation: {str(e)}")
