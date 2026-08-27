@@ -27,6 +27,7 @@ from .routers.topic_drilldown import router as topic_drilldown_router
 from .routers.briefings import router as briefings_router
 from .routers.feed import router as feed_router
 from .routers.companies import router as companies_router
+from .routers.intelligence_brief import router as intelligence_brief_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -96,6 +97,9 @@ app.include_router(feed_router)
 
 # Company Tracking: the watchlist over the curated entity index (phase E).
 app.include_router(companies_router)
+
+# The Intelligence Brief: one cached document for the period (phase E).
+app.include_router(intelligence_brief_router)
 
 
 # Mount the existing topic_velocity app at the root
