@@ -29,6 +29,7 @@ from .routers.feed import router as feed_router
 from .routers.companies import router as companies_router
 from .routers.intelligence_brief import router as intelligence_brief_router
 from .routers.signals import router as signals_router
+from .routers.narratives import router as narratives_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -104,6 +105,9 @@ app.include_router(intelligence_brief_router)
 
 # Notable Signals: the honest strip (phase E).
 app.include_router(signals_router)
+
+# Market Narratives, from the discovery engine (phase E part B).
+app.include_router(narratives_router)
 
 
 # Mount the existing topic_velocity app at the root
