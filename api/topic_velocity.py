@@ -21,7 +21,12 @@ from supabase import create_client, Client
 from lib.database import get_pool, SupabasePool
 # Use lightweight version for Vercel deployment
 # from .search import search_handler, SearchRequest, SearchResponse
-from .search_lightweight_768d import search_handler_lightweight_768d as search_handler, SearchRequest, SearchResponse
+# Phase 1 switchover, 2026-08-27: /api/search is served from the AWS stack
+# (OpenSearch Serverless eu-central-1 + Bedrock). The previous handler,
+# .search_lightweight_768d, used MongoDB vector search, the Modal instructor-xl
+# endpoint and OpenAI gpt-4o-mini. It is deliberately no longer imported, so
+# nothing on the live request path reaches Modal or OpenAI.
+from .search_aws import search_handler_aws as search_handler, SearchRequest, SearchResponse
 from .mongodb_search import get_search_handler
 import asyncio
 import time
@@ -775,10 +780,13 @@ async def search_episodes_endpoint(
 
     This endpoint:
     - Accepts natural language search queries (max 500 chars)
-    - Generates embeddings using sentence-transformers/all-MiniLM-L6-v2
-    - Searches using pgvector similarity (ranked approach)
-    - Returns relevant episodes with metadata and excerpts
-    - Implements query caching for performance
+    - Embeds the query with Bedrock Cohere Embed v4 (input_type=search_query)
+    - Hybrid retrieval over OpenSearch Serverless, top 50
+    - Reranks to 10 with Amazon Rerank 1.0 and applies a calibrated cutoff
+    - Synthesises an answer with Bedrock Claude Sonnet 4.5, with citation
+      timestamps resolved against the chunk's nested Whisper segments
+    - Returns `no_matches: true` when nothing clears the cutoff, instead of
+      dressing up weak results as an answer
     - Rate limited to 20 requests per minute per IP
 
     Example:
@@ -853,7 +861,6 @@ async def diag():
             "env_vars_present": {
                 "MONGODB_URI": bool(uri),
                 "MONGODB_DATABASE": bool(db_name),
-                "MODAL_EMBEDDING_URL": bool(os.getenv("MODAL_EMBEDDING_URL"))
             }
         }
     except Exception as e:
@@ -863,7 +870,6 @@ async def diag():
             "env_vars_present": {
                 "MONGODB_URI": bool(uri),
                 "MONGODB_DATABASE": bool(db_name),
-                "MODAL_EMBEDDING_URL": bool(os.getenv("MODAL_EMBEDDING_URL"))
             }
         }
 
@@ -884,38 +890,13 @@ async def diag_root():
         "elapsed_ms": round((time.time()-t0)*1e3),
         "db": db,
         "env_ok": {k: bool(os.getenv(k)) for k in
-                   ["MONGODB_URI","MONGODB_DATABASE","MODAL_EMBEDDING_URL"]}
+                   ["MONGODB_URI","MONGODB_DATABASE"]}
     }
 
-@app.get("/diag/vc", tags=["diag"])
-async def diag_vc():
-    """End-to-end vector search for 'venture capital'"""
-    try:
-        t0 = time.time()
-        vec = requests.post(
-            os.getenv("MODAL_EMBEDDING_URL"),
-            json={"text": "venture capital"}, timeout=15).json()["embedding"]
-        embed_ms = round((time.time()-t0)*1e3)
+# /diag/vc removed 2026-08-27 (phase 1 switchover). It POSTed to
+# MODAL_EMBEDDING_URL to prove the old instructor-xl vector path end to end.
+# Modal is no longer on any request path; this was the last route that called it.
 
-        client = AsyncIOMotorClient(os.getenv("MONGODB_URI"))
-        t1 = time.time()
-        hits = await client.podinsight.transcript_chunks_768d.aggregate([
-            {"$vectorSearch": {
-                "index":"vector_index_768d",
-                "path":"embedding_768d",
-                "queryVector":vec,
-                "numCandidates":100,
-                "limit":3}},
-            {"$addFields":{"score":{"$meta":"vectorSearchScore"}}},
-            {"$project":{"score":1,"text":{"$substr":["$text",0,80]}}}
-        ]).to_list(None)
-        search_ms = round((time.time()-t1)*1e3)
-
-        return {"hits": len(hits), "embed_ms": embed_ms,
-                "search_ms": search_ms, "top": hits}
-    except Exception as e:
-        logging.exception("diag_vc failed")
-        return {"error": str(e), "trace": traceback.format_exc()[:500]}
 # ----------------------------------------------------------------------------------------
 
 # Handler for Vercel

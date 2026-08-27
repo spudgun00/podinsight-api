@@ -2,13 +2,28 @@
 # It serves as the composition root, assembling all API features
 
 import os
+
+# Load .env at the composition root, explicitly.
+#
+# This used to happen as a side effect of importing search_lightweight_768d,
+# which ran load_env_safely() at module scope. Phase 1 removed that import
+# (search moved to the AWS stack), and MONGODB_URI silently stopped being set -
+# which broke the audio clip router, since it still maps GUID to S3 path
+# through MongoDB. Env loading is now a deliberate step, not a side effect of
+# import order.
+from lib.env_loader import load_env_safely
+load_env_safely()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .topic_velocity import app as topic_velocity_app
 from .routers.audio_clips import router as audio_clips_router
 from .routers.intelligence import router as intelligence_router
-from .routers.prewarm import router as prewarm_router
 from .routers.transcripts import router as transcript_router
+from .routers.episodes import router as episodes_router
+from .routers.entities import router as entities_router
+from .routers.topic_mentions import router as topic_mentions_router
+from .routers.topic_correlations import router as topic_correlations_router
 
 # Create the main app that will compose all features
 app = FastAPI(
@@ -44,13 +59,28 @@ app.include_router(audio_clips_router)
 # This adds all intelligence endpoints at /api/intelligence/*
 app.include_router(intelligence_router)
 
-# Include the prewarm router for Modal pre-warming
-# This adds the /api/prewarm endpoint
-app.include_router(prewarm_router)
+# Prewarm removed 2026-08-27: it existed only to mask the Modal cold start,
+# and Modal is no longer on the request path.
 
 # Include the transcript router for episode transcript retrieval
 # This adds the /api/transcript/{episode_id} endpoint
 app.include_router(transcript_router)
+
+# Include the episodes router for the episode catalogue
+# This adds the /api/episodes endpoint
+app.include_router(episodes_router)
+
+# Include the entities router for entity rankings
+# This adds the /api/entities endpoint
+app.include_router(entities_router)
+
+# Include the topic mentions router for the tracked-topic series
+# This adds the /api/topic-mentions endpoint
+app.include_router(topic_mentions_router)
+
+# Include the topic correlations router for pairwise co-occurrence
+# This adds the /api/topic-correlations endpoint
+app.include_router(topic_correlations_router)
 
 
 # Mount the existing topic_velocity app at the root
