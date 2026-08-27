@@ -381,7 +381,9 @@ class ImprovedHybridSearch:
                         "podcast_name": "$metadata.podcast_title",  # Map to podcast_name for API
                         "episode_title": "$metadata.raw_entry_original_feed.episode_title",
                         "published": "$metadata.raw_entry_original_feed.published_date_iso",
-                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
+                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]},
+                        "word_count": {"$ifNull": ["$metadata.word_count", None]},
+                        "s3_audio_path": "$metadata.s3_audio_path"
                     }
                 }
             ]
@@ -471,7 +473,9 @@ class ImprovedHybridSearch:
                         "podcast_name": "$metadata.podcast_title",
                         "episode_title": "$metadata.raw_entry_original_feed.episode_title",
                         "published": "$metadata.raw_entry_original_feed.published_date_iso",
-                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
+                        "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]},
+                        "word_count": {"$ifNull": ["$metadata.word_count", None]},
+                        "s3_audio_path": "$metadata.s3_audio_path"
                     }
                 }
             ]
@@ -540,7 +544,9 @@ class ImprovedHybridSearch:
                             "podcast_name": "$metadata.podcast_title",
                             "episode_title": "$metadata.raw_entry_original_feed.episode_title",
                             "published": "$metadata.raw_entry_original_feed.published_date_iso",
-                            "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]}
+                            "duration_seconds": {"$ifNull": ["$metadata.duration_seconds", 0]},
+                            "word_count": {"$ifNull": ["$metadata.word_count", None]},
+                            "s3_audio_path": "$metadata.s3_audio_path"
                         }
                     }
                 ]
@@ -585,7 +591,9 @@ class ImprovedHybridSearch:
                     'podcast_name': vr.get('podcast_name'),  # Changed from podcast_title
                     'episode_title': vr.get('episode_title'),
                     'published': vr.get('published'),
-                    'duration_seconds': vr.get('duration_seconds', 0)
+                    'duration_seconds': vr.get('duration_seconds', 0),
+                    'word_count': vr.get('word_count'),
+                    's3_audio_path': vr.get('s3_audio_path')
                 }
             }
 
@@ -612,7 +620,9 @@ class ImprovedHybridSearch:
                         'podcast_name': tr.get('podcast_name'),  # Changed from podcast_title
                         'episode_title': tr.get('episode_title'),
                         'published': tr.get('published'),
-                        'duration_seconds': tr.get('duration_seconds', 0)
+                        'duration_seconds': tr.get('duration_seconds', 0),
+                        'word_count': tr.get('word_count'),
+                        's3_audio_path': tr.get('s3_audio_path')
                     }
                 }
 
@@ -740,6 +750,8 @@ class ImprovedHybridSearch:
                 'episode_title': result.metadata.get('episode_title'),
                 'published': result.metadata.get('published'),
                 'duration_seconds': result.metadata.get('duration_seconds', 0),
+                'word_count': result.metadata.get('word_count'),
+                's3_audio_path': result.metadata.get('s3_audio_path'),
                 # Additional hybrid search info
                 'vector_score': result.vector_score,
                 'text_score': result.text_score,

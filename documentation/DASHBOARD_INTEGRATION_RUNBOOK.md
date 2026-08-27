@@ -1,3 +1,9 @@
+> **DEPRECATED — 2026-08-26.** This document describes a system that no longer exists.
+> See `~/projects/podinsight/SOURCE_OF_TRUTH.md` for verified current state.
+> Specific errors:
+> - references the **dead MongoDB cluster host `podinsight-cluster.bgknvz.mongodb.net`**, which no longer resolves; the live cluster is `podinsight-cluster.sllvdwy.mongodb.net`
+> - written against **`podinsight-dashboard`**, which is **no longer the active front end** (that is now `podinsight-narrative/demo`) and is not deployed — both of its Vercel URLs return 404
+
 # Dashboard Integration Runbook
 
 **Version**: 1.9.0

@@ -1,3 +1,10 @@
+> **DEPRECATED — 2026-08-26.** This document describes a system that no longer exists.
+> See `~/projects/podinsight/SOURCE_OF_TRUTH.md` for verified current state.
+> Specific errors:
+> - predates the **deletion of Supabase**; every Supabase-backed claim in it is dead
+> - predates the **MongoDB rebuild of topic velocity and entities** (`topic_mentions`, `episode_entities`)
+> - predates the **`/api/episodes`, `/api/topic-mentions` and `/api/topic-correlations` endpoints**, which it does not document
+
 # Master Operations & Security Document - PodInsightHQ
 
 **Document Version**: 1.0

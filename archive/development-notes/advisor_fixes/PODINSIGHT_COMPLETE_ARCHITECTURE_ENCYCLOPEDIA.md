@@ -1,4 +1,13 @@
-# 📚 PodInsight API - Complete Architecture Encyclopedia & Single Source of Truth
+> **DEPRECATED — 2026-08-26.** This document describes a system that no longer exists.
+> See `~/projects/podinsight/SOURCE_OF_TRUTH.md` for verified current state.
+> Specific errors:
+> - claims MongoDB Atlas **M20 at $189/month** — actually **M0 free tier** (512 MB cap, currently 68% full)
+> - claims **Supabase Pro at $25/month** — the Supabase project has been **deleted** (its host returns NXDOMAIN)
+> - claims **1,171 episodes** — actually **50** loaded in MongoDB, **1,236** staged in S3
+> - claims **entity search runs on Supabase** — it runs on **MongoDB** (`episode_entities`, via `api/routers/entities.py`)
+> - claims a **Supabase pgvector 384D fallback** — no such fallback exists; the only vector index is `vector_index_768d` on MongoDB Atlas
+
+# 📚 PodInsight API - Complete Architecture Encyclopedia (SUPERSEDED — NOT a source of truth)
 
 **Last Updated**: June 26, 2025
 **Status**: Production Operational with MongoDB Password Rotated & Metadata Display Fixed

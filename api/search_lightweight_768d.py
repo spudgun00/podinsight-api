@@ -579,6 +579,11 @@ async def search_handler_lightweight_768d(request: SearchRequest) -> SearchRespo
                         # Convert ObjectId to string if present
                         if "_id" in clean_chunk:
                             clean_chunk["_id"] = str(clean_chunk["_id"])
+                        # Search emits "published"; lib.synthesis.Citation reads
+                        # "published_at". Bridge the two names here rather than
+                        # leaving citations with a null published_date.
+                        if "published_at" not in clean_chunk and clean_chunk.get("published"):
+                            clean_chunk["published_at"] = clean_chunk["published"]
                         chunks_for_synthesis.append(clean_chunk)
 
                     logger.info(f"Synthesizing answer from {len(chunks_for_synthesis)} chunks")
