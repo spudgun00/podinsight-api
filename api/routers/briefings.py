@@ -43,6 +43,17 @@ class EntityMention(BaseModel):
     count: int
 
 
+class Speaker(BaseModel):
+    """Role and affiliation only where the transcript stated them.
+
+    Empty strings are meaningful here: they mean the episode never said, and a
+    wrong affiliation is worse than a missing one.
+    """
+    name: str
+    role: str = ""
+    affiliation: str = ""
+
+
 class Brief(BaseModel):
     episode_id: str
     podcast_name: str
@@ -59,6 +70,7 @@ class Brief(BaseModel):
     # /api/entities.
     topic_tags: List[str] = []
     top_entities: List[EntityMention] = []
+    speakers: List[Speaker] = []
     no_playable_claims: bool = False
     claims: List[Claim]
     guests: List[str] = []
@@ -87,6 +99,7 @@ def _to_brief(s: Dict[str, Any]) -> Brief:
         hook=s.get("hook") or "", duration_minutes=s.get("duration_minutes"),
         topic_tags=s.get("topic_tags") or [],
         top_entities=[EntityMention(**e) for e in (s.get("top_entities") or [])],
+        speakers=[Speaker(**sp) for sp in (s.get("speakers") or [])],
         no_playable_claims=bool(s.get("no_playable_claims")),
         claims=[Claim(**c) for c in (s.get("claims") or [])],
         guests=s.get("guests") or [], rank_position=s.get("rank_position", 0),
