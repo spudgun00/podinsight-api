@@ -52,6 +52,8 @@ METHOD = ("Discovered by clustering all 54,284 stored chunk embeddings, not by a
 class SeriesPoint(BaseModel):
     bucket: str
     mentions: int          # chunks; the key name matches /api/topic-mentions
+    episodes: int = 0
+    mentions_per_episode: float = 0.0
     partial: bool = False
 
 
@@ -103,10 +105,28 @@ class NarrativeDetail(BaseModel):
     source: str = "opensearch"
 
 
-def _series(monthly: Dict[str, int]) -> List[SeriesPoint]:
+def _month_episodes(client, cluster_id: int) -> Dict[str, int]:
+    """Distinct episodes per month, so a narrative can be plotted per-episode
+    on the same axis as a theme or a tracked topic."""
+    r = client.search(index=EPISODES_INDEX, body={
+        "size": 0, "query": {"term": {"cluster_id": cluster_id}},
+        "aggs": {"m": {"date_histogram": {"field": "published_at",
+                                          "calendar_interval": "month",
+                                          "format": "yyyy-MM"},
+                       "aggs": {"eps": {"cardinality": {"field": "episode_id",
+                                                        "precision_threshold": 4000}}}}}})
+    return {b["key_as_string"]: int(b["eps"]["value"])
+            for b in r["aggregations"]["m"]["buckets"]}
+
+
+def _series(monthly: Dict[str, int], eps: Optional[Dict[str, int]] = None) -> List[SeriesPoint]:
+    eps = eps or {}
     out = []
     for b in sorted(monthly):
-        out.append(SeriesPoint(bucket=b, mentions=int(monthly[b]),
+        m = int(monthly[b])
+        e = int(eps.get(b, 0))
+        out.append(SeriesPoint(bucket=b, mentions=m, episodes=e,
+                               mentions_per_episode=round(m / e, 2) if e else 0.0,
                                partial=b.endswith("-06")))
     return out
 
@@ -143,7 +163,8 @@ async def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
     first = docs[0]
     out = []
     for d in live[:limit]:
-        s = _series(d.get("monthly") or {})
+        s = _series(d.get("monthly") or {},
+                    _month_episodes(aws_search.client(), d["cluster_id"]))
         out.append(Narrative(
             cluster_id=d["cluster_id"], topic=d.get("label") or "(unlabelled)",
             total_mentions=d.get("chunks", 0), chunks=d.get("chunks", 0),
