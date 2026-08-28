@@ -48,9 +48,53 @@ class EpisodesResponse(BaseModel):
     source: str = "opensearch"
 
 
+ROLLUP_INDEX = "episodes_catalogue"
+
+
+def _from_rollup(client) -> Optional[List["Episode"]]:
+    """Read the precomputed catalogue. Milliseconds, and flat in corpus size.
+
+    Returns None when the rollup has not been built, so the caller falls back to
+    deriving it live rather than serving an empty catalogue.
+    """
+    if not client.indices.exists(index=ROLLUP_INDEX):
+        return None
+    out, after = [], None
+    while True:
+        body = {"size": 1000, "sort": [{"episode_id": "asc"}]}
+        if after:
+            body["search_after"] = after
+        hits = client.search(index=ROLLUP_INDEX, body=body)["hits"]["hits"]
+        if not hits:
+            break
+        for h in hits:
+            out.append(Episode(**{k: v for k, v in h["_source"].items()
+                                  if k != "rollup_version"}))
+        after = hits[-1]["sort"]
+    return out or None
+
+
 def _load() -> List[Episode]:
-    """One composite aggregation, paged. 1,236 episodes over ~2 requests."""
+    """The episode catalogue, from the rollup when there is one.
+
+    Deriving this live is a paged composite aggregation with a top_hits per
+    episode: 7.4s against a warm engine, ~38s against one waking from idle,
+    which was long enough to render three components on the demo as failures.
+    It is derived data over a corpus that only moves when a load runs, so it is
+    precomputed by podinsight-aws-pilot/build_episodes_rollup.py.
+
+    The aggregation below stays as the fallback. It is what built the rollup, so
+    an unbuilt rollup is slow rather than broken.
+    """
     client = aws_search.client()
+    rolled = _from_rollup(client)
+    if rolled is not None:
+        rolled.sort(key=lambda e: (e.published_at or ""), reverse=True)
+        logger.info("Episode catalogue served from the %s rollup (%d episodes)",
+                    ROLLUP_INDEX, len(rolled))
+        return rolled
+    logger.warning("%s not built; deriving the catalogue live. Run "
+                   "build_episodes_rollup.py", ROLLUP_INDEX)
     out, after = [], None
     while True:
         comp = {"size": 1000, "sources": [{"e": {"terms": {"field": "episode_id"}}}]}
