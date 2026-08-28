@@ -108,7 +108,7 @@ def _to_brief(s: Dict[str, Any]) -> Brief:
 
 
 @router.get("/briefings", response_model=BriefingsResponse)
-async def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
+def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
     try:
         os_ = aws_search.client()
         r = os_.search(index=BRIEFS_INDEX, body={
@@ -134,7 +134,7 @@ async def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
 
 
 @router.get("/briefings/{episode_id}", response_model=Brief)
-async def briefing(episode_id: str) -> Brief:
+def briefing(episode_id: str) -> Brief:
     try:
         r = aws_search.client().search(index=BRIEFS_INDEX, body={
             "size": 1, "query": {"term": {"episode_id": episode_id}}})

@@ -49,7 +49,7 @@ class DrilldownResponse(BaseModel):
 
 
 @router.get("/topic-drilldown", response_model=DrilldownResponse)
-async def topic_drilldown(
+def topic_drilldown(
     topic: str = Query(..., min_length=1, max_length=64),
     month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
     limit: int = Query(200, ge=1, le=1000),

@@ -126,7 +126,7 @@ def _versions(*sources: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/search", response_model=SearchResponse)
-async def search(
+def search(
     q: str = Query(..., min_length=1, max_length=64),
     limit: int = Query(8, ge=1, le=25),
 ) -> SearchResponse:
@@ -169,7 +169,7 @@ async def search(
 
 
 @router.get("/mentions", response_model=EpisodeMentionsResponse)
-async def episode_mentions(
+def episode_mentions(
     episode_id: str = Query(..., min_length=1),
     name: List[str] = Query(default_factory=list),
 ) -> EpisodeMentionsResponse:
@@ -206,7 +206,7 @@ async def episode_mentions(
 
 
 @router.get("/{name}", response_model=CompanyResponse)
-async def company(
+def company(
     name: str,
     limit: int = Query(200, ge=1, le=1000),
 ) -> CompanyResponse:

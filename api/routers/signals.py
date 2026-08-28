@@ -22,6 +22,7 @@ discovers for itself, which is the parked topic-discovery engine.
 """
 import logging
 import re
+import threading
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -54,6 +55,10 @@ FIGURES_RULE = (
     "so a figure in millions, or a large number that is not money, is not.")
 
 _cache: Optional[Dict[str, Any]] = None
+# Handlers run in FastAPI's threadpool (they are sync, because their work is
+# blocking I/O). Two first-callers could otherwise build this cache at the
+# same time and each pay the full scan.
+_lock = threading.Lock()
 
 
 class FigureClaim(BaseModel):
@@ -154,11 +159,13 @@ def _scan(client) -> Dict[str, Any]:
 
 
 @router.get("/signals", response_model=SignalsResponse)
-async def signals(limit: int = Query(60, ge=1, le=500)) -> SignalsResponse:
+def signals(limit: int = Query(60, ge=1, le=500)) -> SignalsResponse:
     global _cache
     if _cache is None:
         try:
-            _cache = _scan(aws_search.client())
+            with _lock:
+                if _cache is None:
+                    _cache = _scan(aws_search.client())
         except Exception as e:                               # noqa: BLE001
             logger.error("signals scan failed: %s", e)
             raise HTTPException(status_code=503, detail=f"Signals unavailable: {e}")

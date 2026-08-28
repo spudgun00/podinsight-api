@@ -53,7 +53,7 @@ class EntitiesResponse(BaseModel):
 
 
 @router.get("/entities", response_model=EntitiesResponse)
-async def entities(
+def entities(
     limit: int = Query(10, ge=1, le=200),
     min_episodes: int = Query(2, ge=1),
     q: Optional[str] = Query(None, description="prefix filter on the entity name"),

@@ -8,6 +8,7 @@ A pair is only meaningful when both topics clear a floor: with DePIN present in
 for it would dress a coincidence up as a signal.
 """
 import logging
+import threading
 from itertools import combinations
 from typing import Dict, List, Optional
 
@@ -23,6 +24,10 @@ ROLLUP_INDEX = "topic_mentions"
 MIN_EPISODES = 5
 
 _cache: Optional["CorrelationsResponse"] = None
+# Handlers run in FastAPI's threadpool (they are sync, because their work is
+# blocking I/O). Two first-callers could otherwise build this cache at the
+# same time and each pay the full scan.
+_lock = threading.Lock()
 
 
 class TopicPair(BaseModel):
@@ -91,11 +96,13 @@ def _build() -> CorrelationsResponse:
 
 
 @router.get("/topic-correlations", response_model=CorrelationsResponse)
-async def topic_correlations(refresh: bool = Query(False)) -> CorrelationsResponse:
+def topic_correlations(refresh: bool = Query(False)) -> CorrelationsResponse:
     global _cache
     try:
         if _cache is None or refresh:
-            _cache = _build()
+            with _lock:
+                if _cache is None or refresh:
+                    _cache = _build()
     except Exception as e:                                   # noqa: BLE001
         logger.error("topic-correlations failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Topic correlations unavailable: {e}")

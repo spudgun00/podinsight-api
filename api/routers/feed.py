@@ -119,7 +119,7 @@ def _facets(client) -> Dict[str, Any]:
 
 
 @router.get("/feed", response_model=FeedResponse)
-async def feed(
+def feed(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     topic: Optional[str] = Query(None, description="One of the tracked topics"),

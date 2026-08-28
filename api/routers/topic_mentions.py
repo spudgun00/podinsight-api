@@ -16,6 +16,7 @@ Two things the caller needs to know and the old endpoint could not tell it:
 """
 import calendar
 import logging
+import threading
 from datetime import date
 from typing import Dict, List, Optional
 
@@ -33,6 +34,10 @@ TOPICS = ["AI Agents", "Capital Efficiency", "DePIN", "B2B SaaS", "Crypto/Web3"]
 MIN_EPISODES_TO_PLOT = 5
 
 _cache: Optional["TopicMentionsResponse"] = None
+# Handlers run in FastAPI's threadpool (they are sync, because their work is
+# blocking I/O). Two first-callers could otherwise build this cache at the
+# same time and each pay the full scan.
+_lock = threading.Lock()
 
 
 class BucketPoint(BaseModel):
@@ -134,11 +139,13 @@ def _build() -> TopicMentionsResponse:
 
 
 @router.get("/topic-mentions", response_model=TopicMentionsResponse)
-async def topic_mentions(refresh: bool = Query(False)) -> TopicMentionsResponse:
+def topic_mentions(refresh: bool = Query(False)) -> TopicMentionsResponse:
     global _cache
     try:
         if _cache is None or refresh:
-            _cache = _build()
+            with _lock:
+                if _cache is None or refresh:
+                    _cache = _build()
     except Exception as e:                                   # noqa: BLE001
         logger.error("topic-mentions failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Topic mentions unavailable: {e}")

@@ -149,7 +149,7 @@ def _docs(client) -> List[Dict[str, Any]]:
 
 
 @router.get("", response_model=NarrativesResponse)
-async def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
+def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
     try:
         docs = _docs(aws_search.client())
     except Exception as e:                                   # noqa: BLE001
@@ -179,7 +179,7 @@ async def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
 
 
 @router.get("/{cluster_id}", response_model=NarrativeDetail)
-async def narrative(
+def narrative(
     cluster_id: int = Path(...),
     limit: int = Query(300, ge=1, le=1000),
 ) -> NarrativeDetail:

@@ -82,7 +82,7 @@ class BriefResponse(BaseModel):
 
 
 @router.get("/intelligence-brief", response_model=BriefResponse)
-async def intelligence_brief() -> BriefResponse:
+def intelligence_brief() -> BriefResponse:
     try:
         r = aws_search.client().search(index=INDEX, body={
             "size": 1, "sort": [{"generated_at": "desc"}]})

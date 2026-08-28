@@ -121,7 +121,7 @@ def _change_pct(series: List[SeriesPoint]) -> Optional[float]:
 
 
 @router.get("", response_model=ThemesResponse)
-async def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
+def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
     try:
         client = aws_search.client()
         docs = _theme_docs(client)

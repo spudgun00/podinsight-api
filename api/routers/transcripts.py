@@ -50,7 +50,7 @@ class TranscriptResponse(BaseModel):
 
 
 @router.get("/{episode_id}", response_model=TranscriptResponse)
-async def get_transcript(episode_id: str) -> TranscriptResponse:
+def get_transcript(episode_id: str) -> TranscriptResponse:
     try:
         os_ = aws_search.client()
         hits, after = [], None

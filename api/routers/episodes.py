@@ -14,6 +14,7 @@ main.js gates the whole Priority Briefings feature on this endpoint returning
 successfully, so it fails loudly rather than returning a partial list.
 """
 import logging
+import threading
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,6 +26,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["episodes"])
 
 _cache: Optional[List["Episode"]] = None
+# Handlers run in FastAPI's threadpool (they are sync, because their work is
+# blocking I/O). Two first-callers could otherwise build this cache at the
+# same time and each pay the full scan.
+_lock = threading.Lock()
 
 
 class Episode(BaseModel):
@@ -77,7 +82,7 @@ def _load() -> List[Episode]:
 
 
 @router.get("/episodes", response_model=EpisodesResponse)
-async def list_episodes(
+def list_episodes(
     limit: int = Query(2000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     refresh: bool = Query(False, description="Bypass the in-process cache"),
@@ -85,8 +90,10 @@ async def list_episodes(
     global _cache
     try:
         if _cache is None or refresh:
-            _cache = _load()
-            logger.info("Loaded %d episodes from the AWS index", len(_cache))
+            with _lock:
+                if _cache is None or refresh:
+                    _cache = _load()
+                    logger.info("Loaded %d episodes from the AWS index", len(_cache))
     except Exception as e:                                   # noqa: BLE001
         logger.error("Episode aggregation failed: %s", e)
         raise HTTPException(status_code=503,

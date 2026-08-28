@@ -1,6 +1,7 @@
 # This file is the entry point for Vercel
 # It serves as the composition root, assembling all API features
 
+import hashlib
 import os
 
 # Load .env at the composition root, explicitly.
@@ -15,6 +16,7 @@ from lib.env_loader import load_env_safely
 load_env_safely()
 
 from fastapi import FastAPI
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from .topic_velocity import app as topic_velocity_app
 from .routers.audio_clips import router as audio_clips_router
@@ -38,6 +40,53 @@ app = FastAPI(
     description="Unified API for all PodInsight features",
     version="1.0.0"
 )
+
+# ---------------------------------------------------------------- conditional GETs
+#
+# Nothing this API returns carried a validator before 28 Aug 2026, so every
+# visit re-downloaded all of it - measured at 17 requests and ~1.1 MB on a
+# reload where none of the data had changed.
+#
+# The corpus only moves when a build runs, but "when did it last move" is not a
+# question this process can answer cheaply, so the posture is deliberately the
+# conservative one: the browser always asks, and an unchanged answer comes back
+# as a 304 with no body. Never a stale read.
+#
+# Audio clips are exempt. Their bodies carry presigned URLs that expire, and a
+# 304 would tell the browser to keep reusing one past its expiry.
+ETAG_EXEMPT_PREFIXES = ("/api/v1/audio_clips",)
+
+
+@app.middleware("http")
+async def conditional_get(request, call_next):
+    response = await call_next(request)
+
+    if (request.method not in ("GET", "HEAD")
+            or response.status_code != 200
+            or request.url.path.startswith(ETAG_EXEMPT_PREFIXES)
+            or "etag" in response.headers):
+        return response
+
+    body = b""
+    async for chunk in response.body_iterator:
+        body += chunk
+
+    etag = '"' + hashlib.sha256(body).hexdigest()[:32] + '"'
+    headers = dict(response.headers)
+    headers["etag"] = etag
+    headers["cache-control"] = "private, max-age=0, must-revalidate"
+
+    if request.headers.get("if-none-match") == etag:
+        # 304 carries no body, so these must go; the rest of the headers stay,
+        # which is what lets the browser keep using what it already has.
+        for h in ("content-length", "content-encoding"):
+            headers.pop(h, None)
+        return Response(status_code=304, headers=headers)
+
+    headers["content-length"] = str(len(body))
+    return Response(content=body, status_code=200, headers=headers,
+                    media_type=response.media_type)
+
 
 # Configure CORS for the main app
 # Get CORS origins from environment variable
