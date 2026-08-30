@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib.entity_coverage import coverage as entity_coverage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["entities"])
@@ -40,6 +41,7 @@ class Entity(BaseModel):
 
 
 class EntitiesResponse(BaseModel):
+    entity_coverage: Optional[dict] = None
     entities: List[Entity]
     count_basis: str
     total_entities: int
@@ -69,14 +71,19 @@ def entities(
         total = os_.count(index=ROLLUP_INDEX, body={
             "query": {"bool": {"must": must}}})["count"]
         first = r["hits"]["hits"][0]["_source"] if r["hits"]["hits"] else {}
-        eps = os_.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
-            "e": {"cardinality": {"field": "episode_id", "precision_threshold": 4000}}}}
+        # Episodes that actually HAVE entities, not episodes in the corpus.
+        # These diverged when the 28 Aug 2026 backfill quadrupled the corpus
+        # while entity extraction stayed at the pre-backfill episodes: the
+        # surface was reading "of 4471" for counts drawn from 1,235.
+        eps = os_.search(index="entity_episodes", body={"size": 0, "aggs": {
+            "e": {"cardinality": {"field": "episode_id", "precision_threshold": 40000}}}}
             )["aggregations"]["e"]["value"]
     except Exception as e:                                   # noqa: BLE001
         logger.error("entities failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Entities unavailable: {e}")
 
     return EntitiesResponse(
+        entity_coverage=entity_coverage(),
         entities=[Entity(text=h["_source"]["display"],
                          labels=h["_source"].get("labels") or [h["_source"]["label"]],
                          episode_count=h["_source"]["episode_count"],

@@ -43,6 +43,13 @@ class Episode(BaseModel):
 
 
 class EpisodesResponse(BaseModel):
+    # Totals over the WHOLE catalogue, not the page. The header used to sum the
+    # page and divide, which was right while the corpus was smaller than the
+    # default limit of 2,000 and silently wrong the moment the backfill passed
+    # it - the page reported 28 podcasts and 1,838 hours for a corpus holding
+    # 29 and 4,080.
+    podcast_count: Optional[int] = None
+    total_hours: Optional[int] = None
     episodes: List[Episode]
     total: int
     source: str = "opensearch"
@@ -142,4 +149,7 @@ def list_episodes(
         logger.error("Episode aggregation failed: %s", e)
         raise HTTPException(status_code=503,
                             detail=f"Episode catalogue unavailable: {e}")
-    return EpisodesResponse(episodes=_cache[offset:offset + limit], total=len(_cache))
+    return EpisodesResponse(
+        episodes=_cache[offset:offset + limit], total=len(_cache),
+        podcast_count=len({e.podcast_name for e in _cache}),
+        total_hours=round(sum(e.duration_seconds or 0 for e in _cache) / 3600))

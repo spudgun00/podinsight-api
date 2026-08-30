@@ -34,6 +34,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib.entity_coverage import coverage as entity_coverage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/companies", tags=["companies"])
@@ -75,6 +76,7 @@ class CompanyEpisode(BaseModel):
 
 
 class CompanyResponse(BaseModel):
+    entity_coverage: Optional[dict] = None
     name: str
     episode_count: int
     total_mentions: int
@@ -251,6 +253,7 @@ def company(
     first = (a["first"]["value_as_string"] or "")[:10]
     last = (a["last"]["value_as_string"] or "")[:10]
     return CompanyResponse(
+        entity_coverage=entity_coverage(),
         name=src["display"],
         episode_count=eps,
         total_mentions=int(a["total"]["value"]),
