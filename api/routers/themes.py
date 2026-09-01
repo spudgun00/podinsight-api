@@ -27,6 +27,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/themes", tags=["themes"])
@@ -35,7 +36,8 @@ THEMES_INDEX = "discovered_themes"
 TOPIC_EPISODES = "discovered_topic_episodes"
 NARRATIVES_INDEX = "discovered_topics"
 
-PARTIAL_BUCKET = "2025-06"      # 23 of 30 days; the corpus ends 23 June 2025
+# Partial-bucket logic lives in lib/window.partial_buckets - one place, and
+# it replaced two hardcoded rules that were both wrong at corpus v3.
 
 METHOD = ("Themes are a versioned map over the discovered narratives, not a list "
           "chosen in advance: a theme renders only where qualifying narratives "
@@ -85,6 +87,7 @@ class ThemesResponse(BaseModel):
     theme_map_version: Optional[int] = None
     k: Optional[int] = None
     reconciled: bool = True
+    window: Optional[dict] = None
     source: str = "opensearch"
 
 
@@ -93,18 +96,21 @@ def _theme_docs(client) -> List[Dict[str, Any]]:
     return [h["_source"] for h in r["hits"]["hits"]]
 
 
-def _month_stats(client, cluster_ids: List[int]) -> Dict[str, Dict[str, int]]:
+def _month_stats(client, cluster_ids: List[int], w=None) -> Dict[str, Dict[str, int]]:
     """Passages and DISTINCT episodes per month for a set of clusters."""
     if not cluster_ids:
         return {}
-    r = client.search(index=TOPIC_EPISODES, body={
+    body = {
         "size": 0, "query": {"terms": {"cluster_id": cluster_ids}},
         "aggs": {"m": {"date_histogram": {"field": "published_at",
                                           "calendar_interval": "month",
                                           "format": "yyyy-MM"},
                        "aggs": {"passages": {"sum": {"field": "chunk_count"}},
                                 "eps": {"cardinality": {"field": "episode_id",
-                                                        "precision_threshold": 4000}}}}}})
+                                                        "precision_threshold": 4000}}}}}}
+    if w is not None:
+        W.apply(body, w)
+    r = client.search(index=TOPIC_EPISODES, body=body)
     out = {}
     for b in r["aggregations"]["m"]["buckets"]:
         out[b["key_as_string"]] = {"mentions": int(b["passages"]["value"]),
@@ -121,7 +127,10 @@ def _change_pct(series: List[SeriesPoint]) -> Optional[float]:
 
 
 @router.get("", response_model=ThemesResponse)
-def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
+def themes(limit: int = Query(6, ge=1, le=12),
+           window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
+           ) -> ThemesResponse:
+    w = W.resolve(window)
     try:
         client = aws_search.client()
         docs = _theme_docs(client)
@@ -132,22 +141,30 @@ def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
         raise HTTPException(status_code=404, detail="No themes have been built")
 
     try:
-        rng = client.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
+        _rng_body = {"size": 0, "aggs": {
             "first": {"min": {"field": "published_at"}},
             "last": {"max": {"field": "published_at"}},
             "eps": {"cardinality": {"field": "episode_id",
-                                    "precision_threshold": 4000}}}})["aggregations"]
+                                    "precision_threshold": 4000}}}}
+        W.apply(_rng_body, w)
+        rng = client.search(index=aws_search.INDEX, body=_rng_body)["aggregations"]
     except Exception as e:                                   # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Themes unavailable: {e}")
 
+    # Buckets inside the window only. The indexed `monthly` map spans the whole
+    # library; a 30-day window must plot one month, not twenty with nineteen zeros.
+    mr = W.month_range(w)
     buckets = sorted({b for d in docs for b in (d.get("monthly") or {})})
+    if mr:
+        buckets = [b for b in buckets if mr[0] <= b <= mr[1]]
+    partials = W.partial_buckets(w)
     docs.sort(key=lambda d: -d.get("chunks", 0))
 
     out, reconciled = [], True
     for d in docs[:limit]:
         members = d.get("members") or []
         ids = [m["cluster_id"] for m in members]
-        stats = _month_stats(client, ids)
+        stats = _month_stats(client, ids, w)
 
         series = []
         for b in buckets:
@@ -156,12 +173,17 @@ def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
             series.append(SeriesPoint(
                 bucket=b, mentions=s["mentions"], episodes=eps,
                 mentions_per_episode=round(s["mentions"] / eps, 2) if eps else 0.0,
-                partial=(b == PARTIAL_BUCKET)))
+                partial=(b in partials)))
 
         # The series must add up to the indexed theme total, or the chart would
-        # sit above a drilldown that contradicts it.
+        # sit above a drilldown that contradicts it. Inside a window the series
+        # is a SUBSET of the indexed monthly map, so the check runs bucket by
+        # bucket over the windowed buckets only - which is still the guarantee
+        # that matters: every plotted point equals what the index holds for it.
         indexed = d.get("monthly") or {}
         for p in series:
+            if p.partial:
+                continue        # a half month cannot equal a whole-month total
             if p.mentions != int(indexed.get(p.bucket, 0)):
                 reconciled = False
                 logger.error("theme %s bucket %s: series %s vs indexed %s",
@@ -170,17 +192,23 @@ def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
 
         total_eps = 0
         if ids:
-            total_eps = client.search(index=TOPIC_EPISODES, body={
+            _te_body = {
                 "size": 0, "query": {"terms": {"cluster_id": ids}},
                 "aggs": {"eps": {"cardinality": {"field": "episode_id",
                                                  "precision_threshold": 4000}}}}
-                )["aggregations"]["eps"]["value"]
+            W.apply(_te_body, w)
+            total_eps = client.search(index=TOPIC_EPISODES, body=_te_body
+                                      )["aggregations"]["eps"]["value"]
 
         out.append(Theme(
             theme_key=d["theme_key"], topic=d["label"], label=d["label"],
             why=d.get("why", ""), narrative_count=d.get("narrative_count", 0),
-            total_mentions=d.get("chunks", 0), episodes_with_mentions=total_eps,
-            has_data=bool(d.get("chunks")), change_pct=_change_pct(series),
+            total_mentions=(sum(p.mentions for p in series) if not w.get("is_all")
+                            else d.get("chunks", 0)),
+            episodes_with_mentions=total_eps,
+            has_data=bool(sum(p.mentions for p in series) if not w.get("is_all")
+                          else d.get("chunks")),
+            change_pct=_change_pct(series),
             series=series,
             members=[Member(cluster_id=m["cluster_id"], label=m["label"],
                             chunks=m["chunks"], episodes=m["episodes"],
@@ -195,8 +223,8 @@ def themes(limit: int = Query(6, ge=1, le=12)) -> ThemesResponse:
 
     first = docs[0]
     return ThemesResponse(
-        themes=out, buckets=buckets,
+        themes=out, buckets=buckets, window=w,
         episodes_scanned=rng["eps"]["value"],
-        range_from=(rng["first"]["value_as_string"] or "")[:10],
-        range_to=(rng["last"]["value_as_string"] or "")[:10],
+        range_from=(rng["first"].get("value_as_string") or "")[:10],
+        range_to=(rng["last"].get("value_as_string") or "")[:10],
         theme_map_version=first.get("theme_map_version"), k=first.get("k"))

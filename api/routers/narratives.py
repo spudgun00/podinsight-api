@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/narratives", tags=["narratives"])
@@ -82,6 +83,8 @@ class NarrativesResponse(BaseModel):
     labelling_model: Optional[str] = None
     generated_at: Optional[str] = None
     source: str = "opensearch"
+    window: Optional[dict] = None
+
 
 
 class NarrativeEpisode(BaseModel):
@@ -103,31 +106,43 @@ class NarrativeDetail(BaseModel):
     samples: List[Dict[str, Any]] = []
     unit: str = "chunks"
     source: str = "opensearch"
+    window: Optional[dict] = None
 
 
-def _month_episodes(client, cluster_id: int) -> Dict[str, int]:
+
+def _month_episodes(client, cluster_id: int, w=None) -> Dict[str, int]:
     """Distinct episodes per month, so a narrative can be plotted per-episode
     on the same axis as a theme or a tracked topic."""
-    r = client.search(index=EPISODES_INDEX, body={
+    body = {
         "size": 0, "query": {"term": {"cluster_id": cluster_id}},
         "aggs": {"m": {"date_histogram": {"field": "published_at",
                                           "calendar_interval": "month",
                                           "format": "yyyy-MM"},
                        "aggs": {"eps": {"cardinality": {"field": "episode_id",
-                                                        "precision_threshold": 4000}}}}}})
+                                                        "precision_threshold": 4000}}}}}}
+    if w is not None:
+        W.apply(body, w)
+    r = client.search(index=EPISODES_INDEX, body=body)
     return {b["key_as_string"]: int(b["eps"]["value"])
             for b in r["aggregations"]["m"]["buckets"]}
 
 
-def _series(monthly: Dict[str, int], eps: Optional[Dict[str, int]] = None) -> List[SeriesPoint]:
+def _series(monthly: Dict[str, int], eps: Optional[Dict[str, int]] = None,
+            w=None) -> List[SeriesPoint]:
     eps = eps or {}
+    # `partial = b.endswith("-06")` marked EVERY June partial - a corpus-v1
+    # artefact, when the library happened to end on 23 June 2025. Derived now.
+    partials = W.partial_buckets(w) if w is not None else set()
+    mr = W.month_range(w) if w is not None else None
     out = []
     for b in sorted(monthly):
+        if mr and not (mr[0] <= b <= mr[1]):
+            continue
         m = int(monthly[b])
         e = int(eps.get(b, 0))
         out.append(SeriesPoint(bucket=b, mentions=m, episodes=e,
                                mentions_per_episode=round(m / e, 2) if e else 0.0,
-                               partial=b.endswith("-06")))
+                               partial=(b in partials)))
     return out
 
 
@@ -149,7 +164,10 @@ def _docs(client) -> List[Dict[str, Any]]:
 
 
 @router.get("", response_model=NarrativesResponse)
-def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
+def narratives(limit: int = Query(12, ge=1, le=50),
+               window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
+               ) -> NarrativesResponse:
+    w = W.resolve(window)
     try:
         docs = _docs(aws_search.client())
     except Exception as e:                                   # noqa: BLE001
@@ -164,15 +182,22 @@ def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
     out = []
     for d in live[:limit]:
         s = _series(d.get("monthly") or {},
-                    _month_episodes(aws_search.client(), d["cluster_id"]))
+                    _month_episodes(aws_search.client(), d["cluster_id"], w), w)
         out.append(Narrative(
             cluster_id=d["cluster_id"], topic=d.get("label") or "(unlabelled)",
-            total_mentions=d.get("chunks", 0), chunks=d.get("chunks", 0),
-            episodes=d.get("episodes", 0), podcasts=d.get("podcasts", 0),
+            total_mentions=(sum(p.mentions for p in s) if not w.get("is_all")
+                            else d.get("chunks", 0)),
+            chunks=(sum(p.mentions for p in s) if not w.get("is_all")
+                    else d.get("chunks", 0)),
+            episodes=(sum(p.episodes for p in s) if not w.get("is_all")
+                      else d.get("episodes", 0)),
+            podcasts=d.get("podcasts", 0),
             chunks_per_episode=d.get("chunks_per_episode", 0.0),
-            change_pct=_change_pct(s), has_data=bool(d.get("chunks")), series=s))
+            change_pct=_change_pct(s),
+            has_data=bool(sum(p.mentions for p in s) if not w.get("is_all")
+                          else d.get("chunks")), series=s))
     return NarrativesResponse(
-        narratives=out, count=len(live), excluded_count=len(docs) - len(live),
+        narratives=out, count=len(live), excluded_count=len(docs) - len(live), window=w,
         k=first.get("k"), engine_version=first.get("engine_version"),
         labelling_model=first.get("labelling_model"),
         generated_at=first.get("generated_at"))
@@ -182,6 +207,7 @@ def narratives(limit: int = Query(12, ge=1, le=50)) -> NarrativesResponse:
 def narrative(
     cluster_id: int = Path(...),
     limit: int = Query(300, ge=1, le=1000),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> NarrativeDetail:
     """The episodes behind a narrative, so the number can be opened and checked.
 
@@ -194,6 +220,7 @@ def narrative(
     Ordered the way the topic drilldown orders: biggest contributor first, most
     recent breaking ties.
     """
+    w = W.resolve(window)
     try:
         client = aws_search.client()
         r = client.search(index=INDEX, body={
@@ -212,11 +239,14 @@ def narrative(
                             detail="That cluster is not a narrative: " + str(d.get("excluded_reason")))
 
     try:
-        ep = client.search(index=EPISODES_INDEX, body={
+        _ep_body = {
             "size": limit, "query": {"term": {"cluster_id": cluster_id}},
             "sort": [{"chunk_count": "desc"}, {"published_at": "desc"}],
             "aggs": {"eps": {"cardinality": {"field": "episode_id",
-                                             "precision_threshold": 4000}}}})
+                                             "precision_threshold": 4000}},
+                     "chunks": {"sum": {"field": "chunk_count"}}}}
+        W.apply(_ep_body, w)
+        ep = client.search(index=EPISODES_INDEX, body=_ep_body)
     except Exception as e:                                   # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Narrative unavailable: {e}")
 
@@ -230,7 +260,11 @@ def narrative(
 
     return NarrativeDetail(
         cluster_id=cluster_id, topic=d.get("label") or "(unlabelled)",
-        chunks=d.get("chunks", 0), episodes=total_eps,
+        # Inside a window the drilldown must total what the chart plots for the
+        # same window, not the cluster document's all-time figure.
+        chunks=(int(ep["aggregations"]["chunks"]["value"]) if not w.get("is_all")
+                else d.get("chunks", 0)),
+        episodes=total_eps, window=w,
         podcasts=d.get("podcasts", 0), episodes_listed=listed,
         truncated=len(listed) < total_eps,
         samples=d.get("samples") or [])

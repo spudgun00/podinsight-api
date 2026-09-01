@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["episodes"])
@@ -137,6 +138,7 @@ def list_episodes(
     limit: int = Query(2000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     refresh: bool = Query(False, description="Bypass the in-process cache"),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> EpisodesResponse:
     global _cache
     try:
@@ -149,7 +151,14 @@ def list_episodes(
         logger.error("Episode aggregation failed: %s", e)
         raise HTTPException(status_code=503,
                             detail=f"Episode catalogue unavailable: {e}")
+    # The catalogue is cached whole and sliced per window in memory: it is one
+    # aggregation over the library and re-running it per window would be four
+    # scans for the same rows. Filtering here is not "hiding rows client-side" -
+    # this IS the server, and `total` moves with the window as it must.
+    w = W.resolve(window)
+    rows = [e for e in _cache if W.in_window(e.published_at, w)]
     return EpisodesResponse(
-        episodes=_cache[offset:offset + limit], total=len(_cache),
-        podcast_count=len({e.podcast_name for e in _cache}),
-        total_hours=round(sum(e.duration_seconds or 0 for e in _cache) / 3600))
+        episodes=rows[offset:offset + limit], total=len(rows),
+        podcast_count=len({e.podcast_name for e in rows}),
+        window=w,
+        total_hours=round(sum(e.duration_seconds or 0 for e in rows) / 3600))

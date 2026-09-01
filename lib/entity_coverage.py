@@ -28,8 +28,8 @@ def coverage(refresh: bool = False) -> Dict[str, Any]:
         "max": {"max": {"field": "published_at"}},
         "eps": {"cardinality": {"field": "episode_id",
                                 "precision_threshold": 40000}}}})["aggregations"]
-    through = (ent["max"]["value_as_string"] or "")[:10] or None
-    corpus_to = (corp["max"]["value_as_string"] or "")[:10] or None
+    through = (ent["max"].get("value_as_string") or "")[:10] or None
+    corpus_to = (corp["max"].get("value_as_string") or "")[:10] or None
     covered, total = ent["eps"]["value"], corp["eps"]["value"]
     _cache = {
         "entity_coverage_through": through,

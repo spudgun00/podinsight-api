@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 from lib.entity_coverage import coverage as entity_coverage
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,62 @@ class EntitiesResponse(BaseModel):
     filter_version: Optional[int] = None
     stoplist_version: Optional[int] = None
     curation_note: str
+    window: Optional[dict] = None
     source: str = "opensearch"
+
+
+def _windowed(limit: int, min_episodes: int, q, w) -> "EntitiesResponse":
+    """Ranked entities inside a window, from `entity_episodes`.
+
+    The `entities` rollup is pre-aggregated over all time and carries no dates,
+    so it cannot answer a windowed question at all. `entity_episodes` holds one
+    document per (entity, episode) WITH a date, which makes the arithmetic exact
+    rather than approximate: the bucket's `doc_count` IS the entity's episode
+    count for the window, because there is exactly one row per pair. No
+    cardinality estimate is involved.
+    """
+    os_ = aws_search.client()
+    filters = [W.filter_clause(w)]
+    if q:
+        filters.append({"prefix": {"entity": q.lower()}})
+    body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
+        "e": {"terms": {"field": "entity",
+                        # Well above `limit` so the top slice is stable; the
+                        # ordering key is doc_count, which is exact per shard.
+                        "size": max(limit * 10, 300),
+                        "order": {"_count": "desc"}},
+              "aggs": {"mentions": {"sum": {"field": "mention_count"}},
+                       "pods": {"cardinality": {"field": "podcast_name"}},
+                       "top": {"top_hits": {"size": 1, "_source": ["display", "kind"]}}}},
+        "total": {"cardinality": {"field": "entity", "precision_threshold": 40000}},
+        "eps": {"cardinality": {"field": "episode_id", "precision_threshold": 40000}}}}
+    try:
+        r = os_.search(index="entity_episodes", body=body)
+    except Exception as e:                                   # noqa: BLE001
+        logger.error("windowed entities failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"Entities unavailable: {e}")
+    a = r["aggregations"]
+    rows = [b for b in a["e"]["buckets"] if b["doc_count"] >= min_episodes][:limit]
+    ents = []
+    for b in rows:
+        src = (b["top"]["hits"]["hits"] or [{}])[0].get("_source", {})
+        ents.append(Entity(
+            text=src.get("display") or b["key"],
+            labels=[src.get("kind")] if src.get("kind") else [],
+            episode_count=b["doc_count"],
+            podcast_count=int(b["pods"]["value"]),
+            occurrences=int(b["mentions"]["value"])))
+    return EntitiesResponse(
+        entity_coverage=entity_coverage(), entities=ents,
+        count_basis="distinct episodes an entity appears in, within the window",
+        total_entities=int(a["total"]["value"]),
+        episodes_covered=int(a["eps"]["value"]),
+        labels=KEEP_LABELS, window=w,
+        filter_version=None, stoplist_version=None,
+        curation_note=("Ranked from entity_episodes inside the window, so the "
+                       "counts are exact for the period rather than a slice of "
+                       "an all-time rollup. Same curation as the rollup: entity "
+                       "v2, stoplist v2, aliases proposed but not applied."))
 
 
 @router.get("/entities", response_model=EntitiesResponse)
@@ -59,7 +115,11 @@ def entities(
     limit: int = Query(10, ge=1, le=200),
     min_episodes: int = Query(2, ge=1),
     q: Optional[str] = Query(None, description="prefix filter on the entity name"),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> EntitiesResponse:
+    w = W.resolve(window)
+    if not w.get("is_all"):
+        return _windowed(limit, min_episodes, q, w)
     try:
         os_ = aws_search.client()
         must = [{"range": {"episode_count": {"gte": min_episodes}}}]
@@ -91,7 +151,7 @@ def entities(
                          occurrences=h["_source"].get("occurrences", 0))
                   for h in r["hits"]["hits"]],
         count_basis="distinct episodes an entity appears in",
-        total_entities=total, episodes_covered=eps, labels=KEEP_LABELS,
+        total_entities=total, episodes_covered=eps, labels=KEEP_LABELS, window=w,
         filter_version=first.get("filter_version"),
         stoplist_version=first.get("stoplist_version"),
         curation_note=(

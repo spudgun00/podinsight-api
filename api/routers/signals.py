@@ -29,6 +29,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["signals"])
@@ -86,6 +87,7 @@ class SignalsResponse(BaseModel):
     verified_claims: int
     # Notable figures
     figures_count: int
+    window: Optional[dict] = None
     figures_rule: str = FIGURES_RULE
     figures: List[FigureClaim] = []
     source: str = "opensearch"
@@ -109,11 +111,7 @@ def _scan(client) -> Dict[str, Any]:
     they ride in _source and cannot be queried - the scan is the only way, and
     it is why this is cached rather than computed per request."""
     figures: List[FigureClaim] = []
-    claims_total = 0
-    minutes = 0
-    episodes = 0
-    podcasts = set()
-    first = last = ""
+    ep_rows: List[Dict[str, Any]] = []
     after = None
     while True:
         body: Dict[str, Any] = {"size": 500, "sort": [{"episode_id": "asc"}],
@@ -126,15 +124,13 @@ def _scan(client) -> Dict[str, Any]:
             break
         for h in hits:
             s = h["_source"]
-            episodes += 1
-            podcasts.add(s.get("podcast_name"))
-            minutes += s.get("duration_minutes") or 0
             pub = (s.get("published_at") or "")[:10]
-            if pub:
-                first = pub if not first or pub < first else first
-                last = pub if not last or pub > last else last
+            n_claims = len(s.get("claims") or [])
+            ep_rows.append({"published_at": pub,
+                            "podcast_name": s.get("podcast_name"),
+                            "duration_minutes": s.get("duration_minutes") or 0,
+                            "claims": n_claims})
             for i, c in enumerate(s.get("claims") or []):
-                claims_total += 1
                 text = f"{c.get('claim','')} {c.get('quote','')}"
                 best = None
                 for m in BILLION_RE.finditer(text):
@@ -152,15 +148,34 @@ def _scan(client) -> Dict[str, Any]:
         after = hits[-1]["sort"]
 
     figures.sort(key=lambda f: -f.amount_usd)
-    return {"period": f"{first} to {last}" if first and last else "",
-            "episodes": episodes, "podcasts": len(podcasts - {None}),
-            "hours": round(minutes / 60), "verified_claims": claims_total,
-            "figures_count": len(figures), "figures": figures}
+    # Raw rows, not totals. The scan is expensive and cached once; the window
+    # then aggregates from these in memory. Pre-aggregating here would mean one
+    # full scan per window, four times the work for the same answer.
+    return {"figures": figures, "episodes": ep_rows}
+
+
+def _aggregate(cache: Dict[str, Any], w) -> Dict[str, Any]:
+    """Period figures for one window, from the cached scan."""
+    eps = [e for e in cache["episodes"] if W.in_window(e["published_at"], w)]
+    figs = [f for f in cache["figures"] if W.in_window(f.published_at, w)]
+    dates = [e["published_at"] for e in eps if e["published_at"]]
+    return {
+        "period": f"{min(dates)} to {max(dates)}" if dates else "",
+        "episodes": len(eps),
+        "podcasts": len({e["podcast_name"] for e in eps} - {None}),
+        "hours": round(sum(e["duration_minutes"] or 0 for e in eps) / 60),
+        "verified_claims": sum(e["claims"] for e in eps),
+        "figures_count": len(figs),
+        "figures": figs,
+    }
 
 
 @router.get("/signals", response_model=SignalsResponse)
-def signals(limit: int = Query(60, ge=1, le=500)) -> SignalsResponse:
+def signals(limit: int = Query(60, ge=1, le=500),
+            window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
+            ) -> SignalsResponse:
     global _cache
+    w = W.resolve(window)
     if _cache is None:
         try:
             with _lock:
@@ -169,6 +184,7 @@ def signals(limit: int = Query(60, ge=1, le=500)) -> SignalsResponse:
         except Exception as e:                               # noqa: BLE001
             logger.error("signals scan failed: %s", e)
             raise HTTPException(status_code=503, detail=f"Signals unavailable: {e}")
-    d = dict(_cache)
+    d = _aggregate(_cache, w)
     d["figures"] = d["figures"][:limit]
+    d["window"] = w
     return SignalsResponse(**d)

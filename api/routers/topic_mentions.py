@@ -76,8 +76,8 @@ def _build() -> TopicMentionsResponse:
     rng = os_.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
         "min": {"min": {"field": "published_at"}},
         "max": {"max": {"field": "published_at"}}}})["aggregations"]
-    first = (rng["min"]["value_as_string"] or "")[:10]
-    last = (rng["max"]["value_as_string"] or "")[:10]
+    first = (rng["min"].get("value_as_string") or "")[:10]
+    last = (rng["max"].get("value_as_string") or "")[:10]
 
     episodes = os_.search(index=ROLLUP_INDEX, body={"size": 0, "aggs": {
         "e": {"cardinality": {"field": "episode_id", "precision_threshold": 4000}}}}

@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["feed"])
@@ -76,6 +77,12 @@ class FeedResponse(BaseModel):
     # chips do not change their numbers as you click between them.
     topics: List[TopicCount] = []
     untagged: int = 0
+    window: Optional[dict] = None
+    # Tracked-topic tagging reaches only to 23 Jun 2025: the backfill generated
+    # briefs for 3,301 episodes and never tagged them. On any window newer than
+    # that the chips are all zero, and the panel must say why rather than render
+    # five chips reading 0 or none at all. Derived from the store each request.
+    topic_coverage: Optional[dict] = None
     period: str
     ordering: str = ORDERING_SENTENCE
     source: str = "opensearch"
@@ -93,28 +100,41 @@ def _to_item(s: Dict[str, Any]) -> FeedItem:
         duration_minutes=s.get("duration_minutes"))
 
 
-def _facets(client) -> Dict[str, Any]:
-    """Tracked-topic counts and the corpus date range, over every brief.
+def _facets(client, w) -> Dict[str, Any]:
+    """Tracked-topic counts and the date range, over every brief IN THE WINDOW.
 
     Separate from the page query so the numbers are the store's, not the
-    filtered slice's.
+    topic-filtered slice's - but the window is not a filter in that sense, it is
+    the period the whole page is about. Facets computed over all time while the
+    page shows 90 days would put "Crypto/Web3 36,343" above thirty rows drawn
+    from a tenth of that, which is the kind of quietly wrong number this project
+    keeps removing.
     """
-    r = client.search(index=BRIEFS_INDEX, body={"size": 0, "aggs": {
+    body = {"size": 0, "aggs": {
         "topics": {"terms": {"field": "topic_tags.keyword", "size": 50,
                              "order": {"_key": "asc"}}},
         "untagged": {"missing": {"field": "topic_tags.keyword"}},
         "first": {"min": {"field": "published_at"}},
         "last": {"max": {"field": "published_at"}},
-    }})
+        # How far tracked-topic tagging actually reaches. Derived, never written
+        # down, so the note removes itself if tagging ever catches up - the same
+        # discipline as entity_coverage.
+        "tagged_to": {"filter": {"exists": {"field": "topic_tags.keyword"}},
+                      "aggs": {"last": {"max": {"field": "published_at"}}}},
+    }}
+    W.apply(body, w)
+    r = client.search(index=BRIEFS_INDEX, body=body)
     a = r["aggregations"]
     total = r["hits"]["total"]
     return {
         "topics": [TopicCount(name=b["key"], count=b["doc_count"])
                    for b in a["topics"]["buckets"]],
         "untagged": a["untagged"]["doc_count"],
-        "first": (a["first"]["value_as_string"] or "")[:10],
-        "last": (a["last"]["value_as_string"] or "")[:10],
+        "first": (a["first"].get("value_as_string") or "")[:10],
+        "last": (a["last"].get("value_as_string") or "")[:10],
         "corpus_total": total["value"] if isinstance(total, dict) else total,
+        "tagged_to": (a["tagged_to"]["last"].get("value_as_string") or "")[:10] or None,
+        "tagged_in_window": a["tagged_to"]["doc_count"],
     }
 
 
@@ -123,10 +143,12 @@ def feed(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     topic: Optional[str] = Query(None, description="One of the tracked topics"),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> FeedResponse:
+    w = W.resolve(window)
     try:
         client = aws_search.client()
-        facets = _facets(client)
+        facets = _facets(client, w)
     except Exception as e:                                   # noqa: BLE001
         logger.error("feed facets failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Feed unavailable: {e}")
@@ -151,6 +173,7 @@ def feed(
     }
     if topic is not None:
         body["query"] = {"term": {"topic_tags.keyword": topic}}
+    W.apply(body, w)
 
     try:
         r = client.search(index=BRIEFS_INDEX, body=body)
@@ -171,4 +194,11 @@ def feed(
         topic=topic,
         topics=facets["topics"],
         untagged=facets["untagged"],
+        window=w,
+        topic_coverage={
+            "tagged_through": facets["tagged_to"],
+            "tagged_in_window": facets["tagged_in_window"],
+            "complete": bool(facets["tagged_to"] and w.get("to")
+                             and facets["tagged_to"] >= w["to"]),
+        },
         period=f"{facets['first']} to {facets['last']}")

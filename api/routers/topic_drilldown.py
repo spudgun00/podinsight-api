@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["topic-drilldown"])
@@ -45,6 +46,7 @@ class DrilldownResponse(BaseModel):
     episode_count: int
     total_mentions: int
     truncated: bool = False
+    window: Optional[dict] = None
     source: str = "opensearch"
 
 
@@ -53,22 +55,26 @@ def topic_drilldown(
     topic: str = Query(..., min_length=1, max_length=64),
     month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
     limit: int = Query(200, ge=1, le=1000),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> DrilldownResponse:
     must = [{"term": {"topic": topic}},
             {"range": {"mention_count": {"gt": 0}}}]
     if month:
         must.append({"term": {"month": month}})
 
+    w = W.resolve(window)
     try:
         os_ = aws_search.client()
-        r = os_.search(index=ROLLUP_INDEX, body={
+        _body = {
             "size": limit,
             "query": {"bool": {"must": must}},
             # Count first, then most recent, so the biggest contributors lead.
             "sort": [{"mention_count": "desc"}, {"published_at": "desc"}],
             "aggs": {"total": {"sum": {"field": "mention_count"}},
                      "eps": {"cardinality": {"field": "episode_id",
-                                             "precision_threshold": 4000}}}})
+                                             "precision_threshold": 4000}}}}
+        W.apply(_body, w)
+        r = os_.search(index=ROLLUP_INDEX, body=_body)
     except Exception as e:                                   # noqa: BLE001
         logger.error("topic-drilldown failed for %r/%r: %s", topic, month, e)
         raise HTTPException(status_code=503, detail=f"Drilldown unavailable: {e}")
@@ -76,8 +82,8 @@ def topic_drilldown(
     hits = r["hits"]["hits"]
     total_eps = r["aggregations"]["eps"]["value"]
     return DrilldownResponse(
-        topic=topic, month=month,
-        scope=month or "whole period",
+        topic=topic, month=month, window=w,
+        scope=month or (w["span"] if not w.get("is_all") else "whole period"),
         episodes=[DrilldownEpisode(
             episode_id=h["_source"]["episode_id"],
             episode_title=h["_source"].get("episode_title") or "(Untitled episode)",

@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["briefings"])
@@ -121,8 +122,8 @@ def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
         raise HTTPException(status_code=503, detail=f"Briefings unavailable: {e}")
 
     hits = r["hits"]["hits"]
-    first = (rng["min"]["value_as_string"] or "")[:10]
-    last = (rng["max"]["value_as_string"] or "")[:10]
+    first = (rng["min"].get("value_as_string") or "")[:10]
+    last = (rng["max"].get("value_as_string") or "")[:10]
     return BriefingsResponse(
         briefs=[_to_brief(h["_source"]) for h in hits],
         count=r["hits"]["total"]["value"] if isinstance(r["hits"]["total"], dict) else len(hits),

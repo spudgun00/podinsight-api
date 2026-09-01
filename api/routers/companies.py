@@ -34,6 +34,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import window as W
 from lib.entity_coverage import coverage as entity_coverage
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,8 @@ class SearchResponse(BaseModel):
     stoplist_version: Optional[int] = None
     alias_version: Optional[int] = None
     source: str = "opensearch"
+    window: Optional[dict] = None
+
 
 
 class CompanyEpisode(BaseModel):
@@ -89,6 +92,8 @@ class CompanyResponse(BaseModel):
     stoplist_version: Optional[int] = None
     alias_version: Optional[int] = None
     source: str = "opensearch"
+    window: Optional[dict] = None
+
 
 
 class EpisodeMention(BaseModel):
@@ -131,6 +136,7 @@ def _versions(*sources: Dict[str, Any]) -> Dict[str, Any]:
 def search(
     q: str = Query(..., min_length=1, max_length=64),
     limit: int = Query(8, ge=1, le=25),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> SearchResponse:
     """Typeahead over the curated entity index.
 
@@ -211,6 +217,7 @@ def episode_mentions(
 def company(
     name: str,
     limit: int = Query(200, ge=1, le=1000),
+    window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> CompanyResponse:
     """One company: its totals, and the episodes behind them.
 
@@ -219,6 +226,7 @@ def company(
     silently, so a watchlist never contains a row that can only ever read zero.
     """
     key = _norm(name)
+    w = W.resolve(window)
     try:
         os_ = aws_search.client()
         roll = os_.search(index=ROLLUP_INDEX, body={
@@ -233,9 +241,9 @@ def company(
     src = hits[0]["_source"]
 
     try:
-        r = os_.search(index=PAIRS_INDEX, body={
+        _pairs_body = {
             "size": limit,
-            "query": {"term": {"entity": key}},
+            "query": {"bool": {"filter": [{"term": {"entity": key}}]}},
             # The drilldown's order, for the same reason: biggest contributors
             # first, most recent breaking ties.
             "sort": [{"mention_count": "desc"}, {"published_at": "desc"}],
@@ -243,19 +251,21 @@ def company(
                      "eps": {"cardinality": {"field": "episode_id",
                                              "precision_threshold": 4000}},
                      "first": {"min": {"field": "published_at"}},
-                     "last": {"max": {"field": "published_at"}}}})
+                     "last": {"max": {"field": "published_at"}}}}
+        W.apply(_pairs_body, w)
+        r = os_.search(index=PAIRS_INDEX, body=_pairs_body)
     except Exception as e:                                   # noqa: BLE001
         logger.error("company episodes failed for %r: %s", name, e)
         raise HTTPException(status_code=503, detail=f"Company unavailable: {e}")
 
     a = r["aggregations"]
     eps = a["eps"]["value"]
-    first = (a["first"]["value_as_string"] or "")[:10]
-    last = (a["last"]["value_as_string"] or "")[:10]
+    first = (a["first"].get("value_as_string") or "")[:10]
+    last = (a["last"].get("value_as_string") or "")[:10]
     return CompanyResponse(
         entity_coverage=entity_coverage(),
         name=src["display"],
-        episode_count=eps,
+        episode_count=eps, window=w,
         total_mentions=int(a["total"]["value"]),
         podcast_count=src.get("podcast_count", 0),
         period=f"{first} to {last}" if first and last else "",
