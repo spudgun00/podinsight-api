@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from lib import aws_search
 from lib import snapshots as _S
 from lib import window as W
+from lib import aliases as _A
 from lib.entity_coverage import coverage as entity_coverage
 
 def _S_key(w):
@@ -61,6 +62,9 @@ class EntitiesResponse(BaseModel):
     curated: bool = True
     filter_version: Optional[int] = None
     stoplist_version: Optional[int] = None
+    # 1 until 5 Sep 2026, when nothing was merged and every spelling of a name
+    # was its own entity. 2 applies the approved families.
+    alias_version: Optional[int] = None
     curation_note: str
     window: Optional[dict] = None
     source: str = "opensearch"
@@ -113,11 +117,13 @@ def _windowed(limit: int, min_episodes: int, q, w) -> "EntitiesResponse":
         total_entities=int(a["total"]["value"]),
         episodes_covered=int(a["eps"]["value"]),
         labels=KEEP_LABELS, window=w,
-        filter_version=None, stoplist_version=None,
+        filter_version=None, stoplist_version=None, alias_version=_A.version(),
         curation_note=("Ranked from entity_episodes inside the window, so the "
                        "counts are exact for the period rather than a slice of "
                        "an all-time rollup. Same curation as the rollup: entity "
-                       "v2, stoplist v2, aliases proposed but not applied."))
+                       "v2, stoplist v2, and approved aliases applied as a "
+                       f"lookup (alias v{_A.version()}); the mention records "
+                       "themselves are untouched."))
 
 
 @router.get("/entities", response_model=EntitiesResponse)
@@ -172,9 +178,13 @@ def entities(
         total_entities=total, episodes_covered=eps, labels=KEEP_LABELS, window=w,
         filter_version=first.get("filter_version"),
         stoplist_version=first.get("stoplist_version"),
+        alias_version=first.get("alias_version") or _A.version(),
         curation_note=(
             "Curated list. Kept spaCy labels: PERSON, ORG, PRODUCT, GPE. Numeric and "
             "temporal labels are excluded because they are 48% of raw occurrences and "
             "dominate any frequency ranking. A versioned stoplist removes terms that "
             "carry a kept label but are not entities. Entities are merged across "
-            "labels. spaCy's labels are the 2025 extraction's and contain known errors."))
+            "labels. spaCy's labels are the 2025 extraction's and contain known errors. "
+            f"Approved aliases are applied as a lookup (alias v{_A.version()}): "
+            "spellings of one name are counted together and the mention records "
+            "keep the words the transcript actually said."))
