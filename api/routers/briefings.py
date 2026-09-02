@@ -86,6 +86,7 @@ class BriefingsResponse(BaseModel):
     count: int
     ranking: str
     period: str
+    window: Optional[dict] = None
     prompt_version: Optional[int] = None
     validation_rules: Optional[str] = None
     generated_by: Optional[str] = None
@@ -109,14 +110,24 @@ def _to_brief(s: Dict[str, Any]) -> Brief:
 
 
 @router.get("/briefings", response_model=BriefingsResponse)
-def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
+def briefings(limit: int = Query(12, ge=1, le=100),
+              window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
+              ) -> BriefingsResponse:
+    # This endpoint took the window parameter without using it: the page sent
+    # `window=90d`, FastAPI ignored an unknown query field, and the panel printed
+    # "Jan 2025 - Aug 2026" under a ninety-day control. Found by reading the
+    # rendered label for truth rather than for presence.
+    w = W.resolve(window)
     try:
         os_ = aws_search.client()
-        r = os_.search(index=BRIEFS_INDEX, body={
-            "size": limit, "sort": [{"rank_position": "asc"}]})
-        rng = os_.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
+        _body = {"size": limit, "sort": [{"rank_position": "asc"}]}
+        W.apply(_body, w)
+        r = os_.search(index=BRIEFS_INDEX, body=_body)
+        _rng = {"size": 0, "aggs": {
             "min": {"min": {"field": "published_at"}},
-            "max": {"max": {"field": "published_at"}}}})["aggregations"]
+            "max": {"max": {"field": "published_at"}}}}
+        W.apply(_rng, w)
+        rng = os_.search(index=aws_search.INDEX, body=_rng)["aggregations"]
     except Exception as e:                                   # noqa: BLE001
         logger.error("briefings failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Briefings unavailable: {e}")
@@ -128,7 +139,7 @@ def briefings(limit: int = Query(12, ge=1, le=100)) -> BriefingsResponse:
         briefs=[_to_brief(h["_source"]) for h in hits],
         count=r["hits"]["total"]["value"] if isinstance(r["hits"]["total"], dict) else len(hits),
         ranking=RANKING_SENTENCE,
-        period=f"{first} to {last}",
+        period=f"{first} to {last}", window=w,
         generated_by=(hits[0]["_source"].get("model") if hits else None),
         prompt_version=(hits[0]["_source"].get("prompt_version") if hits else None),
         validation_rules=(hits[0]["_source"].get("validation_rules") if hits else None))
