@@ -110,36 +110,46 @@ class NarrativeDetail(BaseModel):
 
 
 
-def _month_episodes(client, cluster_id: int, w=None) -> Dict[str, int]:
-    """Distinct episodes per month, so a narrative can be plotted per-episode
-    on the same axis as a theme or a tracked topic."""
+def _month_stats(client, cluster_id: int, w=None) -> Dict[str, Dict[str, int]]:
+    """Passages AND distinct episodes per month, from the membership index.
+
+    Both numbers come from one aggregation over `discovered_topic_episodes`,
+    which is the same index the drilldown reads. That is the point: the chart
+    and the drilldown must agree, and the only way to guarantee it is to compute
+    them from one source under one window.
+
+    The cluster document's own `monthly` map cannot be used inside a window. It
+    is a WHOLE-MONTH total, so a 30-day window ending 28 Aug would sum all of
+    July and all of August while the drilldown counted from 30 July - the chart
+    read 745 against the drilldown's 441 before this was fixed.
+    """
     body = {
         "size": 0, "query": {"term": {"cluster_id": cluster_id}},
         "aggs": {"m": {"date_histogram": {"field": "published_at",
                                           "calendar_interval": "month",
                                           "format": "yyyy-MM"},
                        "aggs": {"eps": {"cardinality": {"field": "episode_id",
-                                                        "precision_threshold": 4000}}}}}}
+                                                        "precision_threshold": 4000}},
+                                "passages": {"sum": {"field": "chunk_count"}}}}}}
     if w is not None:
         W.apply(body, w)
     r = client.search(index=EPISODES_INDEX, body=body)
-    return {b["key_as_string"]: int(b["eps"]["value"])
+    return {b["key_as_string"]: {"mentions": int(b["passages"]["value"]),
+                                 "episodes": int(b["eps"]["value"])}
             for b in r["aggregations"]["m"]["buckets"]}
 
 
-def _series(monthly: Dict[str, int], eps: Optional[Dict[str, int]] = None,
-            w=None) -> List[SeriesPoint]:
-    eps = eps or {}
+def _series(stats: Dict[str, Dict[str, int]], w=None) -> List[SeriesPoint]:
     # `partial = b.endswith("-06")` marked EVERY June partial - a corpus-v1
     # artefact, when the library happened to end on 23 June 2025. Derived now.
     partials = W.partial_buckets(w) if w is not None else set()
     mr = W.month_range(w) if w is not None else None
     out = []
-    for b in sorted(monthly):
+    for b in sorted(stats):
         if mr and not (mr[0] <= b <= mr[1]):
             continue
-        m = int(monthly[b])
-        e = int(eps.get(b, 0))
+        m = int(stats[b]["mentions"])
+        e = int(stats[b]["episodes"])
         out.append(SeriesPoint(bucket=b, mentions=m, episodes=e,
                                mentions_per_episode=round(m / e, 2) if e else 0.0,
                                partial=(b in partials)))
@@ -181,8 +191,7 @@ def narratives(limit: int = Query(12, ge=1, le=50),
     first = docs[0]
     out = []
     for d in live[:limit]:
-        s = _series(d.get("monthly") or {},
-                    _month_episodes(aws_search.client(), d["cluster_id"], w), w)
+        s = _series(_month_stats(aws_search.client(), d["cluster_id"], w), w)
         out.append(Narrative(
             cluster_id=d["cluster_id"], topic=d.get("label") or "(unlabelled)",
             total_mentions=(sum(p.mentions for p in s) if not w.get("is_all")

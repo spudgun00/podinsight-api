@@ -116,15 +116,24 @@ def _facets(client, w) -> Dict[str, Any]:
         "untagged": {"missing": {"field": "topic_tags.keyword"}},
         "first": {"min": {"field": "published_at"}},
         "last": {"max": {"field": "published_at"}},
-        # How far tracked-topic tagging actually reaches. Derived, never written
-        # down, so the note removes itself if tagging ever catches up - the same
-        # discipline as entity_coverage.
-        "tagged_to": {"filter": {"exists": {"field": "topic_tags.keyword"}},
-                      "aggs": {"last": {"max": {"field": "published_at"}}}},
+        # Tagged briefs INSIDE the window. Answers "are there any here?" and
+        # nothing else - inside a 90-day window the answer is zero, which is the
+        # whole reason the note exists.
+        "tagged_here": {"filter": {"exists": {"field": "topic_tags.keyword"}}},
     }}
     W.apply(body, w)
     r = client.search(index=BRIEFS_INDEX, body=body)
     a = r["aggregations"]
+
+    # How far tagging reaches is a property of the STORE, not of the window, so
+    # it is asked unwindowed. Scoping it to the window returned null on every
+    # window newer than June 2025 - there are no tagged briefs there to take a
+    # max over - and the page then printed a hardcoded fallback date, which is
+    # exactly the class of thing this project keeps removing.
+    reach = client.search(index=BRIEFS_INDEX, body={"size": 0, "aggs": {
+        "t": {"filter": {"exists": {"field": "topic_tags.keyword"}},
+              "aggs": {"last": {"max": {"field": "published_at"}},
+                       "first": {"min": {"field": "published_at"}}}}}})["aggregations"]["t"]
     total = r["hits"]["total"]
     return {
         "topics": [TopicCount(name=b["key"], count=b["doc_count"])
@@ -133,8 +142,10 @@ def _facets(client, w) -> Dict[str, Any]:
         "first": (a["first"].get("value_as_string") or "")[:10],
         "last": (a["last"].get("value_as_string") or "")[:10],
         "corpus_total": total["value"] if isinstance(total, dict) else total,
-        "tagged_to": (a["tagged_to"]["last"].get("value_as_string") or "")[:10] or None,
-        "tagged_in_window": a["tagged_to"]["doc_count"],
+        "tagged_to": (reach["last"].get("value_as_string") or "")[:10] or None,
+        "tagged_from": (reach["first"].get("value_as_string") or "")[:10] or None,
+        "tagged_total": reach["doc_count"],
+        "tagged_in_window": a["tagged_here"]["doc_count"],
     }
 
 
@@ -197,6 +208,8 @@ def feed(
         window=w,
         topic_coverage={
             "tagged_through": facets["tagged_to"],
+            "tagged_from": facets["tagged_from"],
+            "tagged_total": facets["tagged_total"],
             "tagged_in_window": facets["tagged_in_window"],
             "complete": bool(facets["tagged_to"] and w.get("to")
                              and facets["tagged_to"] >= w["to"]),
