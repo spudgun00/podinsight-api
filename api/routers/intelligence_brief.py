@@ -21,7 +21,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import snapshots as _S
 from lib import window as W
+
+def _S_key(w):
+    """The snapshot key for a window argument, which may be a raw string."""
+    try:
+        from lib import window as _W
+        return (_W.resolve(w) or {}).get("key", "all") if isinstance(w, str) else "all"
+    except Exception:                                         # noqa: BLE001
+        return "all"
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["intelligence-brief"])
@@ -101,6 +111,14 @@ def intelligence_brief(
     panel renders that in plain words rather than silently ignoring the window.
     Regenerating per window is a spend decision, not a rendering one.
     """
+
+    # Finding 5: serve the prebuilt snapshot when there is one. This path
+    # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
+    # zero and waking it cost the front page 13 to 30 seconds. A missing or
+    # failed snapshot returns None and the live path below runs unchanged.
+    _snap = _S.panel(_S_key(window), "intelligence-brief")
+    if _snap is not None:
+        return BriefResponse(**_snap)
     w = W.resolve(window)
     try:
         r = aws_search.client().search(index=INDEX, body={

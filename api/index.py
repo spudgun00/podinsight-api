@@ -162,6 +162,11 @@ app.include_router(narratives_router)
 # Theme series for the Narrative Pulse (v2).
 app.include_router(themes_router)
 
+# Finding 5: the wake call the page fires on load, and the snapshot status the
+# weekly self-check reads.
+from api.routers.wake import router as wake_router      # noqa: E402
+app.include_router(wake_router)
+
 
 # Mount the existing topic_velocity app at the root
 # This preserves ALL existing endpoints exactly as they are

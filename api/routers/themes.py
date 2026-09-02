@@ -27,7 +27,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import snapshots as _S
 from lib import window as W
+
+def _S_key(w):
+    """The snapshot key for a window argument, which may be a raw string."""
+    try:
+        from lib import window as _W
+        return (_W.resolve(w) or {}).get("key", "all") if isinstance(w, str) else "all"
+    except Exception:                                         # noqa: BLE001
+        return "all"
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/themes", tags=["themes"])
@@ -130,6 +140,14 @@ def _change_pct(series: List[SeriesPoint]) -> Optional[float]:
 def themes(limit: int = Query(6, ge=1, le=12),
            window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
            ) -> ThemesResponse:
+    # Finding 5: serve the prebuilt snapshot when there is one. This path
+    # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
+    # zero and waking it cost the front page 13 to 30 seconds. A missing or
+    # failed snapshot returns None and the live path below runs unchanged.
+    _snap = _S.panel(_S_key(window), "themes")
+    if _snap is not None:
+        return ThemesResponse(**_snap)
+
     w = W.resolve(window)
     try:
         client = aws_search.client()

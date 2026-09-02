@@ -24,6 +24,16 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import snapshots as _S
+
+def _S_key(w):
+    """The snapshot key for a window argument, which may be a raw string."""
+    try:
+        from lib import window as _W
+        return (_W.resolve(w) or {}).get("key", "all") if isinstance(w, str) else "all"
+    except Exception:                                         # noqa: BLE001
+        return "all"
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["topic-mentions"])
@@ -140,6 +150,14 @@ def _build() -> TopicMentionsResponse:
 
 @router.get("/topic-mentions", response_model=TopicMentionsResponse)
 def topic_mentions(refresh: bool = Query(False)) -> TopicMentionsResponse:
+    # Finding 5: serve the prebuilt snapshot when there is one. This path
+    # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
+    # zero and waking it cost the front page 13 to 30 seconds. A missing or
+    # failed snapshot returns None and the live path below runs unchanged.
+    _snap = _S.panel(_S_key("all"), "topic-mentions")
+    if _snap is not None:
+        return TopicMentionsResponse(**_snap)
+
     global _cache
     try:
         if _cache is None or refresh:

@@ -63,3 +63,12 @@ zen-mcp-server/
 lambda_functions/
 .env.vercel
 test_episodes_v2.json
+
+# Front-page snapshots (finding 5, 2 Sep 2026).
+# Generated build artefacts, not source: 1.9 MB rebuilt in full by every
+# ingestion, so committing them would churn the whole set on each library
+# change. The API falls back to the live endpoints when they are absent, so a
+# fresh clone works - it is just as slow as it was before finding 5 until
+# `python scripts/build_snapshots.py` runs. SOURCE_OF_TRUTH 14.17 makes that
+# rebuild the last step of every library change; a deploy must run it too.
+snapshots/*.json

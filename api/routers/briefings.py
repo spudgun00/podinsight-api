@@ -17,7 +17,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from lib import aws_search
+from lib import snapshots as _S
 from lib import window as W
+
+def _S_key(w):
+    """The snapshot key for a window argument, which may be a raw string."""
+    try:
+        from lib import window as _W
+        return (_W.resolve(w) or {}).get("key", "all") if isinstance(w, str) else "all"
+    except Exception:                                         # noqa: BLE001
+        return "all"
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["briefings"])
@@ -113,6 +123,14 @@ def _to_brief(s: Dict[str, Any]) -> Brief:
 def briefings(limit: int = Query(12, ge=1, le=100),
               window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
               ) -> BriefingsResponse:
+    # Finding 5: serve the prebuilt snapshot when there is one. This path
+    # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
+    # zero and waking it cost the front page 13 to 30 seconds. A missing or
+    # failed snapshot returns None and the live path below runs unchanged.
+    _snap = _S.panel(_S_key(window), "briefings")
+    if _snap is not None:
+        return BriefingsResponse(**_snap)
+
     # This endpoint took the window parameter without using it: the page sent
     # `window=90d`, FastAPI ignored an unknown query field, and the panel printed
     # "Jan 2025 - Aug 2026" under a ninety-day control. Found by reading the
