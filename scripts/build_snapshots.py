@@ -68,13 +68,12 @@ def _panels():
         ("episodes",            lambda w: episodes.list_episodes(limit=2000, offset=0,
                                                                  refresh=False, window=w)),
         ("briefings",           lambda w: briefings.briefings(limit=12, window=w)),
-        # These two take no `window` argument: they were not windowed in
-        # finding 1 and still are not, so their snapshot is IDENTICAL in all
-        # four windows. Recorded rather than hidden - Topic Movement is a
-        # front-page card showing the same numbers whichever period is
-        # selected, which is a finding-1 gap and belongs in the report.
-        ("topic-mentions",      lambda w: topic_mentions.topic_mentions(refresh=False)),
-        ("topic-correlations",  lambda w: topic_correlations.topic_correlations(refresh=False)),
+        # Windowed 3 Sep 2026. These two took no `window` argument, so their
+        # snapshot was identical in all four windows and Topic Movement showed
+        # the same numbers whichever period was selected. Both now filter on the
+        # rollup's own `published_at`.
+        ("topic-mentions",      lambda w: topic_mentions.topic_mentions(refresh=False, window=w)),
+        ("topic-correlations",  lambda w: topic_correlations.topic_correlations(refresh=False, window=w)),
         ("intelligence-brief",  lambda w: intelligence_brief.intelligence_brief(window=w)),
     ]
 

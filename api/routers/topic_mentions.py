@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from lib import aws_search
 from lib import snapshots as _S
+from lib import window as W
 
 def _S_key(w):
     """The snapshot key for a window argument, which may be a raw string."""
@@ -43,7 +44,9 @@ TOPICS = ["AI Agents", "Capital Efficiency", "DePIN", "B2B SaaS", "Crypto/Web3"]
 # A topic needs a real presence before a line through it means anything.
 MIN_EPISODES_TO_PLOT = 5
 
-_cache: Optional["TopicMentionsResponse"] = None
+# Keyed by window: this endpoint used to hold one cache and return the same
+# numbers whichever period the reader had chosen.
+_cache: Dict[str, "TopicMentionsResponse"] = {}
 # Handlers run in FastAPI's threadpool (they are sync, because their work is
 # blocking I/O). Two first-callers could otherwise build this cache at the
 # same time and each pay the full scan.
@@ -80,26 +83,42 @@ class TopicMentionsResponse(BaseModel):
     source: str = "opensearch"
 
 
-def _build() -> TopicMentionsResponse:
+def _build(w) -> TopicMentionsResponse:
+    """Topic mentions inside one window.
+
+    Straggler from finding 1, closed 3 Sep 2026. This endpoint took no window
+    argument, so Topic Movement on the front page and Velocity Tracking in the
+    rail showed **the same numbers whichever period was selected** - recorded as
+    a known gap in SOURCE_OF_TRUTH 14.18 rather than fixed at the time.
+
+    The rollup carries `published_at` per episode, so the window is a real date
+    filter and not a month-boundary approximation: 'last 90 days' starting on
+    31 May counts one day of May, not thirty-one. The month buckets it produces
+    are then flagged partial by the same coverage arithmetic as before, now
+    measured against the window's own first and last day of library.
+    """
     os_ = aws_search.client()
 
-    rng = os_.search(index=aws_search.INDEX, body={"size": 0, "aggs": {
+    # First and last day of library INSIDE the window, not of the library. The
+    # coverage arithmetic below dashes a month the window only partly covers,
+    # and that is only true if these two dates are the window's own bounds.
+    rng = os_.search(index=aws_search.INDEX, body=W.apply({"size": 0, "aggs": {
         "min": {"min": {"field": "published_at"}},
-        "max": {"max": {"field": "published_at"}}}})["aggregations"]
+        "max": {"max": {"field": "published_at"}}}}, w))["aggregations"]
     first = (rng["min"].get("value_as_string") or "")[:10]
     last = (rng["max"].get("value_as_string") or "")[:10]
 
-    episodes = os_.search(index=ROLLUP_INDEX, body={"size": 0, "aggs": {
-        "e": {"cardinality": {"field": "episode_id", "precision_threshold": 4000}}}}
+    episodes = os_.search(index=ROLLUP_INDEX, body=W.apply({"size": 0, "aggs": {
+        "e": {"cardinality": {"field": "episode_id", "precision_threshold": 4000}}}}, w)
         )["aggregations"]["e"]["value"]
 
-    r = os_.search(index=ROLLUP_INDEX, body={"size": 0, "aggs": {
+    r = os_.search(index=ROLLUP_INDEX, body=W.apply({"size": 0, "aggs": {
         "t": {"terms": {"field": "topic", "size": 20}, "aggs": {
             "m": {"terms": {"field": "month", "size": 36, "order": {"_key": "asc"}},
                   "aggs": {"mentions": {"sum": {"field": "mention_count"}},
                            "eps": {"filter": {"range": {"mention_count": {"gt": 0}}}}}},
             "total": {"sum": {"field": "mention_count"}},
-            "eps_any": {"filter": {"range": {"mention_count": {"gt": 0}}}}}}}})
+            "eps_any": {"filter": {"range": {"mention_count": {"gt": 0}}}}}}}}, w))
 
     by_topic = {b["key"]: b for b in r["aggregations"]["t"]["buckets"]}
     months = sorted({m["key"] for b in by_topic.values() for m in b["m"]["buckets"] if m["key"]})
@@ -149,22 +168,24 @@ def _build() -> TopicMentionsResponse:
 
 
 @router.get("/topic-mentions", response_model=TopicMentionsResponse)
-def topic_mentions(refresh: bool = Query(False)) -> TopicMentionsResponse:
+def topic_mentions(refresh: bool = Query(False),
+                   window: str = Query(None)) -> TopicMentionsResponse:
     # Finding 5: serve the prebuilt snapshot when there is one. This path
     # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
     # zero and waking it cost the front page 13 to 30 seconds. A missing or
     # failed snapshot returns None and the live path below runs unchanged.
-    _snap = _S.panel(_S_key("all"), "topic-mentions")
+    _snap = _S.panel(_S_key(window), "topic-mentions")
     if _snap is not None:
         return TopicMentionsResponse(**_snap)
 
-    global _cache
+    w = W.resolve(window)
+    key = w.get("key", "all")
     try:
-        if _cache is None or refresh:
+        if key not in _cache or refresh:
             with _lock:
-                if _cache is None or refresh:
-                    _cache = _build()
+                if key not in _cache or refresh:
+                    _cache[key] = _build(w)
     except Exception as e:                                   # noqa: BLE001
         logger.error("topic-mentions failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Topic mentions unavailable: {e}")
-    return _cache
+    return _cache[key]

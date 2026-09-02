@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from lib import aws_search
 from lib import snapshots as _S
+from lib import window as W
 
 def _S_key(w):
     """The snapshot key for a window argument, which may be a raw string."""
@@ -33,7 +34,9 @@ router = APIRouter(prefix="/api", tags=["topic-correlations"])
 ROLLUP_INDEX = "topic_mentions"
 MIN_EPISODES = 5
 
-_cache: Optional["CorrelationsResponse"] = None
+# Keyed by window: this endpoint used to hold one cache and return the same
+# pairs whichever period the reader had chosen.
+_cache: Dict[str, "CorrelationsResponse"] = {}
 # Handlers run in FastAPI's threadpool (they are sync, because their work is
 # blocking I/O). Two first-callers could otherwise build this cache at the
 # same time and each pay the full scan.
@@ -61,14 +64,22 @@ class CorrelationsResponse(BaseModel):
     source: str = "opensearch"
 
 
-def _build() -> CorrelationsResponse:
+def _build(w) -> CorrelationsResponse:
+    """Co-occurrence inside one window.
+
+    Straggler from finding 1, closed 3 Sep 2026. This endpoint took no window
+    argument, so the Topic Correlations panel showed the same pairs whichever
+    period was selected - recorded as a known gap in SOURCE_OF_TRUTH 14.18
+    rather than fixed at the time. The rollup carries `published_at`, so the
+    window is a real date filter.
+    """
     os_ = aws_search.client()
     sets: Dict[str, set] = {}
     after = None
     episodes = set()
     while True:
-        body = {"size": 5000, "sort": [{"_doc": "asc"}],
-                "_source": ["episode_id", "topic", "mention_count"]}
+        body = W.apply({"size": 5000, "sort": [{"_doc": "asc"}],
+                        "_source": ["episode_id", "topic", "mention_count"]}, w)
         if after:
             body["search_after"] = after
         hits = os_.search(index=ROLLUP_INDEX, body=body)["hits"]["hits"]
@@ -106,22 +117,24 @@ def _build() -> CorrelationsResponse:
 
 
 @router.get("/topic-correlations", response_model=CorrelationsResponse)
-def topic_correlations(refresh: bool = Query(False)) -> CorrelationsResponse:
+def topic_correlations(refresh: bool = Query(False),
+                       window: str = Query(None)) -> CorrelationsResponse:
     # Finding 5: serve the prebuilt snapshot when there is one. This path
     # touches OpenSearch NOT AT ALL, which is the point - the engine scales to
     # zero and waking it cost the front page 13 to 30 seconds. A missing or
     # failed snapshot returns None and the live path below runs unchanged.
-    _snap = _S.panel(_S_key("all"), "topic-correlations")
+    _snap = _S.panel(_S_key(window), "topic-correlations")
     if _snap is not None:
         return CorrelationsResponse(**_snap)
 
-    global _cache
+    w = W.resolve(window)
+    key = w.get("key", "all")
     try:
-        if _cache is None or refresh:
+        if key not in _cache or refresh:
             with _lock:
-                if _cache is None or refresh:
-                    _cache = _build()
+                if key not in _cache or refresh:
+                    _cache[key] = _build(w)
     except Exception as e:                                   # noqa: BLE001
         logger.error("topic-correlations failed: %s", e)
         raise HTTPException(status_code=503, detail=f"Topic correlations unavailable: {e}")
-    return _cache
+    return _cache[key]
