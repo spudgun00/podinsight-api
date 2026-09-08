@@ -116,15 +116,29 @@ async def get_audio_clip(
             logger.error("AUDIO_LAMBDA_URL not configured")
             raise HTTPException(status_code=503, detail="Audio service not configured")
 
+        # 8 Sep 2026, RULED BY JAMES: playability is a tolerance, not a gate.
+        # A located timestamp can be a few seconds LATE - the publisher-transcript
+        # defect measured a median +3.5s, with 85 of 88 under ten seconds - which
+        # used to open a clip after the quote had begun. Every clip now starts a
+        # 5-second PRE-ROLL earlier, and the window is lengthened by exactly the
+        # amount actually shifted so the original span is never truncated.
+        # Applied here because this is the single choke point every clip in the
+        # product passes through: briefs, search citations and the watcher alike.
+        PRE_ROLL_MS = 5000
+        shift = min(PRE_ROLL_MS, start_time_ms)          # never before 0
+        clip_start_ms = start_time_ms - shift
+        clip_duration_ms = min(60000, duration_ms + shift)
+
         # Prepare Lambda request payload
         lambda_payload = {
             "feed_slug": feed_slug,
             "guid": guid,
-            "start_time_ms": start_time_ms,
-            "duration_ms": duration_ms
+            "start_time_ms": clip_start_ms,
+            "duration_ms": clip_duration_ms
         }
 
-        logger.info(f"Invoking Lambda for {feed_slug}/{guid} at {start_time_ms}ms")
+        logger.info(f"Invoking Lambda for {feed_slug}/{guid} at {clip_start_ms}ms "
+                    f"({shift}ms pre-roll from {start_time_ms}ms, {clip_duration_ms}ms)")
 
         # Call Lambda function with API key authentication
         headers = {}
@@ -159,8 +173,8 @@ async def get_audio_clip(
             expires_at=lambda_result.get("expires_at", ""),
             cache_hit=lambda_result.get("cache_hit", False),
             episode_id=episode_id,
-            start_time_ms=start_time_ms,
-            duration_ms=duration_ms,
+            start_time_ms=clip_start_ms,
+            duration_ms=clip_duration_ms,
             generation_time_ms=generation_time_ms
         )
 
