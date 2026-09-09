@@ -78,6 +78,10 @@ class FigureClaim(BaseModel):
     claim_index: int
     claim: str
     quote: str
+    # 9 Sep 2026: set to "reworded" when the quote's wording does not match the
+    # transcript verbatim. The claim ships either way; the flag lets a reader
+    # discount it. `*` is prefixed to `quote` for surfaces that render text only.
+    wording_flag: Optional[str] = None
     figure: str
     amount_usd: float
     start_seconds: Optional[float] = None
@@ -150,7 +154,12 @@ def _scan(client) -> Dict[str, Any]:
                 if best:
                     figures.append(FigureClaim(
                         id=f"{s['episode_id']}#{i}", episode_id=s["episode_id"],
-                        claim_index=i, claim=c.get("claim", ""), quote=c.get("quote", ""),
+                        claim_index=i, claim=c.get("claim", ""),
+                        # 9 Sep 2026, RULED: a reworded quote ships with a visible
+                        # flag rather than being binned. `*` marks it on display.
+                        quote=(("* " + c.get("quote", "")) if c.get("wording_flag")
+                               else c.get("quote", "")),
+                        wording_flag=c.get("wording_flag"),
                         figure=best[1], amount_usd=best[0],
                         start_seconds=c.get("start_seconds"), timestamp=c.get("timestamp"),
                         located=bool(c.get("located")), episode_title=s.get("episode_title"),
