@@ -80,8 +80,24 @@ def collection_endpoint() -> str:
     return _endpoint
 
 
+# 9 Sep 2026: LOCAL_SERVE escape hatch. When AOSS_LOCAL_ENDPOINT is set the API
+# talks to a plain OpenSearch on that host with no SigV4 -- the mothball drill,
+# and any future local serve, needs the REAL serving path pointed somewhere else
+# rather than a parallel reimplementation of it. Unset in every normal
+# deployment, so the AOSS path below is untouched.
+LOCAL_ENDPOINT = os.getenv("AOSS_LOCAL_ENDPOINT")
+
+
 def client() -> OpenSearch:
     global _os_client
+    if _os_client is None and LOCAL_ENDPOINT:
+        host, _, port = LOCAL_ENDPOINT.replace("http://", "").partition(":")
+        _os_client = OpenSearch(
+            hosts=[{"host": host, "port": int(port or 9200)}],
+            use_ssl=False, verify_certs=False,
+            connection_class=RequestsHttpConnection,
+            timeout=60, max_retries=2, retry_on_timeout=True, pool_maxsize=20)
+        return _os_client
     if _os_client is None:
         creds = boto3.Session().get_credentials().get_frozen_credentials()
         host = collection_endpoint().replace("https://", "")
@@ -118,8 +134,8 @@ def hybrid(query: str, k: int = RETRIEVE_K) -> List[Dict[str, Any]]:
             {"knn": {"embedding": {"vector": embed_query(query), "k": k}}},
         ]}},
     }
-    r = client().search(index=INDEX, body=body,
-                        params={"search_pipeline": SEARCH_PIPELINE})
+    params = {"search_pipeline": SEARCH_PIPELINE} if SEARCH_PIPELINE else {}
+    r = client().search(index=INDEX, body=body, params=params)
     return [{**h["_source"], "hybrid_score": h["_score"]} for h in r["hits"]["hits"]]
 
 
