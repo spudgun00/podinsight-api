@@ -60,7 +60,8 @@ def _panels():
                              topic_correlations, intelligence_brief)
     return [
         ("signals",             lambda w: signals.signals(limit=60, window=w)),
-        ("themes",              lambda w: themes.themes(limit=6, window=w)),
+        # RULED 9 Sep 2026: all 23 v5 narratives serve, none omitted.
+        ("themes",              lambda w: themes.themes(limit=30, window=w)),
         ("narratives",          lambda w: narratives.narratives(limit=12, window=w)),
         ("feed",                lambda w: feed.feed(limit=10, offset=0, topic=None, window=w)),
         ("entities",            lambda w: entities.entities(limit=10, min_episodes=2,

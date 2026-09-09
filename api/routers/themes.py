@@ -95,6 +95,11 @@ class ThemesResponse(BaseModel):
     range_from: Optional[str] = None
     range_to: Optional[str] = None
     theme_map_version: Optional[int] = None
+    # 9 Sep 2026: v5 is adopted whole, so a narrative IS a theme and there is no
+    # editorial map version any more. theme_map_version stays for readers that
+    # still send it and is None under v5; theme_set_version says which set is
+    # serving.
+    theme_set_version: Optional[int] = None
     k: Optional[int] = None
     reconciled: bool = True
     window: Optional[dict] = None
@@ -137,7 +142,7 @@ def _change_pct(series: List[SeriesPoint]) -> Optional[float]:
 
 
 @router.get("", response_model=ThemesResponse)
-def themes(limit: int = Query(6, ge=1, le=12),
+def themes(limit: int = Query(30, ge=1, le=30),
            window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all")
            ) -> ThemesResponse:
     # Finding 5: serve the prebuilt snapshot when there is one. This path
@@ -245,4 +250,5 @@ def themes(limit: int = Query(6, ge=1, le=12),
         episodes_scanned=rng["eps"]["value"],
         range_from=(rng["first"].get("value_as_string") or "")[:10],
         range_to=(rng["last"].get("value_as_string") or "")[:10],
-        theme_map_version=first.get("theme_map_version"), k=first.get("k"))
+        theme_map_version=first.get("theme_map_version"),
+        theme_set_version=first.get("theme_set_version"), k=first.get("k"))
