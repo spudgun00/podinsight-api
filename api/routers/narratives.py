@@ -233,7 +233,15 @@ def narratives(limit: int = Query(12, ge=1, le=50),
 @router.get("/{cluster_id}", response_model=NarrativeDetail)
 def narrative(
     cluster_id: int = Path(...),
-    limit: int = Query(300, ge=1, le=1000),
+    # 10 Sep 2026: the ceiling was 1,000, which is below a theme's membership in
+    # the wider windows - 1,844 episodes at 12m and 2,819 at all time. The demo's
+    # theme filter reads this endpoint for membership, and a cap under the real
+    # figure would silently drop episodes from the filtered panels while
+    # `truncated` said so in a field nobody was rendering. 8,000 clears the whole
+    # corpus (7,879 episodes) and stays under OpenSearch's 10,000 result window.
+    # The default is unchanged, so every existing caller asks for exactly what it
+    # asked for before.
+    limit: int = Query(300, ge=1, le=8000),
     window: str = Query(W.DEFAULT, description="30d | 90d | 12m | all"),
 ) -> NarrativeDetail:
     """The episodes behind a narrative, so the number can be opened and checked.
